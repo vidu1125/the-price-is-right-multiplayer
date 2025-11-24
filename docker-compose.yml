@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  network:
+    build:
+      context: ./Network/server
+    container_name: tpir-network
+    ports:
+      - "8888:8888"
+    networks:
+      - tpir-net
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./Backend
+    container_name: tpir-backend
+    ports:
+      - "5000:5000"
+    depends_on:
+      - db
+    networks:
+      - tpir-net
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./Frontend
+    container_name: tpir-frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - tpir-net
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+
+  db:
+    image: postgres:15-alpine
+    container_name: tpir-db
+    environment:
+      POSTGRES_DB: tpir_db
+      POSTGRES_USER: gameuser
+      POSTGRES_PASSWORD: gamepass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - tpir-net
+
+networks:
+  tpir-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
