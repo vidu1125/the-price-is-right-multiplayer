@@ -1,16 +1,15 @@
 version: '3.8'
-
 services:
   network:
     build:
-      context: ./Network/server
+      context: ./Network
+      dockerfile: server/Dockerfile
     container_name: tpir-network
     ports:
       - "8888:8888"
     networks:
       - tpir-net
     restart: unless-stopped
-
   backend:
     build:
       context: ./Backend
@@ -22,7 +21,6 @@ services:
     networks:
       - tpir-net
     restart: unless-stopped
-
   frontend:
     build:
       context: ./Frontend
@@ -36,7 +34,6 @@ services:
     restart: unless-stopped
     stdin_open: true
     tty: true
-
   db:
     image: postgres:15-alpine
     container_name: tpir-db
@@ -50,10 +47,8 @@ services:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - tpir-net
-
 networks:
   tpir-net:
     driver: bridge
-
 volumes:
   postgres_data:
