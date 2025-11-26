@@ -1,6 +1,6 @@
-FROM gcc:12-alpine
+FROM gcc:12
 
-RUN apk add --no-cache cmake make musl-dev linux-headers
+RUN apt-get update && apt-get install -y cmake make musl-dev linux-libc-dev
 
 WORKDIR /app
 
