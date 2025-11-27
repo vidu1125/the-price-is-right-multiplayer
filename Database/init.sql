@@ -1,204 +1,384 @@
 -- =================================================================
--- TABLE: users
+-- CLEAN MINIMAL SCHEMA FOR THE PRICE IS RIGHT
+-- Based on: accounts → profiles → rooms → matches → rounds
 -- =================================================================
-CREATE TABLE IF NOT EXISTS users (
-    user_id VARCHAR(100) PRIMARY KEY,
-    username VARCHAR(50) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
+
+-- =================================================================
+-- TABLE: accounts (Core authentication)
+-- =================================================================
+CREATE TABLE IF NOT EXISTS accounts (
+    id SERIAL PRIMARY KEY,
     email VARCHAR(100) UNIQUE NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    password VARCHAR(255) NOT NULL,
+    provider VARCHAR(20) DEFAULT 'local' CHECK (provider IN ('local', 'google', 'facebook')),
+    status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'banned', 'suspended')),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- =================================================================
--- TABLE: rooms
+-- TABLE: profiles (Player info & stats)
+-- =================================================================
+CREATE TABLE IF NOT EXISTS profiles (
+    id SERIAL PRIMARY KEY,
+    account_id INT UNIQUE NOT NULL,
+    name VARCHAR(50) NOT NULL,
+    avatar TEXT,
+    bio TEXT,
+    matches INT DEFAULT 0,
+    wins INT DEFAULT 0,
+    points INT DEFAULT 0,
+    badges JSONB DEFAULT '[]'::jsonb,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
+);
+
+-- =================================================================
+-- TABLE: friends (Friend system)
+-- =================================================================
+CREATE TABLE IF NOT EXISTS friends (
+    id SERIAL PRIMARY KEY,
+    requester_id INT NOT NULL,
+    addressee_id INT NOT NULL,
+    status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'blocked')),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (requester_id, addressee_id),
+    FOREIGN KEY (requester_id) REFERENCES accounts(id) ON DELETE CASCADE,
+    FOREIGN KEY (addressee_id) REFERENCES accounts(id) ON DELETE CASCADE
+);
+
+-- =================================================================
+-- TABLE: sessions (Active connections)
+-- =================================================================
+CREATE TABLE IF NOT EXISTS sessions (
+    id SERIAL PRIMARY KEY,
+    account_id INT NOT NULL,
+    room_id INT,
+    ip VARCHAR(50),
+    agent VARCHAR(200),
+    connected BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE,
+    FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE SET NULL
+);
+
+-- =================================================================
+-- TABLE: rooms (Game lobbies)
 -- =================================================================
 CREATE TABLE IF NOT EXISTS rooms (
-    room_id SERIAL PRIMARY KEY,
-    host_id VARCHAR(100) NOT NULL,
+    id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     visibility VARCHAR(20) DEFAULT 'public' CHECK (visibility IN ('public', 'private')),
+    host_id INT NOT NULL,
     status VARCHAR(20) DEFAULT 'waiting' CHECK (status IN ('waiting', 'in_game', 'closed')),
-    mode VARCHAR(20) DEFAULT 'scoring' CHECK (mode IN ('scoring', 'elimination')),
-    max_players INT NOT NULL DEFAULT 4 CHECK (max_players BETWEEN 4 AND 8),
-    wager_enabled BOOLEAN DEFAULT FALSE,
-    round_time_sec INT DEFAULT 15,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    deleted_at TIMESTAMP NULL,
-    FOREIGN KEY (host_id) REFERENCES users(user_id) ON DELETE CASCADE
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (host_id) REFERENCES accounts(id) ON DELETE CASCADE
 );
 
 -- =================================================================
--- TABLE: room_members
+-- TABLE: room_members (Players in rooms)
 -- =================================================================
 CREATE TABLE IF NOT EXISTS room_members (
     room_id INT NOT NULL,
-    user_id VARCHAR(100) NOT NULL,
+    account_id INT NOT NULL,
     role VARCHAR(20) DEFAULT 'member' CHECK (role IN ('host', 'member')),
-    is_ready BOOLEAN DEFAULT FALSE,
-    is_kicked BOOLEAN DEFAULT FALSE,
+    ready BOOLEAN DEFAULT FALSE,
+    kicked BOOLEAN DEFAULT FALSE,
     joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (room_id, user_id),
-    FOREIGN KEY (room_id) REFERENCES rooms(room_id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+    left_at TIMESTAMP,
+    PRIMARY KEY (room_id, account_id),
+    FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE,
+    FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
 );
 
 -- =================================================================
--- TABLE: products (for Round 2 & 3)
--- =================================================================
-CREATE TABLE IF NOT EXISTS products (
-    product_id SERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    description TEXT,
-    image_url VARCHAR(255),
-    true_price INT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    created_by VARCHAR(100),
-    FOREIGN KEY (created_by) REFERENCES users(user_id) ON DELETE SET NULL
-);
-
--- =================================================================
--- TABLE: matches
+-- TABLE: matches (Game instances)
 -- =================================================================
 CREATE TABLE IF NOT EXISTS matches (
-    match_id SERIAL PRIMARY KEY,
+    id SERIAL PRIMARY KEY,
     room_id INT NOT NULL,
-    mode VARCHAR(20) NOT NULL CHECK (mode IN ('scoring', 'elimination')),
-    wager_enabled BOOLEAN NOT NULL DEFAULT FALSE,
-    visibility VARCHAR(20) NOT NULL DEFAULT 'public' CHECK (visibility IN ('public', 'private')),
-    started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    ended_at TIMESTAMP NULL,
+    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    ended_at TIMESTAMP,
     status VARCHAR(20) DEFAULT 'playing' CHECK (status IN ('playing', 'finished', 'aborted')),
-    FOREIGN KEY (room_id) REFERENCES rooms(room_id) ON DELETE CASCADE
+    FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE
 );
 
 -- =================================================================
--- TABLE: match_players
+-- TABLE: match_settings (Game configuration)
+-- =================================================================
+CREATE TABLE IF NOT EXISTS match_settings (
+    match_id INT PRIMARY KEY,
+    mode VARCHAR(20) DEFAULT 'scoring' CHECK (mode IN ('scoring', 'elimination')),
+    max_players INT DEFAULT 4 CHECK (max_players BETWEEN 4 AND 8),
+    wager BOOLEAN DEFAULT FALSE,
+    round_time INT DEFAULT 15,
+    visibility VARCHAR(20) DEFAULT 'public' CHECK (visibility IN ('public', 'private')),
+    FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE
+);
+
+-- =================================================================
+-- TABLE: match_players (Players in a match)
 -- =================================================================
 CREATE TABLE IF NOT EXISTS match_players (
-    match_player_id SERIAL PRIMARY KEY,
+    id SERIAL PRIMARY KEY,
     match_id INT NOT NULL,
-    user_id VARCHAR(100) NOT NULL,
-    total_score INT DEFAULT 0,
-    is_eliminated BOOLEAN DEFAULT FALSE,
-    is_forfeited BOOLEAN DEFAULT FALSE,
-    is_winner BOOLEAN DEFAULT FALSE,
-    joined_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (match_id) REFERENCES matches(match_id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+    account_id INT NOT NULL,
+    score INT DEFAULT 0,
+    eliminated BOOLEAN DEFAULT FALSE,
+    forfeited BOOLEAN DEFAULT FALSE,
+    winner BOOLEAN DEFAULT FALSE,
+    connected BOOLEAN DEFAULT TRUE,
+    joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE,
+    FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
 );
 
 -- =================================================================
--- TABLE: rounds
+-- TABLE: rounds (Game rounds)
 -- =================================================================
 CREATE TABLE IF NOT EXISTS rounds (
-    round_id SERIAL PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     match_id INT NOT NULL,
-    round_number INT NOT NULL CHECK (round_number BETWEEN 1 AND 4),
-    round_type VARCHAR(20) NOT NULL CHECK (round_type IN ('quiz', 'bid', 'updown', 'spin')),
-    started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    ended_at TIMESTAMP NULL,
-    FOREIGN KEY (match_id) REFERENCES matches(match_id) ON DELETE CASCADE
+    number INT NOT NULL CHECK (number BETWEEN 1 AND 5),
+    type VARCHAR(20) NOT NULL CHECK (type IN ('quiz', 'bid', 'updown', 'spin', 'fastpress')),
+    question UUID,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE
 );
 
 -- =================================================================
--- TABLE: round2_items (The Bid)
+-- ROUND 1: QUIZ
 -- =================================================================
-CREATE TABLE IF NOT EXISTS round2_items (
-    r2_item_id SERIAL PRIMARY KEY,
-    round_id INT NOT NULL,
+CREATE TABLE IF NOT EXISTS questions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    text TEXT NOT NULL,
+    image TEXT,
+    a TEXT NOT NULL,
+    b TEXT NOT NULL,
+    c TEXT NOT NULL,
+    d TEXT NOT NULL,
+    correct VARCHAR(1) NOT NULL CHECK (correct IN ('A', 'B', 'C', 'D')),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS r1_items (
+    id SERIAL PRIMARY KEY,
+    round_id UUID NOT NULL,
+    qid UUID NOT NULL,
+    idx INT NOT NULL,
+    time_sec INT DEFAULT 15,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (round_id) REFERENCES rounds(id) ON DELETE CASCADE,
+    FOREIGN KEY (qid) REFERENCES questions(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS r1_answers (
+    id SERIAL PRIMARY KEY,
+    item_id INT NOT NULL,
+    player_id INT NOT NULL,
+    ans VARCHAR(1) CHECK (ans IN ('A', 'B', 'C', 'D')),
+    time_ms INT NOT NULL,
+    correct BOOLEAN NOT NULL,
+    points INT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (item_id, player_id),
+    FOREIGN KEY (item_id) REFERENCES r1_items(id) ON DELETE CASCADE,
+    FOREIGN KEY (player_id) REFERENCES match_players(id) ON DELETE CASCADE
+);
+
+-- =================================================================
+-- ROUND 2: THE BID
+-- =================================================================
+CREATE TABLE IF NOT EXISTS products (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    desc TEXT,
+    image VARCHAR(255),
+    price INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by INT,
+    FOREIGN KEY (created_by) REFERENCES accounts(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS r2_items (
+    id SERIAL PRIMARY KEY,
+    round_id UUID NOT NULL,
     product_id INT NOT NULL,
-    displayed_price INT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (round_id) REFERENCES rounds(round_id) ON DELETE CASCADE,
-    FOREIGN KEY (product_id) REFERENCES products(product_id) ON DELETE CASCADE
+    idx INT NOT NULL,
+    shown INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (round_id) REFERENCES rounds(id) ON DELETE CASCADE,
+    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS r2_bids (
+    id SERIAL PRIMARY KEY,
+    item_id INT NOT NULL,
+    player_id INT NOT NULL,
+    bid INT NOT NULL,
+    overbid BOOLEAN DEFAULT FALSE,
+    winner BOOLEAN DEFAULT FALSE,
+    points INT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (item_id, player_id),
+    FOREIGN KEY (item_id) REFERENCES r2_items(id) ON DELETE CASCADE,
+    FOREIGN KEY (player_id) REFERENCES match_players(id) ON DELETE CASCADE
 );
 
 -- =================================================================
--- TABLE: round2_bids
+-- ROUND 3: UP OR DOWN
 -- =================================================================
-CREATE TABLE IF NOT EXISTS round2_bids (
-    bid_id SERIAL PRIMARY KEY,
-    round_id INT NOT NULL,
-    match_player_id INT NOT NULL,
-    bid_value INT NOT NULL,
-    is_winner BOOLEAN DEFAULT FALSE,
-    points_awarded INT DEFAULT 0,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (round_id) REFERENCES round2_items(round_id) ON DELETE CASCADE,
-    FOREIGN KEY (match_player_id) REFERENCES match_players(match_player_id) ON DELETE CASCADE
-);
-
--- =================================================================
--- TABLE: round3_items (Up or Down)
--- =================================================================
-CREATE TABLE IF NOT EXISTS round3_items (
-    r3_item_id SERIAL PRIMARY KEY,
-    round_id INT NOT NULL,
+CREATE TABLE IF NOT EXISTS r3_items (
+    id SERIAL PRIMARY KEY,
+    round_id UUID NOT NULL,
     product_id INT NOT NULL,
-    hint_price INT NOT NULL,
-    correct_sequence VARCHAR(20) NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (round_id) REFERENCES rounds(round_id) ON DELETE CASCADE,
-    FOREIGN KEY (product_id) REFERENCES products(product_id) ON DELETE CASCADE
+    hint INT NOT NULL,
+    pattern VARCHAR(20) NOT NULL,
+    idx INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (round_id) REFERENCES rounds(id) ON DELETE CASCADE,
+    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS r3_guesses (
+    id SERIAL PRIMARY KEY,
+    item_id INT NOT NULL,
+    player_id INT NOT NULL,
+    guess VARCHAR(20) NOT NULL,
+    correct INT DEFAULT 0,
+    perfect BOOLEAN DEFAULT FALSE,
+    points INT DEFAULT 0,
+    time_ms INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (item_id, player_id),
+    FOREIGN KEY (item_id) REFERENCES r3_items(id) ON DELETE CASCADE,
+    FOREIGN KEY (player_id) REFERENCES match_players(id) ON DELETE CASCADE
 );
 
 -- =================================================================
--- TABLE: round3_guesses
+-- ROUND 4: BONUS WHEEL
 -- =================================================================
-CREATE TABLE IF NOT EXISTS round3_guesses (
-    guess_id SERIAL PRIMARY KEY,
-    round_id INT NOT NULL,
-    match_player_id INT NOT NULL,
-    sequence_guess VARCHAR(20) NOT NULL,
-    correct_count INT NOT NULL DEFAULT 0,
-    is_perfect BOOLEAN DEFAULT FALSE,
-    points_awarded INT DEFAULT 0,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (round_id) REFERENCES round3_items(round_id) ON DELETE CASCADE,
-    FOREIGN KEY (match_player_id) REFERENCES match_players(match_player_id) ON DELETE CASCADE
+CREATE TABLE IF NOT EXISTS wheel (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    value INT NOT NULL CHECK (value BETWEEN 5 AND 100),
+    weight INT DEFAULT 1,
+    active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS bonus (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    round_id UUID NOT NULL,
+    player_id INT NOT NULL,
+    v1_id UUID NOT NULL,
+    v1 INT NOT NULL,
+    v2_id UUID,
+    v2 INT,
+    total INT NOT NULL,
+    score INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (round_id) REFERENCES rounds(id) ON DELETE CASCADE,
+    FOREIGN KEY (player_id) REFERENCES match_players(id) ON DELETE CASCADE,
+    FOREIGN KEY (v1_id) REFERENCES wheel(id) ON DELETE CASCADE,
+    FOREIGN KEY (v2_id) REFERENCES wheel(id) ON DELETE CASCADE
 );
 
 -- =================================================================
--- INDEXES for Performance
+-- ROUND 5: FAST PRESS (BONUS)
 -- =================================================================
-CREATE INDEX IF NOT EXISTS idx_rooms_status ON rooms(status);
-CREATE INDEX IF NOT EXISTS idx_rooms_host ON rooms(host_id);
-CREATE INDEX IF NOT EXISTS idx_rooms_deleted ON rooms(deleted_at);
-CREATE INDEX IF NOT EXISTS idx_room_members_user ON room_members(user_id);
-CREATE INDEX IF NOT EXISTS idx_matches_room ON matches(room_id);
-CREATE INDEX IF NOT EXISTS idx_match_players_match ON match_players(match_id);
-CREATE INDEX IF NOT EXISTS idx_match_players_user ON match_players(user_id);
-CREATE INDEX IF NOT EXISTS idx_rounds_match ON rounds(match_id);
+CREATE TABLE IF NOT EXISTS fp_round (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    round_id UUID NOT NULL,
+    qid UUID NOT NULL,
+    opt1 INT NOT NULL,
+    opt2 INT NOT NULL,
+    correct INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (round_id) REFERENCES rounds(id) ON DELETE CASCADE,
+    FOREIGN KEY (qid) REFERENCES questions(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS fp_results (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    round_id UUID NOT NULL,
+    player_id INT NOT NULL,
+    before INT NOT NULL,
+    after INT NOT NULL,
+    rank INT,
+    choice INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (round_id) REFERENCES rounds(id) ON DELETE CASCADE,
+    FOREIGN KEY (player_id) REFERENCES match_players(id) ON DELETE CASCADE
+);
 
 -- =================================================================
--- INSERT TEST DATA
+-- INDEXES
 -- =================================================================
+CREATE INDEX idx_accounts_email ON accounts(email);
+CREATE INDEX idx_profiles_account ON profiles(account_id);
+CREATE INDEX idx_rooms_host ON rooms(host_id);
+CREATE INDEX idx_rooms_status ON rooms(status);
+CREATE INDEX idx_room_members_account ON room_members(account_id);
+CREATE INDEX idx_matches_room ON matches(room_id);
+CREATE INDEX idx_match_players_match ON match_players(match_id);
+CREATE INDEX idx_match_players_account ON match_players(account_id);
+CREATE INDEX idx_rounds_match ON rounds(match_id);
+CREATE INDEX idx_sessions_account ON sessions(account_id);
+CREATE INDEX idx_friends_requester ON friends(requester_id);
+CREATE INDEX idx_friends_addressee ON friends(addressee_id);
 
--- Insert test users
-INSERT INTO users (user_id, username, password_hash, email) 
-VALUES 
-    ('user_001', 'alice', '$2b$12$hashed_password_alice', 'alice@example.com'),
-    ('user_002', 'bob', '$2b$12$hashed_password_bob', 'bob@example.com'),
-    ('user_003', 'charlie', '$2b$12$hashed_password_charlie', 'charlie@example.com'),
-    ('user_004', 'diana', '$2b$12$hashed_password_diana', 'diana@example.com')
-ON CONFLICT (user_id) DO NOTHING;
+-- =================================================================
+-- TEST DATA
+-- =================================================================
+INSERT INTO accounts (email, password, provider, status) VALUES
+    ('alice@example.com', '$2b$12$hashed_alice', 'local', 'active'),
+    ('bob@example.com', '$2b$12$hashed_bob', 'local', 'active'),
+    ('charlie@example.com', '$2b$12$hashed_charlie', 'local', 'active'),
+    ('diana@example.com', '$2b$12$hashed_diana', 'local', 'active')
+ON CONFLICT (email) DO NOTHING;
 
--- Insert test products
-INSERT INTO products (name, description, image_url, true_price, created_by) 
-VALUES 
-    ('iPhone 15 Pro', 'Latest Apple smartphone', 'https://example.com/iphone.jpg', 29990000, 'user_001'),
-    ('Samsung TV 55"', '4K Smart TV', 'https://example.com/tv.jpg', 15990000, 'user_001'),
-    ('Sony Headphones', 'Noise cancelling', 'https://example.com/headphones.jpg', 5990000, 'user_001'),
-    ('MacBook Air M2', 'Laptop 13 inch', 'https://example.com/macbook.jpg', 28990000, 'user_001'),
-    ('AirPods Pro', 'Wireless earbuds', 'https://example.com/airpods.jpg', 6990000, 'user_001')
+INSERT INTO profiles (account_id, name, avatar, bio, matches, wins, points) VALUES
+    (1, 'Alice', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Alice', 'Game master', 0, 0, 0),
+    (2, 'Bob', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Bob', 'Casual player', 0, 0, 0),
+    (3, 'Charlie', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Charlie', 'Pro gamer', 0, 0, 0),
+    (4, 'Diana', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Diana', 'Newbie', 0, 0, 0)
+ON CONFLICT (account_id) DO NOTHING;
+
+INSERT INTO products (name, desc, image, price, created_by) VALUES
+    ('iPhone 15 Pro', 'Latest Apple smartphone', 'https://picsum.photos/400/300?random=1', 29990000, 1),
+    ('Samsung TV 55"', '4K Smart TV', 'https://picsum.photos/400/300?random=2', 15990000, 1),
+    ('Sony Headphones', 'Noise cancelling WH-1000XM5', 'https://picsum.photos/400/300?random=3', 5990000, 1),
+    ('MacBook Air M2', '13-inch laptop', 'https://picsum.photos/400/300?random=4', 28990000, 1),
+    ('AirPods Pro', 'Wireless earbuds with ANC', 'https://picsum.photos/400/300?random=5', 6990000, 1)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO questions (text, a, b, c, d, correct) VALUES
+    ('What is 2+2?', '3', '4', '5', '6', 'B'),
+    ('Capital of Vietnam?', 'HCMC', 'Hanoi', 'Da Nang', 'Hue', 'B'),
+    ('Python is a ...?', 'Snake', 'Language', 'Framework', 'Library', 'B'),
+    ('Who created Linux?', 'Bill Gates', 'Steve Jobs', 'Linus Torvalds', 'Mark Zuckerberg', 'C'),
+    ('HTTP stands for?', 'HyperText Transfer Protocol', 'High Transfer Protocol', 'Host Transfer Protocol', 'None', 'A')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO wheel (value, weight, active) VALUES
+    (5, 2, true), (10, 3, true), (15, 3, true),
+    (20, 3, true), (25, 2, true), (30, 2, true),
+    (40, 2, true), (50, 2, true), (75, 1, true),
+    (100, 1, true)
 ON CONFLICT DO NOTHING;
 
 -- =================================================================
 -- COMMENTS
 -- =================================================================
-COMMENT ON TABLE rooms IS 'Game rooms created by hosts';
-COMMENT ON TABLE room_members IS 'Players in each room';
-COMMENT ON TABLE matches IS 'Game matches (1 room can have multiple matches)';
-COMMENT ON TABLE match_players IS 'Players participating in a match';
-COMMENT ON TABLE rounds IS 'Game rounds (4 rounds per match)';
-COMMENT ON TABLE products IS 'Products for Round 2 & 3';
+COMMENT ON TABLE accounts IS 'User authentication';
+COMMENT ON TABLE profiles IS 'Player profiles & stats';
+COMMENT ON TABLE rooms IS 'Game lobbies';
+COMMENT ON TABLE matches IS 'Active games';
+COMMENT ON TABLE rounds IS 'Game rounds (1-5)';
+COMMENT ON TABLE products IS 'Items for Round 2 & 3';
+COMMENT ON TABLE questions IS 'Quiz questions for Round 1';
+COMMENT ON TABLE wheel IS 'Bonus wheel values for Round 4';

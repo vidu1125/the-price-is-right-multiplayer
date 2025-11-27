@@ -4,22 +4,15 @@ import './CreateRoomModal.css';
 
 const CreateRoomModal = ({ onClose, onRoomCreated }) => {
     const [formData, setFormData] = useState({
-        name: '',  // ← SỬA: room_name → name
-        visibility: 'public',
-        mode: 'scoring',  // ← SỬA: game_mode → mode
-        max_players: 4,
-        round_time_sec: 15,  // ← SỬA: timer_duration → round_time_sec
-        wager_enabled: false
+        name: '',
+        visibility: 'public'
     });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
     const handleChange = (e) => {
-        const { name, value, type, checked } = e.target;
-        setFormData(prev => ({
-            ...prev,
-            [name]: type === 'checkbox' ? checked : (type === 'number' ? parseInt(value) : value)
-        }));
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
     };
 
     const handleSubmit = async (e) => {
@@ -65,52 +58,6 @@ const CreateRoomModal = ({ onClose, onRoomCreated }) => {
                             <option value="public">🌐 Public</option>
                             <option value="private">🔒 Private</option>
                         </select>
-                    </div>
-
-                    <div className="form-group">
-                        <label>Game Mode</label>
-                        <select name="mode" value={formData.mode} onChange={handleChange}>
-                            <option value="scoring">📊 Scoring Mode</option>
-                            <option value="elimination">⚔️ Elimination Mode</option>
-                        </select>
-                    </div>
-
-                    <div className="form-group">
-                        <label>Max Players (4-8)</label>
-                        <input
-                            type="number"
-                            name="max_players"
-                            value={formData.max_players}
-                            onChange={handleChange}
-                            min="4"
-                            max="8"
-                            required
-                        />
-                    </div>
-
-                    <div className="form-group">
-                        <label>Round Time (seconds)</label>
-                        <input
-                            type="number"
-                            name="round_time_sec"
-                            value={formData.round_time_sec}
-                            onChange={handleChange}
-                            min="10"
-                            max="60"
-                            required
-                        />
-                    </div>
-
-                    <div className="form-group checkbox">
-                        <label>
-                            <input
-                                type="checkbox"
-                                name="wager_enabled"
-                                checked={formData.wager_enabled}
-                                onChange={handleChange}
-                            />
-                            Enable Wager Mode 🎲
-                        </label>
                     </div>
 
                     <div className="button-group">

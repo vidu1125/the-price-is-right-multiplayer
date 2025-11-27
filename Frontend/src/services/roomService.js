@@ -2,9 +2,9 @@ import axios from 'axios';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
-// Get user_id from localStorage
-const getUserId = () => {
-    return localStorage.getItem('user_id') || 'user_001'; // Default test user
+// Get account_id from localStorage
+const getAccountId = () => {
+    return localStorage.getItem('account_id') || '1'; // Default test account
 };
 
 export const roomService = {
@@ -13,7 +13,7 @@ export const roomService = {
             const response = await axios.post(`${API_URL}/room/create`, roomData, {
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-User-ID': getUserId()  // ← SỬA: Dùng X-User-ID thay vì Bearer token
+                    'X-Account-ID': getAccountId()
                 }
             });
             return response.data;
@@ -26,7 +26,7 @@ export const roomService = {
         try {
             const response = await axios.delete(`${API_URL}/room/${roomId}`, {
                 headers: {
-                    'X-User-ID': getUserId()  // ← SỬA: Dùng X-User-ID
+                    'X-Account-ID': getAccountId()
                 }
             });
             return response.data;

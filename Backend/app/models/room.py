@@ -4,56 +4,54 @@ from datetime import datetime
 class Room(db.Model):
     __tablename__ = 'rooms'
     
-    room_id = db.Column(db.Integer, primary_key=True)
-    host_id = db.Column(db.String(100), db.ForeignKey('users.user_id'), nullable=False)
+    id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     visibility = db.Column(db.String(20), default='public')
+    host_id = db.Column(db.Integer, db.ForeignKey('accounts.id'), nullable=False)
     status = db.Column(db.String(20), default='waiting')
-    mode = db.Column(db.String(20), default='scoring')
-    max_players = db.Column(db.Integer, default=4)
-    wager_enabled = db.Column(db.Boolean, default=False)
-    round_time_sec = db.Column(db.Integer, default=15)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    deleted_at = db.Column(db.DateTime, nullable=True)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Relationships
     members = db.relationship('RoomMember', backref='room', lazy=True, cascade='all, delete-orphan')
+    matches = db.relationship('Match', backref='room', lazy=True)
     
     def to_dict(self):
-        """Convert room object to dictionary"""
+        """Convert room to dict"""
         return {
-            'room_id': self.room_id,
+            'id': self.id,
             'name': self.name,
-            'host_id': self.host_id,
             'visibility': self.visibility,
+            'host_id': self.host_id,
+            'host_name': self.host.profile.name if self.host and self.host.profile else 'Unknown',
             'status': self.status,
-            'mode': self.mode,
-            'max_players': self.max_players,
-            'current_players': len([m for m in self.members if not m.is_kicked]),
-            'wager_enabled': self.wager_enabled,
-            'round_time_sec': self.round_time_sec,
+            'current_players': len([m for m in self.members if not m.kicked]),
             'created_at': self.created_at.isoformat() if self.created_at else None,
-            'is_deleted': self.deleted_at is not None
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
+
 
 class RoomMember(db.Model):
     __tablename__ = 'room_members'
     
-    room_id = db.Column(db.Integer, db.ForeignKey('rooms.room_id'), primary_key=True)
-    user_id = db.Column(db.String(100), db.ForeignKey('users.user_id'), primary_key=True)
+    room_id = db.Column(db.Integer, db.ForeignKey('rooms.id'), primary_key=True)
+    account_id = db.Column(db.Integer, db.ForeignKey('accounts.id'), primary_key=True)
     role = db.Column(db.String(20), default='member')
-    is_ready = db.Column(db.Boolean, default=False)
-    is_kicked = db.Column(db.Boolean, default=False)
+    ready = db.Column(db.Boolean, default=False)
+    kicked = db.Column(db.Boolean, default=False)
     joined_at = db.Column(db.DateTime, default=datetime.utcnow)
+    left_at = db.Column(db.DateTime, nullable=True)
     
     def to_dict(self):
-        """Convert room member to dictionary"""
+        """Convert room member to dict"""
+        profile = self.account.profile if self.account and self.account.profile else None
         return {
             'room_id': self.room_id,
-            'user_id': self.user_id,
-            'username': self.user.username if hasattr(self, 'user') else None,
+            'account_id': self.account_id,
+            'name': profile.name if profile else 'Unknown',
+            'avatar': profile.avatar if profile else None,
             'role': self.role,
-            'is_ready': self.is_ready,
-            'is_kicked': self.is_kicked,
+            'ready': self.ready,
+            'kicked': self.kicked,
             'joined_at': self.joined_at.isoformat() if self.joined_at else None
         }
