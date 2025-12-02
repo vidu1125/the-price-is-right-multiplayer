@@ -14,9 +14,23 @@ class Account(db.Model):
     
     # Relationships
     profile = db.relationship('Profile', backref='account', uselist=False, cascade='all, delete-orphan')
-    hosted_rooms = db.relationship('Room', backref='host', lazy=True, foreign_keys='Room.host_id')
+
+    hosted_rooms = db.relationship(
+        'Room',
+        backref='host',
+        lazy=True,
+        foreign_keys='Room.host_id'
+    )
+
     room_memberships = db.relationship('RoomMember', backref='account', lazy=True)
-    sessions = db.relationship('Session', backref='account', lazy=True)
+
+    # sessions = db.relationship(
+    #     'Session',
+    #     back_populates='account',
+    #     lazy='dynamic',
+    #     cascade='all, delete-orphan',
+    #     foreign_keys='Session.account_id'
+    # )
     
     def to_dict(self):
         return {
@@ -39,7 +53,10 @@ class Profile(db.Model):
     matches = db.Column(db.Integer, default=0)
     wins = db.Column(db.Integer, default=0)
     points = db.Column(db.Integer, default=0)
-    badges = db.Column(db.JSON, default=[])
+    # badges = db.Column(db.JSON, default=[])
+    from sqlalchemy import func
+    badges = db.Column(db.JSON, default=list)  # hoặc default=lambda: []
+
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     

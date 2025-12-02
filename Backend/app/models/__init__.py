@@ -2,10 +2,11 @@ from flask_sqlalchemy import SQLAlchemy
 
 db = SQLAlchemy()
 
-# Import all models
 from app.models.account import Account, Profile
 from app.models.room import Room, RoomMember
 from app.models.match import Match, MatchSettings, MatchPlayer
+# ✅ Thêm dòng này
+from app.models.round import Round
 
 __all__ = [
     'db',
@@ -15,5 +16,6 @@ __all__ = [
     'RoomMember',
     'Match',
     'MatchSettings',
-    'MatchPlayer'
+    'MatchPlayer',
+    'Round' # ✅ Thêm vào danh sách export
 ]

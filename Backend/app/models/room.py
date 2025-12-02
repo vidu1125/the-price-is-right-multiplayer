@@ -15,9 +15,10 @@ class Room(db.Model):
     # Relationships
     members = db.relationship('RoomMember', backref='room', lazy=True, cascade='all, delete-orphan')
     matches = db.relationship('Match', backref='room', lazy=True)
+
+
     
     def to_dict(self):
-        """Convert room to dict"""
         return {
             'id': self.id,
             'name': self.name,
@@ -43,7 +44,6 @@ class RoomMember(db.Model):
     left_at = db.Column(db.DateTime, nullable=True)
     
     def to_dict(self):
-        """Convert room member to dict"""
         profile = self.account.profile if self.account and self.account.profile else None
         return {
             'room_id': self.room_id,

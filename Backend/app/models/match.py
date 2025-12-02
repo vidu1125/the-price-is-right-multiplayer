@@ -1,5 +1,8 @@
-from app.models import db
 from datetime import datetime
+
+from app.models import db
+
+
 
 class Match(db.Model):
     __tablename__ = 'matches'
@@ -11,9 +14,26 @@ class Match(db.Model):
     status = db.Column(db.String(20), default='playing')
     
     # Relationships
-    settings = db.relationship('MatchSettings', backref='match', uselist=False, cascade='all, delete-orphan')
-    players = db.relationship('MatchPlayer', backref='match', lazy=True, cascade='all, delete-orphan')
-    rounds = db.relationship('Round', backref='match', lazy=True, cascade='all, delete-orphan')
+    settings = db.relationship(
+        'MatchSettings',
+        backref='match',
+        uselist=False,
+        cascade='all, delete-orphan'
+    )
+    players = db.relationship(
+        'MatchPlayer',
+        backref='match',
+        lazy=True,
+        cascade='all, delete-orphan'
+    )
+    # ⭐ Dùng trực tiếp class Round thay vì string 'Round'
+    rounds = db.relationship(
+        "Round",   # dùng tên class dạng string → SQLAlchemy tự resolve sau
+        backref="match",
+        lazy=True,
+        cascade="all, delete-orphan"
+    )
+
     
     def to_dict(self):
         return {
