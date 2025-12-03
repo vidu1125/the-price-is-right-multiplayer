@@ -1,20 +1,16 @@
-from flask import jsonify
+from flask import Blueprint, jsonify
+from app import db
+from app.routes.room_routes import room_bp
 
-def register_routes(app):
+# Blueprint chỉ để check database
+utils_bp = Blueprint("utils", __name__)
 
-    @app.route("/health")
-    def health():
-        return jsonify({"status": "healthy"}), 200
+@utils_bp.route("/health/db")
+def db_check():
+    try:
+        db.session.execute(db.text("SELECT 1"))
+        return jsonify({"db": "connected"}), 200
+    except Exception as e:
+        return jsonify({"db": "error", "details": str(e)}), 500
 
-    @app.route("/health/db")
-    def db_check():
-        from app import db
-        try:
-            db.session.execute(db.text("SELECT 1"))
-            return jsonify({"db": "connected"}), 200
-        except Exception as e:
-            return jsonify({"db": "error", "details": str(e)}), 500
-
-    @app.route("/api/game")
-    def game():
-        return jsonify({"rounds": 5, "mode": "elimination"})
+__all__ = ["room_bp", "utils_bp"]
