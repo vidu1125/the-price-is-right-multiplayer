@@ -50,6 +50,20 @@ CREATE TABLE IF NOT EXISTS friends (
 );
 
 -- =================================================================
+-- TABLE: rooms (Game lobbies)
+-- =================================================================
+CREATE TABLE IF NOT EXISTS rooms (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    visibility VARCHAR(20) DEFAULT 'public' CHECK (visibility IN ('public', 'private')),
+    host_id INT NOT NULL,
+    status VARCHAR(20) DEFAULT 'waiting' CHECK (status IN ('waiting', 'in_game', 'closed')),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (host_id) REFERENCES accounts(id) ON DELETE CASCADE
+);
+
+-- =================================================================
 -- TABLE: sessions (Active connections)
 -- =================================================================
 CREATE TABLE IF NOT EXISTS sessions (
@@ -63,20 +77,6 @@ CREATE TABLE IF NOT EXISTS sessions (
     last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE,
     FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE SET NULL
-);
-
--- =================================================================
--- TABLE: rooms (Game lobbies)
--- =================================================================
-CREATE TABLE IF NOT EXISTS rooms (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
-    visibility VARCHAR(20) DEFAULT 'public' CHECK (visibility IN ('public', 'private')),
-    host_id INT NOT NULL,
-    status VARCHAR(20) DEFAULT 'waiting' CHECK (status IN ('waiting', 'in_game', 'closed')),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (host_id) REFERENCES accounts(id) ON DELETE CASCADE
 );
 
 -- =================================================================
@@ -196,7 +196,7 @@ CREATE TABLE IF NOT EXISTS r1_answers (
 CREATE TABLE IF NOT EXISTS products (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
-    desc TEXT,
+    description TEXT,
     image VARCHAR(255),
     price INT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -348,7 +348,7 @@ INSERT INTO profiles (account_id, name, avatar, bio, matches, wins, points) VALU
     (4, 'Diana', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Diana', 'Newbie', 0, 0, 0)
 ON CONFLICT (account_id) DO NOTHING;
 
-INSERT INTO products (name, desc, image, price, created_by) VALUES
+INSERT INTO products (name, description, image, price, created_by) VALUES
     ('iPhone 15 Pro', 'Latest Apple smartphone', 'https://picsum.photos/400/300?random=1', 29990000, 1),
     ('Samsung TV 55"', '4K Smart TV', 'https://picsum.photos/400/300?random=2', 15990000, 1),
     ('Sony Headphones', 'Noise cancelling WH-1000XM5', 'https://picsum.photos/400/300?random=3', 5990000, 1),
