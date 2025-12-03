@@ -5,5 +5,4 @@ node_modules/
 *.o
 build/
 .DS_Store
-.env
 *.log
