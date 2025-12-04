@@ -1,3 +1,4 @@
+# app/routes/room_routes.py
 from flask import Blueprint, request, jsonify
 from app.services.room_service import RoomService
 from functools import wraps
@@ -25,6 +26,7 @@ def create_room(account_id):
     data = request.get_json(silent=True) or {}
     if not data.get('name'):
         return jsonify({'success': False, 'error': 'Room name is required'}), 400
+
     result = RoomService.create_room(account_id, data)
     return (jsonify(result), 201) if result.get('success') else (jsonify(result), 400)
 
@@ -46,5 +48,6 @@ def get_room_details(room_id):
 def list_rooms():
     status = request.args.get('status', 'waiting')
     visibility = request.args.get('visibility', 'public')
+
     result = RoomService.list_rooms(status=status, visibility=visibility)
     return (jsonify(result), 200) if result.get('success') else (jsonify(result), 500)

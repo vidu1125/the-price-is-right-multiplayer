@@ -38,7 +38,7 @@ db.init_app(app)
 # (giữ logic từ nhánh main)
 from app.models import (
     Account, Profile, Room, RoomMember,
-    Match, MatchSettings, MatchPlayer, Round
+    Match, MatchPlayer, Round
 )
 
 # ========================== REGISTER BLUEPRINTS ==========================
@@ -76,7 +76,7 @@ def init_db():
                 print("✅ Database tables created successfully")
 
                 # Seed test account (logic từ main)
-                if not Account.query.get(1):
+                if not db.session.get(Account, 1):
                     test_account = Account(
                         id=1,
                         email='test@example.com',
