@@ -47,6 +47,33 @@ body {
     font-weight: 600;
 }
 
+.user-info {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+
+.user-info span {
+    color: #333;
+    font-weight: 600;
+}
+
+.logout-button {
+    background: #ff6b6b;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.3s;
+}
+
+.logout-button:hover {
+    background: #ff5252;
+    transform: translateY(-2px);
+}
+
 .btn-refresh {
     background: white;
     border: 2px solid #667eea;

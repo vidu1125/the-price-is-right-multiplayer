@@ -16,7 +16,6 @@ class Account(db.Model):
     profile = db.relationship('Profile', backref='account', uselist=False, cascade='all, delete-orphan')
     hosted_rooms = db.relationship('Room', backref='host', lazy=True, foreign_keys='Room.host_id')
     room_memberships = db.relationship('RoomMember', backref='account', lazy=True)
-    sessions = db.relationship('Session', backref='account', lazy=True)
     
     def to_dict(self):
         return {

@@ -13,7 +13,6 @@ class Match(db.Model):
     # Relationships
     settings = db.relationship('MatchSettings', backref='match', uselist=False, cascade='all, delete-orphan')
     players = db.relationship('MatchPlayer', backref='match', lazy=True, cascade='all, delete-orphan')
-    rounds = db.relationship('Round', backref='match', lazy=True, cascade='all, delete-orphan')
     
     def to_dict(self):
         return {

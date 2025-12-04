@@ -19,7 +19,9 @@ db.init_app(app)
 
 # ==================== REGISTER BLUEPRINTS ====================
 from app.routes.room_routes import room_bp
+from app.routes.auth_routes import auth_bp
 app.register_blueprint(room_bp)
+app.register_blueprint(auth_bp)
 
 # ==================== EXISTING CODE ====================
 @app.route('/health')

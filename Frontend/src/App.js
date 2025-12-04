@@ -1,32 +1,44 @@
 import React, { useState, useEffect } from 'react';
 import CreateRoomModal from './components/Room/CreateRoomModal';
 import RoomList from './components/Room/RoomList';
+import AuthModal from './components/Auth/AuthModal';
 import { roomService } from './services/roomService';
+import { authService } from './services/authService';
 import './App.css';
 
 function App() {
     const [showCreateModal, setShowCreateModal] = useState(false);
+    const [showAuthModal, setShowAuthModal] = useState(false);
     const [rooms, setRooms] = useState([]);
     const [loading, setLoading] = useState(false);
     const [accountId, setAccountId] = useState(null);
+    const [isLoggedIn, setIsLoggedIn] = useState(false);
+    const [currentUser, setCurrentUser] = useState(null);
+    const [authMode, setAuthMode] = useState('login'); // 'login' or 'register'
 
     // Initialize account_id
     useEffect(() => {
         let id = localStorage.getItem('account_id');
-        if (!id) {
-            id = '1'; // Default test user
-            localStorage.setItem('account_id', id);
+        if (id) {
+            setAccountId(id);
+            setIsLoggedIn(true);
+            const user = authService.getCurrentUser();
+            setCurrentUser(user);
+            console.log('✅ Account ID:', id);
         }
-        setAccountId(id);
-        console.log('✅ Account ID:', id);
+    }, []);
+
+    // Ensure auth modal is closed on initial load (defensive)
+    useEffect(() => {
+        setShowAuthModal(false);
     }, []);
 
     // Load rooms on mount
     useEffect(() => {
-        if (accountId) {
+        if (accountId && isLoggedIn) {
             loadRooms();
         }
-    }, [accountId]);
+    }, [accountId, isLoggedIn]);
 
     const loadRooms = async () => {
         setLoading(true);
@@ -40,6 +52,29 @@ function App() {
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleLoginSuccess = (user) => {
+        setAccountId(user.id);
+        setIsLoggedIn(true);
+        setCurrentUser(authService.getCurrentUser());
+        setShowAuthModal(false);
+    };
+
+    const handleRegisterSuccess = (user) => {
+        setAccountId(user.id);
+        setIsLoggedIn(true);
+        setCurrentUser(authService.getCurrentUser());
+        setShowAuthModal(false);
+    };
+
+    const handleLogout = () => {
+        authService.logout();
+        setAccountId(null);
+        setIsLoggedIn(false);
+        setCurrentUser(null);
+        setRooms([]);
+        setAuthMode('login');
     };
 
     const handleRoomCreated = (roomId) => {
@@ -72,13 +107,49 @@ function App() {
         alert(`Joining room ${roomId}... (Not implemented yet)`);
     };
 
+    // Load rooms when component mounts (no auth required)
+    useEffect(() => {
+        loadRooms();
+    }, []);
+
     return (
         <div className="App">
             {/* Header */}
             <header className="app-header">
                 <h1>🎮 The Price Is Right - Multiplayer</h1>
                 <div className="header-info">
-                    <span className="account-badge">👤 Account ID: {accountId}</span>
+                    {isLoggedIn ? (
+                        <div className="user-info">
+                            <span>👤 {currentUser?.name || currentUser?.email}</span>
+                            <button 
+                                className="logout-button" 
+                                onClick={handleLogout}
+                            >
+                                Đăng xuất
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="user-info">
+                            <button 
+                                className="auth-nav-button" 
+                                onClick={() => {
+                                    setAuthMode('login');
+                                    setShowAuthModal(true);
+                                }}
+                            >
+                                Đăng nhập
+                            </button>
+                            <button 
+                                className="auth-nav-button active" 
+                                onClick={() => {
+                                    setAuthMode('register');
+                                    setShowAuthModal(true);
+                                }}
+                            >
+                                Đăng ký
+                            </button>
+                        </div>
+                    )}
                     <button 
                         className="btn-refresh" 
                         onClick={loadRooms}
@@ -95,7 +166,14 @@ function App() {
                 <div className="action-bar">
                     <button 
                         className="btn-create-room" 
-                        onClick={() => setShowCreateModal(true)}
+                        onClick={() => {
+                            if (!isLoggedIn) {
+                                alert('Vui lòng đăng nhập để tạo phòng');
+                                setShowAuthModal(true);
+                                return;
+                            }
+                            setShowCreateModal(true);
+                        }}
                     >
                         ➕ Create New Room
                     </button>
@@ -110,7 +188,7 @@ function App() {
                 ) : (
                     <RoomList 
                         rooms={rooms} 
-                        currentAccountId={parseInt(accountId)}
+                        currentAccountId={accountId ? parseInt(accountId) : null}
                         onJoinRoom={handleJoinRoom}
                         onDeleteRoom={handleDeleteRoom}
                     />
@@ -124,6 +202,16 @@ function App() {
                     onRoomCreated={handleRoomCreated}
                 />
             )}
+
+            {/* Auth Modal */}
+            <AuthModal 
+                isOpen={showAuthModal}
+                mode={authMode}
+                onClose={() => setShowAuthModal(false)}
+                onLoginSuccess={handleLoginSuccess}
+                onRegisterSuccess={handleRegisterSuccess}
+                onSwitchMode={setAuthMode}
+            />
 
             {/* Footer */}
             <footer className="app-footer">
