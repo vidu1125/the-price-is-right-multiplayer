@@ -1,5 +1,5 @@
 # app/models/room.py
-from app.models import db
+from app.models import db 
 from datetime import datetime
 
 
@@ -7,6 +7,10 @@ class Room(db.Model):
     __tablename__ = "rooms"
 
     id = db.Column(db.Integer, primary_key=True)
+
+    # ➕ ADD THIS:
+    code = db.Column(db.String(10), unique=True)
+
     name = db.Column(db.String(100))
     visibility = db.Column(db.String(20))
     host_id = db.Column(db.Integer, db.ForeignKey("accounts.id", ondelete="SET NULL"))
@@ -14,14 +18,21 @@ class Room(db.Model):
     created_at = db.Column(db.DateTime)
     updated_at = db.Column(db.DateTime)
 
-    members = db.relationship("RoomMember", back_populates="room",
-                              cascade="all, delete-orphan", lazy=True)
+    members = db.relationship(
+        "RoomMember",
+        back_populates="room",
+        cascade="all, delete-orphan",
+        lazy=True
+    )
 
     def to_dict(self):
-        host_profile = self.host.profile if hasattr(self, "host") and self.host and self.host.profile else None
+        host_profile = (
+            self.host.profile if hasattr(self, "host") and self.host and self.host.profile else None
+        )
 
         return {
             "id": self.id,
+            "code": self.code,                      # ➕ RETURN ROOM CODE
             "name": self.name,
             "visibility": self.visibility,
             "host_id": self.host_id,
@@ -38,11 +49,6 @@ class RoomMember(db.Model):
 
     room_id = db.Column(db.Integer, db.ForeignKey("rooms.id", ondelete="CASCADE"), primary_key=True)
     account_id = db.Column(db.Integer, db.ForeignKey("accounts.id", ondelete="CASCADE"), primary_key=True)
-    
-    # Removed:
-    # role
-    # kicked
-    # left_at
 
     ready = db.Column(db.Boolean, default=False)
     joined_at = db.Column(db.DateTime)
@@ -50,7 +56,9 @@ class RoomMember(db.Model):
     room = db.relationship("Room", back_populates="members")
 
     def to_dict(self):
-        profile = self.account.profile if hasattr(self, "account") and self.account and self.account.profile else None
+        profile = (
+            self.account.profile if hasattr(self, "account") and self.account and self.account.profile else None
+        )
 
         return {
             "room_id": self.room_id,

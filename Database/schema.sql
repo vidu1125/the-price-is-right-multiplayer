@@ -58,6 +58,7 @@ Table friends {
 Table rooms {
   id int [pk, increment]
   name varchar(100)
+  code varchar(10) [unique]  
   visibility varchar(20)
   host_id int [ref: > accounts.id]
   status varchar(20)

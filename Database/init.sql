@@ -57,6 +57,7 @@ CREATE TABLE friends (
 -- ============================================================
 CREATE TABLE rooms (
     id SERIAL PRIMARY KEY,
+    code VARCHAR(10) UNIQUE,          
     name VARCHAR(100),
     visibility VARCHAR(20),
     host_id INT REFERENCES accounts(id) ON DELETE SET NULL,
