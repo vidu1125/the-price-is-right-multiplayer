@@ -1,0 +1,99 @@
+/* RoomPanel.css (ÁP DỤNG STYLE GAME, ĐÃ CHỈNH SỬA CHO SCROLL VÀ KHOẢNG TRỐNG) */
+.room-panel {
+  width: 600px; /* Tăng kích thước panel */
+  padding: 30px; /* Tăng padding */
+
+  /* Giữ nền mờ ảo, tối */
+  background: rgba(31, 42, 68, 0.9); 
+  backdrop-filter: blur(12px);
+
+  border-radius: 18px;
+  border: 4px solid #1F2A44; /* Viền đậm */
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5); 
+
+  display: flex;
+  flex-direction: column;
+  /* THÊM: Cho phép panel co giãn và giới hạn chiều cao để kích hoạt scroll */
+  max-height: 80vh; 
+}
+
+.room-panel h3 {
+  font-family: 'Luckiest Guy', cursive; /* Font Game */
+  font-size: 36px; /* TĂNG CỠ CHỮ TIÊU ĐỀ */
+  text-align: center;
+  color: #FFEB3B; /* MÀU VÀNG RỰC RỠ */
+  margin-bottom: 16px; /* GIẢM KHOẢNG TRỐNG DƯỚI TIÊU ĐỀ (từ 24px) */
+  
+  /* Tạo viền chữ đen đậm */
+  text-shadow: 
+    -2px -2px 0 #1F2A44,  
+     2px -2px 0 #1F2A44,
+    -2px  2px 0 #1F2A44,
+     2px  2px 0 #1F2A44;
+}
+
+/* THÊM: Container cho Room List để áp dụng Scroll */
+.room-list-container {
+    height: 300px; /* Giới hạn chiều cao cố định để hiển thị ~5 hàng */
+    
+    /* Xóa flex-grow: 1 vì đã có chiều cao cố định */
+    /* flex-grow: 1; */ 
+    
+    /* Giới hạn chiều cao và cho phép cuộn */
+    overflow-y: auto; 
+    margin-bottom: 8px; /* Giảm khoảng cách với nút bên dưới */
+    scroll-behavior: smooth;
+    
+    /* TẠO KHOẢNG CÁCH BÊN PHẢI ĐỂ TÁCH THANH SCROLL */
+    padding-right: 15px; 
+}
+/* THÊM: Tùy chỉnh thanh cuộn (cho Chrome/Edge/Safari) */
+.room-list-container::-webkit-scrollbar {
+    width: 6px; 
+}
+.room-list-container::-webkit-scrollbar-thumb {
+    background: #FFEB3B;
+    border-radius: 3px;
+}
+
+
+.room-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px; 
+  margin-top: 16px; /* GIẢM KHOẢNG TRỐNG TRÊN KHỐI ACTIONS (từ 24px) */
+  flex-shrink: 0; 
+}
+
+/* Style chung cho tất cả các nút hành động dưới bảng */
+.room-actions button {
+  padding: 12px 20px;
+  border-radius: 14px;
+  border: 3px solid #1F2A44; 
+  flex-grow: 1;
+
+  font-family: 'Luckiest Guy', cursive; 
+  font-size: 16px; 
+  font-weight: 400; 
+  color: #1F2A44; 
+  
+  text-shadow: 1px 1px 0 #fff, -1px -1px 0 #fff; 
+
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.room-actions button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+}
+
+/* Nút Reload và Find (Màu vàng/cam) */
+.room-actions button:not(.create-room-btn) {
+  background: #FFD54F; 
+}
+
+/* Nút Create (Màu xanh lá) */
+.room-actions .create-room-btn {
+  background: #8BC34A; 
+}

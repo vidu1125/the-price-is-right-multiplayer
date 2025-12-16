@@ -1,0 +1,25 @@
+/* CreateRoomPanel.css (đã bị xóa/gộp) */
+.lobby {
+  min-height: 100vh;
+  padding: 48px 64px;
+  box-sizing: border-box;
+
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 64px;
+}
+
+/* Cột trái */
+.lobby-left {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+/* Cột phải */
+.lobby-right {
+  display: flex;
+  flex-direction: column;
+  align-items: center; /* 👈 FIX LỆCH */
+  gap: 20px;
+}
