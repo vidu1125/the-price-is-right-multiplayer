@@ -13,7 +13,16 @@ export default function WaitingRoom({ role }) {
   };
 
   return (
-    <div className="waiting-room">
+    <div 
+      className="waiting-room" 
+      style={{ 
+        backgroundImage: "url('/bg/waitingroom.png')",
+        backgroundSize: '100% 100%', // Ép ảnh fit vừa khít màn hình
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+        backgroundAttachment: 'fixed'
+      }}
+    >
       {/* Phần Header phía trên cùng */}
       <UserCard /> 
       <RoomTitle title="Waiting Room" /> 
