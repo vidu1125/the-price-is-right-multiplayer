@@ -1,0 +1,146 @@
+@import url('https://fonts.googleapis.com/css2?family=Luckiest+Guy&family=Sniglet:wght@400;800&display=swap');
+
+.round1-wrapper-quiz {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center; 
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+/* Container chính chứa toàn bộ nội dung */
+.quiz-content {
+    width: 800px;          /* FIX CỨNG */
+    height: 650px;         /* FIX CỨNG */
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between; /* Giữ layout ổn định */
+}
+
+/* Chỉ số câu hỏi (Question Indicator) - Đã chuyển từ absolute sang block */
+.question-number-header {
+    background-color: #FFDE00;
+    border: 3px solid #2d3436;
+    padding: 6px 18px;
+    border-radius: 12px;
+    color: #2d3436;
+    font-family: 'Luckiest Guy', cursive;
+    font-size: 1.1rem;
+    align-self: flex-start; /* Căn lề trái theo câu hỏi */
+    margin-bottom: 15px;
+    box-shadow: 4px 4px 0px rgba(0,0,0,0.1);
+}
+
+/* Style cho câu hỏi */
+.quiz-question {
+    font-family: 'Sniglet', sans-serif;
+    font-size: 1.8rem;
+    color: white;
+    text-align: left;
+    width: 100%;
+    margin: 0 0 25px 0;
+    font-weight: 400;
+    line-height: 1.3;
+    min-height: 90px;
+}
+
+/* Khung chứa ảnh sản phẩm */
+.product-image-container {
+    width: 100%;
+    height: 300px;
+    background-color: #ffffff;
+    border-radius: 20px;
+    border: 3px solid rgba(255, 255, 255, 0.2);
+    overflow: hidden;
+    margin-bottom: 30px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.product-image {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    padding: 15px;
+}
+
+/* Lưới đáp án */
+.answers-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 15px;
+    width: 100%;
+    margin-bottom: 20px;
+    min-height: 170px;
+}
+
+.quiz-answer-btn {
+    background-color: #ffffff;
+    border: 3px solid #2d3436;
+    border-radius: 15px;
+    padding: 15px;
+    color: #2d3436;
+    font-family: 'Sniglet', sans-serif;
+    font-size: 1.4rem;
+    font-weight: 300;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    height: 70px; 
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    box-shadow: 0 4px 0 #2d3436;
+}
+.quiz-answer-btn.correct {
+    background-color: #2ecc71; /* Màu xanh lá */
+    color: white;
+    border-color: #27ae60;
+    box-shadow: 0 4px 0 #27ae60;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+}
+
+/* Đáp án SAI: Làm mờ và đổi sang tông đỏ nhạt */
+.quiz-answer-btn.wrong {
+    background-color: #f8f9fa;
+    opacity: 0.6; /* Làm mờ */
+    color: #a4b0be; /* Màu chữ nhạt đi */
+    border-color: #dcdde1;
+    box-shadow: 0 4px 0 #dcdde1;
+    cursor: default; /* Đổi con trỏ chuột vì đã chọn xong */
+}
+
+/* Hiệu ứng khi di chuột chỉ dành cho nút chưa bị làm mờ (nếu cần) */
+.quiz-answer-btn.correct:hover {
+    background-color: #27ae60;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 0 #1e8449;
+}
+.quiz-answer-btn:hover {
+    background-color: #f0f0f0;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 0 #2d3436;
+}
+
+.quiz-answer-btn:active {
+    transform: translateY(2px);
+    box-shadow: 0 2px 0 #2d3436;
+}
+
+/* Mobile Responsive */
+@media (max-width: 600px) {
+    .answers-grid {
+        grid-template-columns: 1fr; /* Chuyển thành 1 cột trên điện thoại */
+    }
+    
+    .quiz-question {
+        font-size: 1.4rem;
+    }
+    
+    .question-number-header {
+        align-self: center; /* Ra giữa trên mobile để cân đối */
+    }
+}
