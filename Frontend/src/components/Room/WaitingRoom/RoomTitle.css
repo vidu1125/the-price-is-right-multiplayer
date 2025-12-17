@@ -1,14 +1,14 @@
-/* AppTitle.css (FIXED: Xóa margin và Tăng cỡ chữ - THÊM CĂN GIỮA) */
-.app-title {
+.room-app-title {
   /* XÓA margin-top */
   margin-top: 0; 
   
   /* ÁP DỤNG FONT LUCKIEST GUY VÀ CỠ LỚN */
   font-family: 'Luckiest Guy', cursive; 
-  font-size: 40px; /* Tăng cỡ chữ */
+  font-size: 25px; /* Tăng cỡ chữ */
   font-weight: 400; 
   line-height: 1;
   color: #1F2A44; 
+  padding-bottom: 50px;
   
   /* THÊM: Căn giữa tiêu đề */
   width: 100%;

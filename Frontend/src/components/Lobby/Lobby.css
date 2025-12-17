@@ -6,11 +6,11 @@
   min-height: 100vh;
   /* CHỈNH SỬA: Bỏ padding 48px trên và dưới. Giữ padding 48px trái và phải. */
   padding: 0 48px; 
-
+  padding-top: 100px;
   /* Bố cục chính là Stack (cột) */
   display: flex; 
   flex-direction: column;
-  gap: 30px; 
+  gap: 60px; 
 
   background: transparent;
 
