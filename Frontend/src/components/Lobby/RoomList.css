@@ -1,0 +1,92 @@
+/* RoomList.css (ÁP DỤNG GRID CHO BẢNG) */
+
+/* CHỈNH SỬA: Sử dụng Parkinsans */
+@import url('https://fonts.googleapis.com/css2?family=Parkinsans&display=swap');
+
+.room-table {
+    width: 100%;
+    border-collapse: separate; 
+    border-spacing: 0 4px; /* GIẢM KHOẢNG CÁCH GIỮA CÁC HÀNG (từ 8px) */
+}
+
+/* Định dạng Tiêu đề bảng (thead) */
+.room-table thead tr {
+    /* SỬ DỤNG GRID ĐỂ CĂN CHỈNH VỚI DỮ LIỆU */
+    display: grid; 
+    grid-template-columns: 50px 1fr 100px 100px; 
+    padding: 0 16px; 
+}
+
+.room-table thead th {
+    font-family: 'Luckiest Guy', cursive; 
+    color: #FFEB3B; 
+    font-size: 16px; /* GIẢM CỠ CHỮ TIÊU ĐỀ (từ 18px) */
+    padding: 4px 0; /* GIẢM PADDING (từ 8px) */
+    text-align: left;
+}
+
+/* Style cho từng Hàng dữ liệu (tr) */
+.room-table tbody tr {
+  background: rgba(70, 90, 120, 0.9); 
+  border-radius: 12px; /* GIẢM BORDER RADIUS (từ 14px) */
+  border: 2px solid #1F2A44; 
+  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+
+  /* SỬ DỤNG GRID ĐỂ CĂN CHỈNH CÁC Ô DỮ LIỆU */
+  display: grid; 
+  grid-template-columns: 50px 1fr 100px 100px; 
+  align-items: center;
+
+  padding: 6px 14px; /* GIẢM PADDING HÀNG (từ 8px 16px) */
+}
+
+/* Style cho từng Ô dữ liệu (td) */
+.room-table td {
+  color: white;
+  font-size: 12px; /* CHỈNH SỬA: Đặt kích thước font là 12px */
+  padding: 3px 0; /* GIẢM PADDING (từ 4px) */
+  
+  /* ÁP DỤNG FONT PARKINSANS CHO ID VÀ STATUS */
+  font-family: 'Parkinsans', cursive; 
+  font-weight: 400; /* CHỈNH SỬA: Đặt trọng lượng 400 (normal) */
+}
+
+/* ÁP DỤNG FONT VÀ SIZE ĐỒNG BỘ CHO TÊN PHÒNG (Ô THỨ HAI TRONG TR) */
+.room-table tbody tr td:nth-child(2) {
+    font-family: 'Parkinsans', cursive; /* CHỈNH SỬA: Áp dụng Parkinsans */
+    font-size: 12px; /* CHỈNH SỬA: Đặt kích thước font là 12px */
+    font-weight: 400; /* CHỈNH SỬA: Đặt trọng lượng 400 (normal) */
+}
+
+/* Nút Join/Locked */
+.room-table button {
+  padding: 6px 12px; /* GIẢM KÍCH THƯỚC NÚT (từ 8px 16px) */
+  border-radius: 10px; /* GIẢM BORDER RADIUS (từ 12px) */
+  border: 2px solid #1F2A44; 
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+
+  background: #66BB6A; 
+  color: #1F2A44;
+  
+  font-family: 'Luckiest Guy', cursive; 
+  font-weight: 400;
+  font-size: 14px; /* GIẢM CỠ CHỮ NÚT (từ 16px) */
+  cursor: pointer;
+  
+  text-shadow: 1px 1px 0 #fff; 
+
+  transition: transform 0.15s ease;
+}
+
+.room-table button:hover {
+  transform: translateY(-1px);
+}
+
+.room-table button:disabled {
+    background: #FF5252; 
+    border-color: #7A1F1F;
+    color: white;
+    text-shadow: 1px 1px 0 #7A1F1F, -1px -1px 0 #7A1F1F;
+    cursor: not-allowed;
+    opacity: 0.8;
+}

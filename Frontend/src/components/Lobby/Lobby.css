@@ -1,0 +1,119 @@
+/* Lobby.css (FINAL: Tối ưu hóa chiều cao, căn giữa ngang) */
+@import url('https://fonts.googleapis.com/css2?family=Luckiest+Guy&display=swap');
+
+.lobby {
+  /* Giữ min-height 100vh để đảm bảo background phủ toàn màn hình */
+  min-height: 100vh;
+  /* CHỈNH SỬA: Bỏ padding 48px trên và dưới. Giữ padding 48px trái và phải. */
+  padding: 0 48px; 
+
+  /* Bố cục chính là Stack (cột) */
+  display: flex; 
+  flex-direction: column;
+  gap: 30px; 
+
+  background: transparent;
+
+  /* Căn giữa các mục con theo chiều ngang */
+  align-items: center; 
+  
+  /* BỎ justify-content để nội dung bắt đầu từ trên (flex-start) */
+  
+  /* Cần position: relative để UserCard position: absolute hoạt động trong giới hạn của .lobby */
+  position: relative; 
+}
+/* ================== USER CARD (ABSOLUTE POSITIONING) ================== */
+.user-card {
+    position: absolute; 
+    top: 48px;         
+    left: 48px;        
+    z-index: 10;       
+}
+
+/* ================== LOBBY CONTENT (GRID 2 CỘT) ================== */
+.lobby-content {
+  display: grid;
+  max-width: 1000px; /* Giới hạn chiều rộng tối đa */
+  grid-template-columns: 280px 1fr; /* Cột trái cố định 280px, cột phải chiếm phần còn lại */
+  gap: 64px; /* Khoảng cách giữa hai cột */
+  width: 100%; 
+  align-items: flex-start;
+}
+/* ========== LEFT COLUMN ========== */
+.lobby-left {
+  display: flex;
+  flex-direction: column;
+  gap: 0; 
+  align-items: flex-start;
+  
+  /* Đẩy side-actions xuống dưới khu vực UserCard */
+  padding-top: 50px; 
+}
+
+.side-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 16px; 
+}
+
+/* ... (Giữ nguyên style side-actions buttons) ... */
+.side-actions button {
+  padding: 18px 22px; 
+  border-radius: 14px;
+  
+  border: 2px solid #1F2A44; 
+
+  font-family: 'Luckiest Guy', cursive;
+  font-size: 24px; 
+  letter-spacing: 1px; 
+
+  background: #29B6F6; 
+  color: white; 
+  
+  text-shadow: 
+    -2px -2px 0 #1F2A44,  
+     2px -2px 0 #1F2A44,
+    -2px  2px 0 #1F2A44,
+     2px  2px 0 #1F2A44;
+
+  box-shadow: 0 6px 16px rgba(0,0,0,0.25);
+  cursor: pointer;
+
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.side-actions button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(0,0,0,0.2);
+}
+
+.side-actions .logout {
+  background: #FF7043; 
+  border: 2px solid #7A1F1F; 
+  color: white;
+  text-shadow: 
+    -2px -2px 0 #7A1F1F,  
+     2px -2px 0 #7A1F1F,
+    -2px  2px 0 #7A1F1F,
+     2px  2px 0 #7A1F1F;
+}
+/* ========== RIGHT COLUMN ========== */
+.lobby-right {
+  display: flex;
+  flex-direction: column;
+  gap: 30px; 
+  /* Đã thay đổi: Căn giữa các phần tử bên trong cột phải */
+  align-items: center; 
+  padding-top: 0; 
+  width: 100%; /* Đảm bảo cột chiếm đủ chiều rộng của nó */
+}
+
+/* THÊM STYLE CHO ROOM PANEL ĐỂ GIỚI HẠN KÍCH THƯỚC */
+.room-panel {
+    /* Giới hạn chiều rộng tối đa (đã giảm kích thước) */
+    max-width: 600px; 
+    /* Căn giữa trong .lobby-right */
+    margin-left: auto;
+    margin-right: auto;
+    width: 100%; 
+}
