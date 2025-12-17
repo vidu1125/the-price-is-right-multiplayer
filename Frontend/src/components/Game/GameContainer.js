@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import './GameContainer.css';
 import Round1 from './Round/Round1'; 
+import Round2 from './Round/Round2'; 
+import Round3 from './Round/Round3';
 
 const GameContainer = () => {
     const [score, setScore] = useState(1250);
@@ -90,11 +92,18 @@ const GameContainer = () => {
                     </aside>
 
                     <main className="game-play-panel">
-                       <Round1 
+                       {/* <Round1 
                             currentQuestion={mockDataFromBackend.currentQuestion}
                             totalQuestions={mockDataFromBackend.totalQuestions}
                             productImage={mockDataFromBackend.productImage} // Thêm dòng này
-                        />
+                        /> */}
+                        {/* <Round2
+                            currentQuestion={mockDataFromBackend.currentQuestion}
+                            totalQuestions={mockDataFromBackend.totalQuestions}
+                            productImage={mockDataFromBackend.productImage}
+                            isWagerAvailable={true}
+                        /> */}
+                         <Round3 totalPlayers={1} />
                     </main>
                 </div>
             </div>
