@@ -1,0 +1,182 @@
+/* MemberListPanel.css */
+
+.member-list-wrapper {
+    /* ĐỒNG BỘ VỚI GAME RULES PANEL */
+    background: rgba(31, 42, 68, 0.9); /* Độ đục giống wr-panel */
+    backdrop-filter: blur(8px);       /* Hiệu ứng làm mờ nền */
+    border: 4px solid #1F2A44;        /* Viền dày màu tối */
+    border-radius: 18px;              /* Bo góc 18px để khớp chính xác */
+    box-shadow: 0 8px 20px rgba(0,0,0,0.4); /* Đổ bóng sâu */
+    
+    padding: 25px;
+    position: relative; 
+    transition: all 0.3s ease;
+}
+/* 1. MÃ PHÒNG (ROOM CODE) - Đặt ở góc không chiếm diện tích hàng ngang */
+.room-id-tag {
+    position: absolute;
+    top: 15px;
+    left: 20px;
+    font-family: 'Luckiest Guy', cursive;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.4); /* Màu xám mờ để không gây xao nhãng */
+    background: rgba(0, 0, 0, 0.2);
+    padding: 2px 10px;
+    border-radius: 5px;
+    letter-spacing: 1px;
+}
+
+/* 2. HEADER - Căn giữa tên phòng */
+.member-list-header {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 25px;
+    min-height: 40px; /* Đảm bảo chiều cao để ngang hàng với Game Rules */
+}
+
+.room-name-display {
+    font-family: 'Luckiest Guy', cursive;
+    color: #FFEB3B; /* Màu vàng Mario */
+    font-size: 28px;
+    text-align: center;
+    letter-spacing: 1px;
+    margin: 0;
+    text-shadow: 3px 3px 0px #1F2A44; /* Đổ bóng chữ sắc nét */
+    text-transform: uppercase;
+}
+
+/* Xóa hoàn toàn các gạch chân (divider) cũ */
+.room-info-container::after, 
+.member-list-header::after {
+    display: none !important;
+}
+
+/* 3. PLAYER GRID */
+.player-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr); /* 3 cột */
+    gap: 20px;
+    margin-bottom: 15px;
+}
+
+.player-card {
+    background: #e3e9f2;
+    border-radius: 20px;
+    border: 4px solid #1F2A44;
+    padding: 10px;
+    position: relative;
+    min-height: 140px;
+    display: flex;
+    justify-content: center;
+}
+
+.player-card.empty {
+    background: rgba(255, 255, 255, 0.05);
+    border: 3px dashed rgba(255, 255, 255, 0.2);
+}
+
+.card-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+}
+
+/* 4. AVATAR & INFO */
+.avatar-circle-wrapper {
+    width: 75px;
+    height: 75px;
+    border-radius: 50%;
+    border: 4px solid #1F2A44;
+    overflow: hidden;
+    background: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.avatar-circle {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.avatar-circle-wrapper.empty-ava {
+    background: rgba(0,0,0,0.2);
+    border-color: rgba(255,255,255,0.1);
+    color: rgba(255,255,255,0.2);
+    font-family: 'Luckiest Guy', cursive;
+    font-size: 30px;
+}
+
+.card-name {
+    font-family: 'Luckiest Guy', cursive;
+    color: #1F2A44;
+    font-size: 14px;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    width: 100%;
+}
+
+.status-tag {
+    font-family: 'Luckiest Guy', cursive;
+    font-size: 13px;
+    padding: 5px 15px;
+    border-radius: 15px;
+    color: white;
+    margin-top: auto; 
+}
+
+.status-tag.ready {
+    background: #8BC34A;
+    box-shadow: 0 3px 0 #558b2f;
+}
+
+.status-tag.waiting {
+    background: #90a4ae;
+    opacity: 0.8;
+}
+
+/* 5. CROWN & KICK BUTTON */
+.crown-image {
+    position: absolute;
+    top: -10px;
+    right: -10px;
+    width: 35px;
+    z-index: 10;
+    transform: rotate(15deg);
+    filter: drop-shadow(0 2px 3px rgba(0,0,0,0.3));
+    animation: crownFloat 2s ease-in-out infinite;
+}
+
+@keyframes crownFloat {
+    0%, 100% { transform: translateY(0) rotate(15deg); }
+    50% { transform: translateY(-5px) rotate(15deg); }
+}
+
+.card-kick-btn {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    width: 26px;
+    height: 26px;
+    background: #FF5252;
+    border: 2px solid white;
+    border-radius: 50%;
+    color: white;
+    font-family: 'Luckiest Guy', cursive;
+    cursor: pointer;
+    box-shadow: 0 3px 0 #b71c1c;
+}
+
+.grid-footer {
+    text-align: center;
+    font-family: 'Luckiest Guy', cursive;
+    color: #FFEB3B;
+    font-size: 20px;
+    text-shadow: 2px 2px 0 #1F2A44;
+}
