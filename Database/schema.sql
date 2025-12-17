@@ -5,9 +5,7 @@ Table accounts {
   id int [pk, increment]
   email varchar(100) [unique, not null]
   password varchar(255)
-  provider varchar(20)
   role varchar(20) [not null, default: 'user']
-  status varchar(20)
   created_at timestamp
   updated_at timestamp
 }
@@ -85,7 +83,7 @@ Table matches {
   room_id int [ref: > rooms.id]
   mode varchar(20)
   max_players int
-  wager boolean
+  advanced jsonb
   round_time int
   started_at timestamp
   ended_at timestamp
@@ -108,151 +106,48 @@ Table match_players {
 ///////////////////////////////////////////////////////////////
 // ROUNDS
 ///////////////////////////////////////////////////////////////
-Table rounds {
+Table match_question {
   id int [pk, increment]
+
   match_id int [ref: > matches.id]
-  number int
-  type varchar(20)
+
+  round_no int                 // 1 | 2 | 3 | 4
+  round_type varchar(20)       // MCQ | FILL | WHEEL | BONUS
+
+  question_idx int             // index câu hỏi trong round
+  question jsonb               // snapshot câu hỏi
+
   created_at timestamp
 
+  Note: 'UNIQUE (match_id, round_no, question_idx)'
 }
 
-///////////////////////////////////////////////////////////////
-// ROUND 1 — QUIZ
-///////////////////////////////////////////////////////////////
+Table match_answer {
+  id int [pk, increment]
+
+  question_id int [ref: > match_question.id]
+  player_id int [ref: > match_players.id]
+
+  answer jsonb                 // choice / value / spin
+  score_delta int
+
+  action_idx int               // lượt trả lời / lượt quay (default = 1)
+  created_at timestamp
+
+  Note: 'UNIQUE (question_id, player_id, action_idx)'
+}
+
 Table questions {
   id int [pk, increment]
-  text text
-  image text
-  a text
-  b text
-  c text
-  d text
-  correct varchar(1)
-  active boolean
-  last_updated_by int [ref: > accounts.id]
-  last_updated_at timestamp
-}
 
-Table r1_items {
-  id int [pk, increment]
-  round_id int [ref: > rounds.id]
-  idx int
-  text text
-  image text
-  a text
-  b text
-  c text
-  d text
-  correct varchar(1)
-}
+  type varchar(20)          // MCQ | PRICE | WHEEL
+  data jsonb                // nội dung câu hỏi / cấu hình wheel
 
-Table r1_answers {
-  id int [pk, increment]
-  item_id int [ref: > r1_items.id]
-  player_id int [ref: > match_players.id]
-  ans varchar(1)
-  time_ms int
-  correct boolean
-  points int
-  Note: "UNIQUE (item_id, player_id)"
-}
-
-///////////////////////////////////////////////////////////////
-// ROUND 2 — BIDDING
-///////////////////////////////////////////////////////////////
-Table products {
-  id int [pk, increment]
-  name varchar(255)
-  description text
-  image varchar(255)
-  price int
-  active boolean
-  last_updated_by int [ref: > accounts.id]
-  last_updated_at timestamp
-}
-
-Table r2_items {
-  id int [pk, increment]
-  round_id int [ref: > rounds.id]
-  name varchar(255)
-  description text
-  image varchar(255)
-  price int
-  idx int
-}
-
-Table r2_answers {
-  id int [pk, increment]
-  item_id int [ref: > r2_items.id]
-  player_id int [ref: > match_players.id]
-  bid int
-  overbid boolean
-  points int
-  wager boolean
-  Note: "UNIQUE (item_id, player_id)"
-}
-
-///////////////////////////////////////////////////////////////
-// ROUND 3 — BONUS WHEEL
-///////////////////////////////////////////////////////////////
-Table wheel {
-  id int [pk, increment]
-  value int
-  last_updated_by int [ref: > accounts.id]
-  last_updated_at timestamp
-}
-
-Table r3_items {
-  id int [pk, increment]
-  round_id int [ref: > rounds.id]
-  value int
-}
-
-Table r3_answer {
-  id int [pk, increment]
-  round_id int [ref: > rounds.id]
-
-  player_id int [ref: > match_players.id]
-  
-  spin1_value int
-  spin2_value int [null]
-  points int
-}
-
-///////////////////////////////////////////////////////////////
-// FAST PRESS
-///////////////////////////////////////////////////////////////
-Table fp_round {
-  id int [pk, increment]
-  round_id int [ref: > rounds.id]
-
-  text text
-
-  correct int        
-  wrong int         
-}
-
-
-Table fp_answers {
-  id int [pk, increment]
-  round_id int [ref: > rounds.id]
-  player_id int [ref: > match_players.id]
-
-  choice int       
-  correct boolean   
-
-  score int
-}
-
-///////////////////////////////////////////////////////////////
-// PLAYER MATCH HISTORY
-///////////////////////////////////////////////////////////////
-Table player_match_history {
-  id int [pk, increment]
-  player_id int [ref: > accounts.id]
-  match_id int [ref: > matches.id]
+  active boolean            // cho phép dùng hay không
   created_at timestamp
+  updated_at timestamp
 }
+
+
 
 

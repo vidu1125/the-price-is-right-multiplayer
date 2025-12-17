@@ -1,0 +1,459 @@
+﻿STREAM HANDLING - 
+APPLICATION DESIGN
+
+
+
+
+Define services
+1. Dịch vụ Xác thực & Quản lý Phiên (Authentication & Session Management)
+Đảm bảo an toàn và định danh người chơi trước khi tham gia hệ thống.
+* Mô tả: Xử lý việc đăng ký, đăng nhập và duy trì trạng thái đăng nhập của người dùng.
+* Các tác vụ chính:
+   * Register/Login: Gửi thông tin định danh, nhận về token hoặc session ID.
+   * Logout: Xóa phiên làm việc.
+   * Reconnect: Khôi phục trạng thái nếu bị mất kết nối tạm thời.
+   * Đăng nhập nhiều thiết bị: Khánh 
+2. Dịch vụ Phòng chờ (Lobby & Room Services)
+Quản lý việc tập hợp người chơi và thiết lập cấu hình game.
+* Mô tả: Cho phép người dùng tương tác với các phòng chơi (Room).
+* Các tác vụ chính:
+   * Quản lý phòng: Create, Join, Leave, Kick.
+   * Cấu hình: Set Rules (Chỉnh sửa chế độ chơi Scoring/Elimination).
+   * Trạng thái: 
+      * Ready (Sẵn sàng), 
+      * Start Game (Bắt đầu chuyển sang màn hình game), 
+      * Update Lobby State (Server tự động thông báo cho các client trong phòng khi có người mới vào/ra).
+3. Dịch vụ Trò chơi Thời gian thực (Real-time Gameplay Service)
+Dịch vụ cốt lõi xử lý logic game với độ trễ thấp.
+* Mô tả: Đồng bộ trạng thái vòng chơi và xử lý tương tác của người chơi.
+* Các tác vụ chính theo vòng:
+   * Round 1 (Quiz): Phân phối câu hỏi và nhận câu trả lời trắc nghiệm (ANSWER_QUIZ ).
+   * Round 2 (Bid): Nhận giá dự đoán (BID ) và tính toán người thắng cuộc.
+   * Round 3 (Wheel): Xử lý lệnh quay (SPIN ) và trả về kết quả ngẫu nhiên.
+   * Bonus Duel: Xử lý gói tin phản hồi cực nhanh cho vòng Sudden Death.
+   * Control: Forfeit (Bỏ cuộc), đồng bộ thời gian bắt đầu/kết thúc vòng chơi.
+4. Dịch vụ Lịch sử & Dữ liệu (Data & History Service)
+Cung cấp dữ liệu lưu trữ dài hạn.
+* Mô tả: Truy xuất thông tin từ Database để hiển thị cho người dùng.
+* Các tác vụ chính:
+   * View History: Tải danh sách các trận đấu cũ.
+   * Replay: Tải chi tiết log của một trận đấu cụ thể để xem lại.
+   * Leaderboard: Lấy bảng xếp hạng tổng.
+5. Dịch vụ Hệ thống & Duy trì Kết nối (System Maintenance Service)
+Các dịch vụ chạy ngầm để đảm bảo tính ổn định và công bằng của mạng.
+* Heartbeat: Client gửi tín hiệu định kỳ (30s) để Server biết vẫn còn kết nối, tránh bị timeout.
+* Time Synchronization: Client và Server trao đổi gói tin để đồng bộ đồng hồ, đảm bảo tính điểm thời gian chính xác.
+
+
+
+
+Choose application model
+Application Model (Mô hình Ứng dụng)
+* Mô hình: Client-Server Architecture.
+* Mô tả: Hệ thống bao gồm một Server trung tâm chịu trách nhiệm quản lý logic game, cơ sở dữ liệu và đồng bộ hóa. Nhiều Client kết nối đến Server để gửi hành động và nhận cập nhật hiển thị.
+  
+
+
+
+
+
+Establish Design Goals & Issues
+a. Độ tin cậy & Giao thức vận chuyển (Reliability & Transport Protocol)
+* Câu hỏi thiết kế: "Do we need reliable exchanges?" (Slide 57).
+* Quyết định: Sử dụng Stream Socket (SOCK_STREAM) - TCP.
+* Lý do:
+   * Đảm bảo độ tin cậy tuyệt đối cho dữ liệu game (điểm số, câu trả lời).
+   * Thứ tự gói tin được đảm bảo (quan trọng cho các vòng chơi theo lượt).
+b. Quản lý Trạng thái (State Management)
+* Câu hỏi thiết kế: "Is it to be stateful vs stateless?" (Slide 58 ).
+* Quyết định: Giao thức Stateful (Có trạng thái).
+* Lý do:
+   * Server cần lưu trữ ngữ cảnh (Context) của từng kết nối: User A đang ở sảnh chờ hay trong phòng game? Đang ở vòng 1 hay vòng 2? Điểm số hiện tại là bao nhiêu?
+   * Giải pháp: Server sẽ duy trì cấu trúc dữ liệu Session gắn liền với mỗi socket_id để theo dõi tiến trình của người chơi.
+
+
+c. Mô hình Tương tác & Phản hồi (Interaction & Replies)
+* Câu hỏi thiết kế: "Are replies needed? Is it to be broadcast, multicast or unicast?" (Slide 58 ).
+* Quyết định:
+   * Sử dụng mô hình Request-Response kết hợp Asynchronous Push.
+   * Sử dụng Unicast (1-1) để giả lập Broadcast.
+* Lý do:
+   * Replies: Hầu hết các lệnh từ Client (như LOGIN, BID) đều cần Server phản hồi xác nhận (OK/FAIL).
+   * Unicast: Vì sử dụng TCP, chúng ta không thể dùng Broadcast/Multicast ở tầng mạng (Slide 58 ). Thay vào đó, Application Layer sẽ thực hiện "Application-level Broadcast": Khi Server muốn thông báo "Bắt đầu vòng chơi" cho cả phòng, Server sẽ lặp qua danh sách người chơi và gửi Unicast đến từng người.
+
+
+d. Xử lý đồng thời & Đa kết nối (Concurrency & Multiple Connections)
+* Câu hỏi thiết kế: "Are there multiple connections?" (Slide 58).
+* Quyết định: Sử dụng mô hình I/O Multiplexing (Hàm select()).
+* Lý do:
+   * Server cần duy trì kết nối với nhiều Client cùng lúc (4-8 người/phòng).
+   * Hiệu quả tài nguyên: Server sử dụng đơn luồng (single-threaded) để giám sát trạng thái socket, giúp tiết kiệm RAM/CPU so với việc tạo Process/Thread riêng biệt, phù hợp với phần cứng nhẹ.
+   * An toàn dữ liệu: Tránh các lỗi Race Condition phức tạp thường gặp trong lập trình đa luồng.
+e. Bảo mật & Xác thực (Security & Authentication)
+* Câu hỏi thiết kế: "Is the authentication of parties needed?" (Slide 57).
+* Quyết định: Xác thực người dùng thông qua mô hình Session-based Authentication trên kết nối TCP.
+* Lý do:
+   * Định danh người chơi để liên kết với dữ liệu bền vững (Lịch sử, Bảng xếp hạng) trong Database.
+   * Ngăn chặn truy cập trái phép vào các chức năng ingame (Tạo phòng, Chơi game).
+* Giải pháp Kỹ thuật (Mechanism):
+   * Socket-Session Mapping: Server duy trì một cấu trúc dữ liệu trên bộ nhớ (In-memory Struct) để ánh xạ Socket Descriptor với User Context. Trạng thái đăng nhập gắn liền với vòng đời của kết nối TCP.
+   * Password Hashing: Mật khẩu người dùng được mã hóa (Hashing) trước khi lưu trữ và so sánh trong Database, đảm bảo không lộ thông tin nhạy cảm.
+   * Access Control: Áp dụng kiểm tra trạng thái (State Check) chặt chẽ; các gói tin nghiệp vụ (như BID, SPIN) sẽ bị Server từ chối xử lý nếu Session tương ứng chưa có cờ xác thực hợp lệ.
+f. Vấn đề Luồng Byte & Phân mảnh (Byte Stream Handling & Fragmentation)
+* Vấn đề: Vì sử dụng TCP (SOCK_STREAM), dữ liệu truyền đi là một dòng byte liên tục, không có ranh giới gói tin rõ ràng. Server có thể gặp hai tình huống:
+   * Dính gói (Packet Sticking): Nhận được nhiều gói tin dính liền nhau trong một lần đọc (recv).
+   * Phân mảnh (Fragmentation): Chỉ nhận được một phần của gói tin (ví dụ: header đến trước, payload đến sau).
+* Quyết định thiết kế:
+   * Sử dụng cơ chế Header độ dài cố định (Fixed-Length Header) chứa trường length.
+   * Server sẽ luôn đọc Header trước để biết kích thước dữ liệu, sau đó đọc chính xác số byte còn lại cho Payload. Điều này giải quyết triệt để vấn đề byte stream.
+  
+
+
+
+Design the message structure
+A/ Message Format
+1. Encoding Strategy: Byte-oriented (Binary Protocol)  (byte đầu tiên dùng để phân biệt message type)
+
+
+2. Cấu trúc Gói tin Tổng quát (General Packet Structure)
+* Cấu trúc chung: [Header (16 bytes)] + [Payload (Variable Size)]
+  
+
+
+
+B. The Header (Phần đầu - Cố định)
+Độ dài: 16 byte
+Thiết kế Struct trong C:
+#include <stdint.h>
+
+
+// BẮT BUỘC: Sử dụng attribute packed để ép kích thước struct đúng 16 byte
+// Khớp với Slide 31: typedef struct __attribute__((packed))
+#if defined(__GNUC__) || defined(__clang__)
+    #define PACKED __attribute__((packed))
+#else
+    #define PACKED
+    #pragma pack(push, 1)
+#endif
+
+
+typedef struct PACKED {
+    // 1. Protocol Magic Number (2 bytes)
+    // Giá trị cố định: 0x4347 (ASCII: "CG" - ConsoleGame)
+    // Dùng để xác thực nhanh gói tin hợp lệ.
+    uint16_t magic;
+
+
+    // 2. Protocol Version (1 byte)
+    // Phiên bản hiện tại: 0x01
+    uint8_t  version;
+
+
+    // 3. Flags (1 byte)
+    // Các cờ điều khiển. Ví dụ: 0x01 = Payload nén, 0x00 = Raw text.
+    uint8_t  flags;
+
+
+    // 4. Command Code (2 bytes)
+    // Mã lệnh xác định hành động (VD: LOGIN, BID, SPIN).
+    uint16_t command;
+
+
+    // 5. Reserved (2 bytes)
+    // Dành cho tương lai, hiện tại set bằng 0.
+    uint16_t reserved;
+
+
+    // 6. Sequence Number (4 bytes)
+    // Số thứ tự gói tin để xử lý bất đồng bộ hoặc debug mất gói.
+    uint32_t seq_num;
+
+
+    // 7. Payload Length (4 bytes) - QUAN TRỌNG NHẤT
+    // Kích thước của phần dữ liệu đi kèm (Body) tính bằng byte.
+    // Server sẽ đọc giá trị này để biết cần recv() thêm bao nhiêu byte nữa.
+    uint32_t length;
+
+
+} MessageHeader;
+// Tổng kích thước: 2 + 1 + 1 + 2 + 2 + 4 + 4 = 16 Bytes
+
+
+#if !defined(__GNUC__) && !defined(__clang__)
+    #pragma pack(pop)
+#endif
+
+
+
+
+
+
+
+
+
+
+C/ Các loại Tin nhắn (Types of Messages / Command Codes)
+Mục đích: Định nghĩa bảng mã lệnh (Command Code - 2 bytes trong Header) để xác định ý nghĩa của gói tin. Hệ thống mã lệnh được phân loại dựa trên hướng đi của gói tin.
+1.  Client Requests (Client gửi Server)
+Đây là các hành động do người dùng kích hoạt. Server chỉ xử lý khi nhận được các mã này.
+
+
+typedef enum {
+    // --- 1. Nhóm Xác thực & Tài khoản ---
+    // Nguồn: Slide Success Responses
+    CMD_LOGIN_REQ       = 0x0100, // Gửi Username/Password
+    CMD_REGISTER_REQ    = 0x0101, // Đăng ký mới
+    CMD_LOGOUT_REQ      = 0x0102, // Yêu cầu thoát đăng nhập
+
+
+    // --- 2. Nhóm Tương tác Phòng (Lobby) ---
+    // Nguồn: Slide Error/Success Responses
+    CMD_CREATE_ROOM     = 0x0200, // Tạo phòng mới
+    CMD_JOIN_ROOM       = 0x0201, // Xin vào phòng (kèm RoomID)
+    CMD_LEAVE_ROOM      = 0x0202, // Rời phòng hiện tại
+    CMD_READY           = 0x0203, // Chuyển trạng thái Sẵn sàng
+    CMD_KICK           = 0x0204, // Kick khỏi phòng
+    CMD_INVITE_FRIEND   = 0x0205, // Mời bạn
+    CMD_SET_RULE   = 0x0206, // Đặt luật
+
+
+
+
+    // --- 3. Nhóm Gameplay (Trong trận đấu) ---
+    // Nguồn: Slide Gameplay
+    CMD_START_GAME      = 0x0300, // Chủ phòng bấm Start
+    CMD_ANSWER_QUIZ     = 0x0301, // Vòng 1: Gửi đáp án trắc nghiệm
+    CMD_BID             = 0x0302, // Vòng 2: Gửi giá dự đoán
+    CMD_SPIN            = 0x0303, // Vòng 3: Yêu cầu quay nón
+    CMD_FORFEIT         = 0x0304, // Bỏ cuộc
+    CMD_BONUS         = 0x0305, // Bonus_Duel
+
+
+
+
+    // --- 4. Nhóm Tiện ích & Xã hội ---
+    // Nguồn: Slide Social & Shop & History
+    CMD_HIST            = 0x0502, // Xem lịch sử đấu
+    CMD_REPLAY          = 0x0503, // Yêu cầu xem lại trận cũ
+    CMD_LEAD            = 0x0504, // Lấy bảng xếp hạng
+
+
+    // --- 5. Hệ thống ---
+    CMD_HEARTBEAT       = 0x0001  // Gửi tín hiệu "Tôi còn sống" (Ping)
+} ClientCommand;
+
+
+
+
+2. Server Responses (Server trả lời Client)
+Đây là phản hồi trực tiếp cho một Request từ Client (Mô hình Request-Response). Mã phản hồi tương tự HTTP Status Code.
+typedef enum {
+    // --- Thành công (2xx, 3xx) ---
+    // Nguồn: Slide Success Responses
+    RES_SUCCESS         = 200, // Hành động thành công chung
+    RES_LOGIN_OK        = 201, // Đăng nhập thành công
+    RES_HEARTBEAT_OK    = 210, // Đã nhận Heartbeat
+    RES_ROOM_JOINED     = 301, // Vào phòng thành công
+
+
+    // --- Lỗi (4xx, 5xx) ---
+    // Nguồn: Slide Error Responses
+    ERR_BAD_REQUEST     = 400, // Sai cú pháp/dữ liệu
+    ERR_NOT_LOGGED_IN   = 401, // Chưa đăng nhập
+    ERR_ROOM_FULL       = 403, // Phòng đầy
+    ERR_GAME_STARTED    = 404, // Game đã chơi, không thể vào
+    ERR_PAYLOAD_LARGE   = 405, // Gói tin quá lớn (>4096 bytes)
+    ERR_NOT_HOST        = 406, // Không phải chủ phòng
+    ERR_TIMEOUT         = 408, // Hết thời gian thao tác
+    ERR_SERVER_ERROR    = 500  // Lỗi nội bộ Server
+
+
+Mất kết nối
+} ServerResponse;
+
+
+
+
+
+
+3.  Server Notifications (Server Tự quản lý & Push)
+Đây là các gói tin do Server chủ động gửi (Asynchronous Push) dựa trên logic game (đồng hồ đếm ngược, thay đổi trạng thái) mà không cần Client yêu cầu.
+typedef enum {
+    // --- Quản lý Trạng thái Phòng ---
+    // Nguồn: Slide Notifications
+    NTF_PLAYER_JOINED   = 700, // Báo cho cả phòng: "A vừa vào phòng"
+    NTF_PLAYER_LEFT     = 701, // Báo cho cả phòng: "B đã thoát"
+    NTF_PLAYER_LIST     = 702, // Cập nhật danh sách người chơi
+
+
+    // --- Quản lý Tiến trình Game (Flow Control) ---
+    // Server tự động gửi khi hết giờ hoặc chuyển vòng
+    NTF_ROUND_START     = 703, // "Bắt đầu Vòng X" (Kèm thời gian đếm ngược)
+    NTF_ROUND_END       = 704, // "Kết thúc Vòng X" (Dừng nhập liệu)
+    NTF_SCOREBOARD      = 705, // Cập nhật điểm số mới nhất
+    NTF_ELIMINATION     = 706, // Thông báo: "Người chơi C bị loại"
+    NTF_GAME_END        = 707, // Kết thúc game, công bố người thắng
+
+
+    // --- Tương tác khác ---
+    NTF_CHAT_MSG        = 710, // Tin nhắn chat từ người khác
+    NTF_INVITATION      = 711  // Lời mời chơi từ bạn bè
+} ServerNotification;
+
+
+
+
+
+
+
+
+D./ Quy định Đóng gói & Mã hóa (Payload & Encoding Strategy)
+Mục đích: Thiết lập các quy tắc chung để Client và Server có thể đọc hiểu dữ liệu của nhau một cách chính xác.
+1. Network Byte Order (Endianness):
+   * Quy định: Tất cả dữ liệu số (int, short, long, float) trong Payload khi truyền qua mạng bắt buộc phải chuyển sang Big-Endian.
+   * Hàm sử dụng: htonl() / htons() (Gửi đi) và ntohl() / ntohs() (Nhận về).
+2. String Encoding (Chuỗi ký tự):
+   * Quy định: Sử dụng chuẩn UTF-8 cho toàn bộ chuỗi ký tự (Username, Chat, Câu hỏi) để hỗ trợ tiếng Việt.
+   * Lưu ý: Trường length trong Header phải là số byte thực tế của chuỗi (tính bằng hàm strlen()), không phải số lượng ký tự hiển thị.
+3. Payload Size Limit (Giới hạn kích thước):
+   * Quy định: Kích thước Payload tối đa là 4096 bytes (để khớp với kích thước trang bộ nhớ và MTU mạng).
+   * Xử lý lỗi: Nếu gói tin vượt quá giới hạn này, Server sẽ từ chối xử lý và trả về mã lỗi ERR_PAYLOAD_TOO_LARGE (405).
+
+
+E./ Chi tiết Cấu trúc Payload (Payload Data Structures)
+Mục đích: Định nghĩa chi tiết cấu trúc dữ liệu cho từng nhóm chức năng (tương ứng với các Command Code ở mục 4.3).
+1. Nhóm Xác thực (Authentication Payloads)
+Dành cho các lệnh: CMD_LOGIN_REQ, CMD_REGISTER_REQ, RES_AUTH_SUCCESS.
+
+
+// 1. Client gửi lên: Yêu cầu Đăng nhập/Đăng ký
+typedef struct PACKED {
+    char username[32]; // Tên đăng nhập (UTF-8, Null-terminated)
+    char password[64]; // Mật khẩu đã băm (Hashed SHA256/MD5) - KHÔNG GỬI PLAINTEXT
+} AuthRequestPayload;
+
+
+// 2. Server trả về: Đăng nhập thành công (Stateful Data)
+typedef struct PACKED {
+    uint32_t user_id;      // ID định danh người dùng trong DB
+    uint32_t session_id;   // Token phiên làm việc (Dùng cho tính năng Reconnect)
+    uint32_t balance;      // Số dư/Điểm hiện tại
+    char display_name[32]; // Tên hiển thị
+} AuthSuccessPayload;
+
+
+
+
+2. Nhóm Gameplay (Gameplay Payloads)
+Dành cho các vòng chơi: Quiz, Bid, Wheel.
+// 1. Vòng 2: Client gửi Giá đấu (CMD_BID - 0x0302)
+// Payload chỉ là một số nguyên 4 byte
+typedef struct PACKED {
+    uint32_t bid_price;    // Giá tiền dự đoán (Network Byte Order)
+} BidPayload;
+
+
+// 2. Server thông báo: Bắt đầu vòng chơi (NTF_ROUND_START - 703)
+typedef struct PACKED {
+    uint8_t  round_id;     // 1: Quiz, 2: Bid, 3: Wheel
+    uint16_t time_limit;   // Thời gian đếm ngược (giây)
+    uint16_t data_len;     // Độ dài của phần dữ liệu bổ sung bên dưới
+    char     data[];       // Dữ liệu biến đổi (VD: Nội dung câu hỏi Quiz, Tên sản phẩm Bid)
+} RoundStartPayload;
+
+
+
+
+
+
+3. Nhóm Hệ thống (System Payloads)
+// Phản hồi Lỗi (ERROR - 4xx, 5xx)
+// Payload là chuỗi ký tự thô (Raw String) mô tả lỗi để hiển thị lên UI.
+// Ví dụ: Header Command = 403, Payload = "Phòng đã đầy, vui lòng chọn phòng khác"
+
+
+
+
+4. Thiết kế Bảo mật & Quản lý Phiên (Security & Session Management)
+Mục đích: Mô tả logic xử lý bên trong Server để đảm bảo tính an toàn và ổn định của hệ thống (System Design).
+Quản lý Phiên (Session Management)
+* Vấn đề: Mạng TCP có thể bị gián đoạn, nhưng người chơi cần quay lại đúng trạng thái game đang diễn ra (không bị kick ra Login).
+* Giải pháp (State Restoration):
+   1. Session Creation: Khi đăng nhập thành công, Server sinh session_id ngẫu nhiên và lưu ánh xạ: Map<socket_fd, session_id>.
+   2. Disconnect Handling: Khi mất kết nối, Server không xóa ngay dữ liệu người chơi mà giữ trong trạng thái "Disconnected" trong một khoảng thời gian (VD: 60s).
+   3. Reconnect: Client kết nối lại và gửi lệnh CMD_RECONNECT kèm session_id.
+      * Hợp lệ: Server khôi phục trạng thái (điểm số, vòng chơi hiện tại).
+      * Hết hạn: Server trả lỗi và buộc Client quay về màn hình Login (AUTH state).
+Máy Trạng thái Kết nối (Connection State Machine)
+Mỗi kết nối Socket trên Server sẽ có một "nhãn" trạng thái để kiểm soát quyền truy cập:
+1. UNAUTHENTICATED: Trạng thái ban đầu.
+   * Quyền hạn: Chỉ được gửi lệnh LOGIN, REGISTER.
+   * Chặn: Mọi lệnh khác (như BID, CREATE_ROOM) sẽ bị từ chối với lỗi ERR_NOT_LOGGED_IN (401).
+2. AUTHENTICATED (LOBBY): Sau khi Login thành công.
+   * Quyền hạn: Tạo phòng, Chat, Xem lịch sử.
+3. IN_GAME: Đang trong trận đấu.
+   * Quyền hạn: Gửi các lệnh Gameplay.
+Các biện pháp Bảo mật (Security Measures)
+* Password Hashing: Client phải băm mật khẩu trước khi gửi. Server chỉ lưu hash, không lưu password thô.
+* Input Sanitization: Server kiểm tra tính hợp lệ của username (không chứa ký tự đặc biệt) để tránh lỗi hệ thống hoặc SQL Injection. Nếu sai, trả về ERR_INVALID_USERNAME (402).
+* Rate Limiting: Chặn các IP gửi lệnh LOGIN thất bại quá 5 lần/phút để chống Brute-force. Trả về lỗi ERR_SERVICE_UNAVAILABLE (501).
+
+
+
+
+Protocol Processing (Xử lý Giao thức)
+Mục đích: Mô tả logic vận hành của Server/Client khi nhận được gói tin (Slide 64 Lec04 - Finite State Machine).
+
+
+1. Máy Trạng thái Hữu hạn (Finite State Machine - FSM)
+* State 1: DISCONNECTED
+   * Sự kiện: Khởi tạo kết nối (connect()).
+   * Chuyển sang: NOT_AUTH.
+* State 2: NOT_AUTH (Chưa xác thực)
+   * Cho phép: CMD_LOGIN_REQ, CMD_REGISTER_REQ.
+   * Từ chối: Mọi lệnh khác -> Trả lỗi 401 ERR_NOT_LOGGED_IN4.
+   * Thành công: Chuyển sang LOBBY.
+* State 3: LOBBY (Sảnh chờ)
+   * Cho phép: CMD_CREATE_ROOM, CMD_JOIN_ROOM, CMD_LOGOUT, CMD_CHAT.
+   * Hành động: Nếu vào phòng thành công -> Chuyển sang IN_ROOM.
+* State 4: IN_ROOM (Trong phòng)
+   * Cho phép: CMD_READY, CMD_LEAVE_ROOM, CMD_CHAT.
+   * Hành động: Khi chủ phòng Start Game -> Chuyển sang PLAYING.
+* State 5: PLAYING (Đang chơi)
+   * Cho phép: Các lệnh Gameplay (BID, SPIN, ANSWER).
+   * Xử lý: Server chuyển tiếp gói tin vào Game Loop Logic.
+   * Kết thúc: Khi Game End -> Quay về IN_ROOM.
+2. Quy trình Xử lý Gói tin Raw (Packet Processing Loop)
+Vì sử dụng Raw Socket, Server không nhận được "Object" mà nhận được "Byte". Quy trình xử lý chuẩn (Pseudo-code):
+1. Read Header: Gọi recv() đọc chính xác 16 bytes.
+2. Verify Magic: Kiểm tra magic == 0x4347. Nếu sai -> close() socket ngay (chống tấn công).
+3. Read Payload: Gọi recv() đọc tiếp header.length bytes.
+   * Lưu ý: Nếu recv trả về ít hơn length (do mạng phân mảnh), phải tiếp tục vòng lặp recv cho đến khi đủ dữ liệu.
+4. Routing (Điều hướng):
+   * switch (header.command):
+      * Case CMD_LOGIN: Gọi hàm handle_login().
+      * Case CMD_BID: Kiểm tra trạng thái có phải PLAYING không? Nếu đúng -> handle_bid().
+5. Response: Đóng gói kết quả vào Header + Payload mới và send() lại cho Client.
+
+
+Interaction with Environment (Tương tác với Môi trường)
+Mục đích: Mô tả cách ứng dụng tương tác với các dịch vụ mạng hạ tầng (DNS, IP) và Hệ điều hành 
+1. Phân giải Địa chỉ (Address Resolution - DNS)
+* Vấn đề: Người dùng nhập tên miền server (ví dụ: game.hust.edu.vn) thay vì IP 192.168.1.5.
+* Giải pháp:
+   * Sử dụng hàm getaddrinfo() để phân giải tên miền sang địa chỉ IP.
+   * Ưu điểm: Hỗ trợ tự động cả IPv4 và IPv6 , thay thế cho hàm cũ gethostbyname().
+2. Cổng dịch vụ (Service Port)
+* Quy định: Server sẽ lắng nghe (Listen) trên một cổng cố định (Well-known port cho game).
+* Port: 5500 (Ví dụ).
+* Tương tác:
+   * Server dùng hàm bind() để đăng ký cổng này với Hệ điều hành.
+   * Client phải connect() đến đúng cổng này.
+3. Xử lý Tín hiệu Hệ điều hành (Signal Handling)
+* Vấn đề (Raw Socket C/C++): Khi Client ngắt kết nối đột ngột (Crash/Rút dây mạng), nếu Server cố gửi dữ liệu (send) vào socket đó, Hệ điều hành sẽ gửi tín hiệu SIGPIPE làm Server bị tắt đột ngột (Crash).
+* Giải pháp:
+   * Sử dụng cờ MSG_NOSIGNAL khi gọi hàm send() .
+   * Hoặc bắt tín hiệu signal(SIGPIPE, SIG_IGN) lúc khởi động Server.
+4. Bộ đệm Hệ thống (Kernel Buffers)
+* Tương tác: Ứng dụng không ghi trực tiếp lên dây mạng mà ghi vào Socket Send Buffer của Kernel .
+* Lưu ý: Nếu mạng chậm, Buffer đầy, hàm send() sẽ bị block (chặn). Cần thiết kế Server sử dụng Non-blocking I/O (kết hợp select()) để tránh việc một Client mạng lag làm treo cả Server.
