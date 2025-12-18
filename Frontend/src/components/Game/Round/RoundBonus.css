@@ -1,0 +1,101 @@
+
+.bonus-label {
+    background-color: #FFDE00;
+    border: 3px solid #2d3436;
+    padding: 6px 18px;
+    border-radius: 12px;
+    font-family: 'Luckiest Guy', cursive;
+    box-shadow: 4px 4px 0px rgba(0,0,0,0.1);
+}
+.round-bonus-wrapper {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.bonus-interactive-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 60px; /* Khoảng cách rộng hơn để thoáng hơn */
+    margin-top: 40px;
+}
+
+/* Base style cho mũi tên */
+.arrow-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    width: 80px;
+    height: 80px;
+    padding: 0;
+    color: #dcdde1; /* Màu mặc định khi chưa chọn */
+    transition: all 0.3s ease;
+}
+
+.arrow-btn svg {
+    width: 100%;
+    height: 100%;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
+}
+
+/* Trạng thái khi chọn */
+.arrow-btn.up.selected {
+    color: #2ecc71; /* Xanh lá */
+    transform: translateY(-10px) scale(1.2);
+}
+
+.arrow-btn.down.selected {
+    color: #e74c3c; /* Đỏ */
+    transform: translateY(10px) scale(1.2);
+}
+
+.arrow-btn:hover {
+    transform: scale(1.1);
+}
+
+/* Nút Buzzer tối giản */
+.buzzer-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    width: 120px;
+    height: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.buzzer-red-circle {
+    width: 90px;
+    height: 90px;
+    background-color: #e74c3c;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 8px 0 #c0392b, 0 15px 25px rgba(231, 76, 60, 0.3);
+    transition: all 0.1s;
+}
+
+.star-icon {
+    color: white;
+    font-size: 2.5rem;
+}
+
+.buzzer-btn:active .buzzer-red-circle {
+    transform: translateY(4px);
+    box-shadow: 0 4px 0 #c0392b;
+}
+
+/* Ảnh sản phẩm sạch sẽ */
+.product-image-container {
+    width: 100%;
+    max-width: 600px;
+    height: 300px;
+    background: white;
+    border-radius: 30px;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.05);
+    margin-bottom: 20px;
+}
