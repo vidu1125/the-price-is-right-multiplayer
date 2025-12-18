@@ -1,19 +1,49 @@
 // MemberListPanel.js
+import { useState } from "react";
 import "./MemberListPanel.css";
-
-const MEMBERS = [
-    { id: 1, name: "HOST PLAYER", ready: true, isHost: true, avatar: null },
-    { id: 2, name: "ALEX_MASTER", ready: true, isHost: false, avatar: null },
-    { id: 3, name: "ALEX_MASTER", ready: true, isHost: false, avatar: null },
-    { id: 4, name: "ALEX_MASTER", ready: false, isHost: false, avatar: null },
-];
+import socketService from "../../../services/socketService";
 
 const DEFAULT_AVATAR = "/bg/default-mushroom.jpg";
 const CROWN_ICON = "/bg/crown.png"; 
 
-export default function MemberListPanel({ isHost, roomName, roomCode }) {
-  const maxPlayers = 6;
-  const emptySlots = Array(maxPlayers - MEMBERS.length).fill(null);
+export default function MemberListPanel({ isHost, roomId, roomName, roomCode, members, maxPlayers, onMemberKicked }) {
+  const [kickingUserId, setKickingUserId] = useState(null);
+
+  // Use provided members or fallback to mock data
+  const memberList = members || [
+    { id: 1, name: "HOST PLAYER", ready: true, isHost: true, avatar: null },
+    { id: 2, name: "ALEX_MASTER", ready: true, isHost: false, avatar: null },
+    { id: 3, name: "ALEX_MASTER", ready: true, isHost: false, avatar: null },
+    { id: 4, name: "ALEX_MASTER", ready: false, isHost: false, avatar: null },
+  ];
+
+  const handleKick = async (memberId, memberName) => {
+    if (!window.confirm(`Are you sure you want to kick ${memberName}?`)) {
+      return;
+    }
+
+    setKickingUserId(memberId);
+    try {
+      const result = await socketService.kickMember(roomId, memberId);
+      
+      if (result.success) {
+        alert(`${memberName} has been kicked`);
+        
+        // Callback to parent to refresh member list
+        if (onMemberKicked) {
+          onMemberKicked(memberId);
+        }
+      } else {
+        alert(`Failed to kick member: ${result.error}`);
+      }
+    } catch (error) {
+      alert("Error kicking member");
+    } finally {
+      setKickingUserId(null);
+    }
+  };
+
+  const emptySlots = Array(Math.max(0, (maxPlayers || 6) - memberList.length)).fill(null);
 
   return (
     <div className="member-list-wrapper">
@@ -29,12 +59,21 @@ export default function MemberListPanel({ isHost, roomName, roomCode }) {
       </div>
 
       <div className="player-grid">
-        {MEMBERS.map((member) => (
+        {memberList.map((member) => (
           <div key={member.id} className={`player-card ${member.isHost ? 'host-card' : ''}`}>
             {member.isHost ? (
               <img src={CROWN_ICON} alt="Crown" className="crown-image" />
             ) : (
-              isHost && <button className="card-kick-btn">×</button>
+              isHost && (
+                <button 
+                  className="card-kick-btn"
+                  onClick={() => handleKick(member.id, member.name)}
+                  disabled={kickingUserId === member.id}
+                  title="Kick member"
+                >
+                  {kickingUserId === member.id ? '...' : '×'}
+                </button>
+              )
             )}
             
             <div className="card-content">
@@ -60,7 +99,7 @@ export default function MemberListPanel({ isHost, roomName, roomCode }) {
       </div>
       
       <div className="grid-footer">
-        PLAYERS ({MEMBERS.length}/{maxPlayers})
+        PLAYERS ({memberList.length}/{maxPlayers || 6})
       </div>
     </div>
   );

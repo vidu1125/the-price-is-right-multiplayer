@@ -8,8 +8,15 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 from flask import Flask, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
+import logging
 
 load_dotenv()
+
+# Setup logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
+)
 
 # ========================== FLASK APP ==========================
 app = Flask(__name__)
@@ -43,7 +50,10 @@ from app.models import (
 
 # ========================== REGISTER BLUEPRINTS ==========================
 from app.routes.room_routes import room_bp
+from app.routes.network_routes import network_bp
+
 app.register_blueprint(room_bp)
+app.register_blueprint(network_bp)
 
 # ========================== HEALTH CHECKS ==========================
 @app.route('/health')
@@ -113,8 +123,16 @@ def init_db():
                 traceback.print_exc()
                 return False
 
+# ========================== IPC SERVER ==========================
+from app.ipc import start_ipc_server
+
 # ========================== MAIN ENTRY ==========================
 if __name__ == '__main__':
     print("🚀 Backend API starting on port 5000...")
     init_db()
+    
+    # Start IPC server for C Network Layer communication
+    print("🔌 Starting IPC server...")
+    start_ipc_server()
+    
     app.run(host='0.0.0.0', port=5000, debug=True, use_reloader=False)
