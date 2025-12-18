@@ -1,0 +1,276 @@
+/* Import font chữ phong cách game */
+@import url('https://fonts.googleapis.com/css2?family=Luckiest+Guy&display=swap');
+
+.game-overlay {
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
+    /* Tăng padding để tạo viền trống quanh toàn bộ màn hình */
+    padding: 40px 60px; 
+    box-sizing: border-box;
+}
+/* Header & Badges */
+.game-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+/* Nút Forfeit ở Header */
+.game-btn-exit {
+    background-color: #ff5e5e; /* Màu đỏ của nút */
+    border: 3px solid #2d3436; /* Viền đen đậm quanh nút */
+    padding: 10px 30px;
+    border-radius: 15px;      /* Bo góc mềm mại */
+    
+    color: white;             /* Chữ trắng */
+    font-size: 1.5rem;
+    font-weight: 900;
+    font-family: 'Luckiest Guy', cursive;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+
+    /* Kỹ thuật tạo viền đen cho chữ sắc nét nhất */
+    -webkit-text-stroke: 1.5px #2d3436; 
+    paint-order: stroke fill;
+    
+    /* Hiệu ứng đổ bóng dưới nút để tạo độ nổi */
+    box-shadow: 0 4px 0 #2d3436;
+    
+    cursor: pointer;
+    transition: all 0.1s ease;
+    display: inline-block;
+}
+
+/* Hiệu ứng khi di chuột vào */
+.game-btn-exit:hover {
+    background-color: #ff4747;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 0 #2d3436;
+}
+
+/* Hiệu ứng khi nhấn vào */
+.game-btn-exit:active {
+    transform: translateY(4px);
+    box-shadow: none;
+}
+
+.round-badge-new {
+    background-color: #FFDE00;
+    border: 4px solid #1e272e;
+    border-radius: 50px;
+    padding: 8px 30px;
+    color: #1e272e;
+    font-size: 1.3rem;
+    font-weight: 900;
+    box-shadow: 0 4px 0 #000;
+    display: inline-block;
+}
+
+/* Timer Circle */
+.timer-circle {
+    width: 70px;
+    height: 70px;
+    background: #ff4757;
+    border: 4px solid #000;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    box-shadow: 0 5px 0 #000;
+}
+
+.timer-value {
+    font-size: 1.8rem;
+    color: white;
+    font-weight: bold;
+}
+
+/* Score Board */
+.score-board {
+    background: #4cd137;
+    border: 4px solid #000;
+    border-radius: 20px;
+    padding: 8px 25px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+    box-shadow: 0 5px 0 #000;
+}
+
+.score-label {
+    font-size: 0.7rem;
+    color: #000;
+    font-weight: 900;
+}
+
+.score-number {
+    font-size: 2rem;
+    color: #fff;
+    text-shadow: 2px 2px 0 #000;
+}
+
+.score-plus {
+    position: absolute;
+    bottom: -22px;
+    right: 5px;
+    color: #4cd137;
+    font-size: 1.1rem;
+    font-weight: bold;
+    text-shadow: 1px 1px 0 #000;
+    animation: bounce 0.5s infinite alternate;
+}
+
+/* Main Panels */
+.game-body {
+    display: flex;
+    gap: 40px;
+    align-items: flex-start; 
+    padding-top: 10px;
+    justify-content: center; /* Căn giữa cả cụm Ranking + Panel Quiz */
+}
+
+.game-leaderboard {
+    width: 320px;
+    background: rgba(31, 42, 68, 0.7); 
+    backdrop-filter: blur(15px);
+    border: 5px solid #1F2A44; 
+    border-radius: 25px; 
+    padding: 20px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+    /* Để các phần tử bên trong xếp chồng dọc */
+    display: flex;
+    flex-direction: column;
+}
+
+.game-play-panel {
+    /* Thay vì flex: 1, ta dùng độ rộng cố định hoặc phần trăm nhỏ hơn */
+    width: 1000px; 
+    flex: none; /* Không cho phép nó tự động tràn ra hết màn hình */
+    
+    background: rgba(31, 42, 68, 0.5); 
+    backdrop-filter: blur(15px);
+    border: 5px solid #1F2A44; 
+    border-radius: 25px; 
+    padding: 25px;
+    min-height: 550px; /* Giữ độ dài để trải dọc màn hình */
+    
+    display: flex;
+    flex-direction: column;
+}
+
+/* Ranking Styles */
+.panel-title {
+    color: #FFD32A;
+    font-size: 24px;
+    margin-bottom: 15px;
+    text-shadow: 2px 2px 0 #000;
+    text-align: center;
+}
+
+.leaderboard-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.rank-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: all 0.3s ease;
+}
+
+.rank-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.rank-name {
+    color: #FFFFFF;
+    font-size: 17px;
+    text-transform: uppercase;
+    /* Viền đen mỏng giúp chữ rõ ràng */
+    text-shadow: 
+        -1px -1px 0 #000,  
+         1px -1px 0 #000,
+        -1px  1px 0 #000,
+         1px  1px 0 #000;
+}
+
+.rank-score {
+    color: #FFD32A;
+    font-size: 19px;
+    font-weight: bold;
+    text-shadow: 
+        -1px -1px 0 #000,  
+         1px -1px 0 #000,
+        -1px  1px 0 #000,
+         1px  1px 0 #000;
+}
+
+/* Highlight "YOU" */
+.rank-item.is-me {
+    background: rgba(255, 211, 42, 0.15);
+    border: 2px solid #FFD32A;
+}
+
+/* UI CHO NGƯỜI BỊ LOẠI (ELIMINATED) */
+.rank-item.eliminated {
+    background: rgba(0, 0, 0, 0.4); /* Làm tối hàng */
+    border: 1px solid #ff4757;
+    opacity: 0.6;
+    filter: grayscale(0.8);
+}
+
+.rank-item.eliminated .rank-name {
+    text-decoration: line-through;
+    color: #a4b0be;
+    text-shadow: none; /* Bỏ viền để trông như bị mờ đi */
+}
+
+.rank-item.eliminated .rank-score {
+    color: #ff4757;
+    font-size: 14px;
+}
+
+.eliminated-tag {
+    background: #ff4757;
+    color: white;
+    font-size: 9px;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-weight: 900;
+    border: 1px solid #000;
+    width: fit-content;
+    text-transform: uppercase;
+}
+
+/* Animations */
+@keyframes bounce {
+    from { transform: translateY(0); }
+    to { transform: translateY(-5px); }
+}
+
+@keyframes blink {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+.forfeit-sidebar-btn {
+    width: 100%;       /* Nút dài bằng khung Ranking */
+    margin-top: 20px;  /* Tạo khoảng cách với danh sách người chơi */
+    padding: 12px;     /* Tăng độ dày cho dễ bấm */
+    font-size: 1.1rem;
+    letter-spacing: 1px;
+}
