@@ -1,3 +1,4 @@
+
 # 🎮 The Price Is Right – Game Rules
 
 Chào mừng bạn đến với **The Price Is Right** – trò chơi thử thách kiến thức về giá cả sản phẩm, nơi **độ chính xác**, **tốc độ** và **chiến thuật** quyết định người chiến thắng.

@@ -3,6 +3,7 @@ import './GameContainer.css';
 import Round1 from './Round/Round1'; 
 import Round2 from './Round/Round2'; 
 import Round3 from './Round/Round3';
+import RoundBonus from './Round/RoundBonus';
 
 const GameContainer = () => {
     const [score, setScore] = useState(1250);
@@ -103,7 +104,12 @@ const GameContainer = () => {
                             productImage={mockDataFromBackend.productImage}
                             isWagerAvailable={true}
                         /> */}
-                         <Round3 totalPlayers={1} />
+                         {/* <Round3 totalPlayers={1} /> */}
+                         <RoundBonus 
+                            currentQuestion={1} 
+                            totalQuestions={1} 
+                            productImage={mockDataFromBackend.productImage} 
+                        />
                     </main>
                 </div>
             </div>
