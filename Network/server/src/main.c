@@ -74,7 +74,7 @@ int setup_server(int port) {
 
 bool process_client_packet(int client_fd) {
     // Read header
-    MessageHeader header;
+    PacketHeader header;
     if (!recv_packet_header(client_fd, &header)) {
         return false;  // Connection closed or error
     }

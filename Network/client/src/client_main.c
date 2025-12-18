@@ -9,6 +9,8 @@
  * following APPLICATION DESIGN requirements.
  */
 
+#define _GNU_SOURCE  // For be64toh/htobe64
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,6 +18,7 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <endian.h>  // For be64toh
 #include <errno.h>
 
 // Protocol constants

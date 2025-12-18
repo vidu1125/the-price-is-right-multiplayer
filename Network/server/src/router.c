@@ -330,8 +330,9 @@ void route_start_game(int client_fd, StartGameRequest* req) {
         // Send countdown notification
         GameStartingNotification ntf;
         ntf.match_id = htonl(ctx->match_id);
-        ntf.countdown = 3;
-        ntf.server_timestamp = htobe64(json_get_int(response, "server_timestamp", 0));
+        ntf.countdown_ms = htonl(3000);  // 3 seconds in milliseconds
+        ntf.server_timestamp_ms = htobe64(json_get_int(response, "server_timestamp_ms", 0));
+        ntf.game_start_timestamp_ms = htobe64(json_get_int(response, "game_start_timestamp_ms", 0));
         
         send_notification(client_fd, NTF_GAME_STARTING, &ntf, sizeof(ntf));
         

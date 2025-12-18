@@ -21,14 +21,20 @@ bool recv_full(int fd, void* buffer, size_t length) {
     return true;
 }
 
-bool recv_packet_header(int client_fd, MessageHeader* header) {
-    if (!recv_full(client_fd, header, sizeof(MessageHeader))) {
+bool recv_packet_header(int client_fd, PacketHeader* header) {
+    if (!recv_full(client_fd, header, sizeof(PacketHeader))) {
         return false;
     }
     
+    // Convert from network byte order
+    header->magic = ntohl(header->magic);
+    header->sequence = ntohl(header->sequence);
+    header->payload_length = ntohl(header->payload_length);
+    header->flags = ntohs(header->flags);
+    
     // Verify magic number
-    if (packet_get_magic(header) != PROTOCOL_MAGIC) {
-        fprintf(stderr, "[Packet] Invalid magic: 0x%04x\n", packet_get_magic(header));
+    if (header->magic != MAGIC_NUMBER) {
+        fprintf(stderr, "[Packet] Invalid magic: 0x%08x\n", header->magic);
         return false;
     }
     
@@ -41,7 +47,7 @@ bool recv_packet_payload(int client_fd, uint32_t length, void** payload_out) {
         return true;
     }
     
-    if (length > MAX_PAYLOAD_SIZE) {
+    if (length > MAX_PACKET_SIZE) {
         fprintf(stderr, "[Packet] Payload too large: %u bytes\n", length);
         return false;
     }
@@ -62,18 +68,27 @@ bool recv_packet_payload(int client_fd, uint32_t length, void** payload_out) {
 }
 
 bool send_response(int client_fd, uint16_t response_code, void* payload, uint32_t payload_size) {
-    MessageHeader header;
-    packet_set_header(&header, response_code, payload_size);
+    PacketHeader header;
+    
+    // Build header
+    header.magic = htonl(MAGIC_NUMBER);
+    header.version = PROTOCOL_VERSION;
+    header.type = response_code & 0xFF;
+    header.flags = htons(0);
+    header.sequence = htonl(0);  // TODO: track sequence
+    header.payload_length = htonl(payload_size);
     
     // Send header
-    if (send(client_fd, &header, sizeof(header), MSG_NOSIGNAL) != sizeof(header)) {
+    ssize_t sent = send(client_fd, &header, sizeof(header), MSG_NOSIGNAL);
+    if (sent != sizeof(header)) {
         perror("[Packet] send header");
         return false;
     }
     
     // Send payload if exists
     if (payload_size > 0 && payload) {
-        if (send(client_fd, payload, payload_size, MSG_NOSIGNAL) != payload_size) {
+        sent = send(client_fd, payload, payload_size, MSG_NOSIGNAL);
+        if (sent != (ssize_t)payload_size) {
             perror("[Packet] send payload");
             return false;
         }
@@ -92,4 +107,13 @@ bool send_error(int client_fd, uint16_t error_code, const char* message) {
 
 bool send_notification(int client_fd, uint16_t notification_code, void* payload, uint32_t payload_size) {
     return send_response(client_fd, notification_code, payload, payload_size);
+}
+
+// Helper functions
+uint16_t packet_get_command(PacketHeader* header) {
+    return header->type;
+}
+
+uint32_t packet_get_length(PacketHeader* header) {
+    return header->payload_length;
 }

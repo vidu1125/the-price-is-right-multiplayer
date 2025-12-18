@@ -4,6 +4,11 @@
 #include <stdint.h>
 #include "packet_format.h"
 
+// Define PACKED macro
+#ifndef PACKED
+#define PACKED __attribute__((packed))
+#endif
+
 // ===== TIME SYNC =====
 typedef struct PACKED {
     uint64_t client_send_time;
@@ -23,11 +28,13 @@ typedef struct PACKED {
     uint8_t max_players;       // 4-6
     uint16_t round_time;       // 15-60 seconds
     uint8_t wager_enabled;     // 0: off, 1: on
+    uint8_t padding[2];        // Alignment
 } CreateRoomRequest;
 
 typedef struct PACKED {
     uint32_t room_id;
     char room_code[11];
+    uint8_t padding;
     uint32_t host_id;
     uint64_t created_at;
 } CreateRoomResponse;
@@ -39,6 +46,7 @@ typedef struct PACKED {
     uint8_t max_players;
     uint16_t round_time;
     uint8_t wager_enabled;
+    uint8_t padding[3];
 } SetRuleRequest;
 
 typedef struct PACKED {
@@ -46,6 +54,7 @@ typedef struct PACKED {
     uint8_t max_players;
     uint16_t round_time;
     uint8_t wager_enabled;
+    uint8_t padding[3];
     uint64_t updated_at;
 } RulesUpdatedNotification;
 
@@ -65,6 +74,7 @@ typedef struct PACKED {
     uint32_t user_id;
     char username[32];
     uint8_t new_player_count;
+    uint8_t padding[3];
 } PlayerLeftNotification;
 
 // ===== DELETE ROOM =====
@@ -85,8 +95,9 @@ typedef struct PACKED {
 
 typedef struct PACKED {
     uint32_t match_id;
-    uint8_t countdown;
-    uint64_t server_timestamp;
+    uint32_t countdown_ms;
+    uint64_t server_timestamp_ms;
+    uint64_t game_start_timestamp_ms;
 } GameStartingNotification;
 
 typedef struct PACKED {
