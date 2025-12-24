@@ -1,10 +1,8 @@
-version: '3.8'
-
 services:
   network:
     build:
       context: ./Network
-      dockerfile: server/Dockerfile
+      dockerfile: Dockerfile
     container_name: tpir-network
     ports:
       - "8888:8888"
@@ -20,6 +18,11 @@ services:
       - "5000:5000"
     env_file:
       - ./Backend/.env
+    environment:
+      NETWORK_HOST: network
+      NETWORK_PORT: 8888
+    depends_on:
+      - network
     networks:
       - tpir-net
     restart: unless-stopped

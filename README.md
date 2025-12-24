@@ -127,6 +127,11 @@ Wait for all services to initialize (approximately 2-3 minutes on first run).
 - **Backend API:** http://localhost:5000/health
 - **Socket Server:** localhost:8888
 
+
+
+## Multiplayer enabling
+ngrok config add-authtoken [Your_token_here]
+ngrok http 3000
 ---
 
 ## Development Setup
