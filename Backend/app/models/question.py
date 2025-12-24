@@ -1,29 +1,53 @@
-from app.models import db
+from sqlalchemy import (
+    Column, Integer, String, Timestamp, ForeignKey, UniqueConstraint
+)
+from sqlalchemy.dialects.postgresql import JSONB
+from .base import Base
 
-class Question(db.Model):
+class MatchQuestion(Base):
+    __tablename__ = "match_question"
+
+    id = Column(Integer, primary_key=True)
+    match_id = Column(Integer, ForeignKey("matches.id"))
+
+    round_no = Column(Integer)
+    round_type = Column(String(20))
+
+    question_idx = Column(Integer)
+    question = Column(JSONB)
+
+    created_at = Column(Timestamp)
+
+    __table_args__ = (
+        UniqueConstraint("match_id", "round_no", "question_idx"),
+    )
+
+
+class MatchAnswer(Base):
+    __tablename__ = "match_answer"
+
+    id = Column(Integer, primary_key=True)
+    question_id = Column(Integer, ForeignKey("match_question.id"))
+    player_id = Column(Integer, ForeignKey("match_players.id"))
+
+    answer = Column(JSONB)
+    score_delta = Column(Integer)
+    action_idx = Column(Integer, default=1)
+
+    created_at = Column(Timestamp)
+
+    __table_args__ = (
+        UniqueConstraint("question_id", "player_id", "action_idx"),
+    )
+
+
+class Question(Base):
     __tablename__ = "questions"
 
-    id = db.Column(db.Integer, primary_key=True)
-    text = db.Column(db.Text)
-    image = db.Column(db.Text)
-    a = db.Column(db.Text)
-    b = db.Column(db.Text)
-    c = db.Column(db.Text)
-    d = db.Column(db.Text)
-    correct = db.Column(db.String(1))
-    active = db.Column(db.Boolean)
-    last_updated_by = db.Column(db.Integer, db.ForeignKey("accounts.id", ondelete="SET NULL"))
-    last_updated_at = db.Column(db.DateTime)
+    id = Column(Integer, primary_key=True)
+    type = Column(String(20))
+    data = Column(JSONB)
+    active = Column(Boolean, default=True)
 
-    def to_dict(self):
-        return {
-            "id": self.id,
-            "text": self.text,
-            "image": self.image,
-            "a": self.a,
-            "b": self.b,
-            "c": self.c,
-            "d": self.d,
-            "correct": self.correct,
-            "active": self.active,
-        }
+    created_at = Column(Timestamp)
+    updated_at = Column(Timestamp)

@@ -1,19 +1,14 @@
-from app.models import db
+from sqlalchemy import (
+    Column, Integer, Boolean, Timestamp, ForeignKey
+)
+from sqlalchemy.dialects.postgresql import UUID
+from .base import Base
 
-class AccountSession(db.Model):
+
+class Session(Base):
     __tablename__ = "sessions"
 
-    account_id = db.Column(db.Integer, db.ForeignKey("accounts.id", ondelete="CASCADE"), primary_key=True)
-    session_id = db.Column(db.String(36))
-    connected = db.Column(db.Boolean)
-    updated_at = db.Column(db.DateTime)
-
-    account = db.relationship("Account", back_populates="session")
-
-    def to_dict(self):
-        return {
-            "account_id": self.account_id,
-            "session_id": self.session_id,
-            "connected": self.connected,
-            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
-        }
+    account_id = Column(Integer, ForeignKey("accounts.id"), primary_key=True)
+    session_id = Column(UUID, nullable=False)
+    connected = Column(Boolean, default=True)
+    updated_at = Column(Timestamp)

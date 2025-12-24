@@ -1,21 +1,19 @@
-from app.models import db
+from sqlalchemy import (
+    Column, Integer, String, Timestamp, ForeignKey, UniqueConstraint
+)
+from .base import Base
 
-class Friend(db.Model):
+class Friend(Base):
     __tablename__ = "friends"
 
-    id = db.Column(db.Integer, primary_key=True)
-    requester_id = db.Column(db.Integer, db.ForeignKey("accounts.id", ondelete="CASCADE"))
-    addressee_id = db.Column(db.Integer, db.ForeignKey("accounts.id", ondelete="CASCADE"))
-    status = db.Column(db.String(20))
-    created_at = db.Column(db.DateTime)
-    updated_at = db.Column(db.DateTime)
+    id = Column(Integer, primary_key=True)
+    requester_id = Column(Integer, ForeignKey("accounts.id"))
+    addressee_id = Column(Integer, ForeignKey("accounts.id"))
+    status = Column(String(20))
 
-    def to_dict(self):
-        return {
-            "id": self.id,
-            "requester_id": self.requester_id,
-            "addressee_id": self.addressee_id,
-            "status": self.status,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
-            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
-        }
+    created_at = Column(Timestamp)
+    updated_at = Column(Timestamp)
+
+    __table_args__ = (
+        UniqueConstraint("requester_id", "addressee_id"),
+    )
