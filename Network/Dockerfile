@@ -1,19 +1,28 @@
-FROM ubuntu:22.04
+# ==============================
+# Build stage
+# ==============================
+FROM gcc:13 AS builder
 
-RUN apt update && apt install -y \
-    build-essential \
-    python3 \
-    sqlite3 \
-    libsqlite3-dev \
-    netcat \
-    && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
 
-WORKDIR /network
-
+# Copy toàn bộ source
 COPY . .
 
-RUN make
+# Build network server
+RUN make clean && make
 
-EXPOSE 6000
+# ==============================
+# Runtime stage
+# ==============================
+FROM debian:bookworm-slim
 
-CMD ["./bin/game_server"]
+WORKDIR /app
+
+# Copy binary từ build stage
+COPY --from=builder /app/network_server .
+
+# Expose TCP port
+EXPOSE 5500
+
+# Run server
+CMD ["./network_server"]
