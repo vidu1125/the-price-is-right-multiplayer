@@ -1,19 +1,28 @@
 from app.models import db
+from .base import Base
+from sqlalchemy.sql import func
+import uuid
 
-class AccountSession(db.Model):
+class Session(Base):
     __tablename__ = "sessions"
 
-    account_id = db.Column(db.Integer, db.ForeignKey("accounts.id", ondelete="CASCADE"), primary_key=True)
-    session_id = db.Column(db.String(36))
-    connected = db.Column(db.Boolean)
-    updated_at = db.Column(db.DateTime)
+    account_id = db.Column(
+        db.Integer,
+        db.ForeignKey("accounts.id"),
+        primary_key=True
+    )
 
-    account = db.relationship("Account", back_populates="session")
+    session_id = db.Column(
+        db.String(36),               # 👈 UUID portable
+        nullable=False,
+        unique=True,
+        default=lambda: str(uuid.uuid4())
+    )
 
-    def to_dict(self):
-        return {
-            "account_id": self.account_id,
-            "session_id": self.session_id,
-            "connected": self.connected,
-            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
-        }
+    connected = db.Column(db.Boolean, default=True)
+
+    updated_at = db.Column(
+        db.DateTime,
+        server_default=func.now(),
+        onupdate=func.now()
+    )

@@ -2,7 +2,7 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
-#include "../include/protocol.h"
+#include "../include/protocol/protocol.h"
 #include "../include/server.h"
 #include <errno.h>
 

@@ -11,11 +11,11 @@
 #include <time.h>
 
 #include "../include/server.h"
-#include "../include/protocol.h"
-#include "../include/client_manager.h"
-#include "../include/room_manager.h"
+#include "../include/protocol/protocol.h"
+#include "../include/handler/client_manager.h"
+#include "../include/handler/room_manager.h"
 #include "../include/database.h"
-#include "../include/message_handler.h"
+#include "../include/handler//message_handler.h"
 
 //==============================================================================
 // GLOBAL VARIABLES

@@ -64,7 +64,7 @@ This project implements a multiplayer game server using a custom network protoco
 └────────┬─────────┘
          │ IPC Bridge
 ┌────────▼─────────┐
-│  C Socket Server │  Port 8888
+│  C Socket Server │  Port 5500
 │ (Custom Protocol)│
 └────────┬─────────┘
          │ TCP/UDP
@@ -125,8 +125,13 @@ Wait for all services to initialize (approximately 2-3 minutes on first run).
 
 - **Frontend:** http://localhost:3000
 - **Backend API:** http://localhost:5000/health
-- **Socket Server:** localhost:8888
+- **Socket Server:** localhost:5500
 
+
+
+## Multiplayer enabling
+ngrok config add-authtoken [Your_token_here]
+ngrok http 3000
 ---
 
 ## Development Setup
@@ -198,12 +203,12 @@ BACKEND_PORT=5000
 FLASK_ENV=development
 
 # Network Configuration
-SOCKET_SERVER_PORT=8888
+SOCKET_SERVER_PORT=5500
 SOCKET_SERVER_HOST=0.0.0.0
 
 # Frontend Configuration
 REACT_APP_API_URL=http://localhost:5000
-REACT_APP_WS_URL=ws://localhost:8888
+REACT_APP_WS_URL=ws://localhost:5500
 ```
 
 ---
@@ -610,8 +615,8 @@ newgrp docker
 
 **Problem: Port already in use**
 ```bash
-# Find process using port 8888
-sudo lsof -i :8888
+# Find process using port 5500
+sudo lsof -i :5500
 
 # Kill the process
 sudo kill -9 <PID>
@@ -704,13 +709,13 @@ curl http://localhost:5000/health
 **Problem: Socket server not accepting connections**
 ```bash
 # Check if port is listening
-netstat -tuln | grep 8888
+netstat -tuln | grep 5500
 
 # Check firewall rules
 sudo ufw status
 
 # Test socket connection
-telnet localhost 8888
+telnet localhost 5500
 ```
 
 ### Performance Issues

@@ -1,7 +1,7 @@
 #ifndef MESSAGE_HANDLER_H
 #define MESSAGE_HANDLER_H
 
-#include "protocol.h"
+#include "protocol/protocol.h"
 #include <stdint.h>
 
 //==============================================================================

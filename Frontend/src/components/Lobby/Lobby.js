@@ -3,6 +3,7 @@ import "./Lobby.css";
 import UserCard from "./UserCard";
 import AppTitle from "./AppTitle";
 import RoomPanel from "./RoomPanel";
+import { viewHistory } from "../../services/historyService";
 
 export default function Lobby() {
   return (
@@ -19,8 +20,9 @@ export default function Lobby() {
           {/* UserCard đã bị loại bỏ khỏi đây */}
           
           <div className="side-actions">
-            <button>VIEW HISTORY</button>
+            <button onClick={viewHistory}>VIEW HISTORY</button>
             <button>VIEW TUTORIAL</button>
+
             <button>SETTING</button>
             <button className="logout">LOG OUT</button>
           </div>

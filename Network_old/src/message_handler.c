@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 //#include "../../include/message_handler.h"
-#include "../include/protocol.h"
+#include "../include/protocol/protocol.h"
 #include "../include/server.h"
 
 //==============================================================================

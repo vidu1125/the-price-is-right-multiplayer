@@ -7,8 +7,8 @@
 #include <errno.h>
 #include <time.h>
 
-#include "../include/client_manager.h"
-#include "../include/protocol.h"
+#include "../include/handler/client_manager.h"
+#include "../include/protocol/protocol.h"
 #include "../include/server.h"
 
 //==============================================================================

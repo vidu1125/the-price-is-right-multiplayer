@@ -38,7 +38,7 @@ db.init_app(app)
 # (giữ logic từ nhánh main)
 from app.models import (
     Account, Profile, Room, RoomMember,
-    Match, MatchPlayer, Round
+    Match, MatchPlayer
 )
 
 # ========================== REGISTER BLUEPRINTS ==========================
@@ -80,9 +80,7 @@ def init_db():
                     test_account = Account(
                         id=1,
                         email='test@example.com',
-                        password='hashed_password',
-                        provider='local',
-                        status='active'
+                        password='hashed_password'
                     )
                     db.session.add(test_account)
                     db.session.flush()

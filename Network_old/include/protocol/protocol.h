@@ -45,6 +45,7 @@
 #define CMD_REPLAY          0x0503
 #define CMD_LEAD            0x0504
 
+
 // System
 #define CMD_HEARTBEAT       0x0001
 
@@ -153,6 +154,9 @@ typedef struct PACKED {
     char data[];
 } RoundStartPayload;
 
+
+
+
 #if !defined(__GNUC__) && !defined(__clang__)
 #pragma pack(pop)
 #endif
@@ -178,6 +182,7 @@ typedef enum {
     ROUND_BID = 2,
     ROUND_WHEEL = 3
 } RoundType;
+
 
 //==============================================================================
 // FUNCTION DECLARATIONS

@@ -3,8 +3,7 @@
 
 #include <sys/select.h>
 #include <time.h>
-#include "protocol.h"
-
+#include "protocol/protocol.h"  
 //==============================================================================
 // SERVER CONFIGURATION
 //==============================================================================

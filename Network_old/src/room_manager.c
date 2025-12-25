@@ -2,8 +2,7 @@
 #include <string.h>
 #include <time.h>
 #include "../include/room_manager.h"
-#include "../include/protocol.h"
-
+#include "../include/protocol/protocol.h"
 //==============================================================================
 // ROOM INITIALIZATION
 //==============================================================================
