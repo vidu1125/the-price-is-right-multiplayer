@@ -1,24 +1,42 @@
-from sqlalchemy import (
-    Column, Integer, String, Timestamp, Boolean, ForeignKey
-)
+from app.models import db
 from .base import Base
+from sqlalchemy.sql import func
 
 class Room(Base):
     __tablename__ = "rooms"
 
-    id = Column(Integer, primary_key=True)
-    name = Column(String(100))
-    code = Column(String(10), unique=True)
-    visibility = Column(String(20))
-    host_id = Column(Integer, ForeignKey("accounts.id"))
-    status = Column(String(20))
-    created_at = Column(Timestamp)
-    updated_at = Column(Timestamp)
+    id = db.Column(db.Integer, primary_key=True)
+
+    name = db.Column(db.String(100), nullable=False)
+    code = db.Column(db.String(10), unique=True, nullable=False)
+
+    visibility = db.Column(db.String(20), default="public")
+
+    host_id = db.Column(
+        db.Integer,
+        db.ForeignKey("accounts.id"),
+        nullable=False
+    )
+
+    status = db.Column(db.String(20), default="waiting")
+
+    created_at = db.Column(db.DateTime, server_default=func.now())
+    updated_at = db.Column(db.DateTime, onupdate=func.now())
 
 
 class RoomMember(Base):
     __tablename__ = "room_members"
 
-    room_id = Column(Integer, ForeignKey("rooms.id"), primary_key=True)
-    account_id = Column(Integer, ForeignKey("accounts.id"), primary_key=True)
-    joined_at = Column(Timestamp)
+    room_id = db.Column(
+        db.Integer,
+        db.ForeignKey("rooms.id"),
+        primary_key=True
+    )
+
+    account_id = db.Column(
+        db.Integer,
+        db.ForeignKey("accounts.id"),
+        primary_key=True
+    )
+
+    joined_at = db.Column(db.DateTime, server_default=func.now())

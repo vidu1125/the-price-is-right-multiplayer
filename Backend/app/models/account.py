@@ -1,15 +1,13 @@
-from sqlalchemy import (
-    Column, Integer, String, Timestamp
-)
-from sqlalchemy.sql import func
+from app.models import db
 from .base import Base
+from sqlalchemy.sql import func
 
 class Account(Base):
     __tablename__ = "accounts"
 
-    id = Column(Integer, primary_key=True)
-    email = Column(String(100), unique=True, nullable=False)
-    password = Column(String(255))
-    role = Column(String(20), nullable=False, default="user")
-    created_at = Column(Timestamp, server_default=func.now())
-    updated_at = Column(Timestamp, onupdate=func.now())
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(100), unique=True, nullable=False)
+    password = db.Column(db.String(255))
+    role = db.Column(db.String(20), nullable=False, default="user")
+    created_at = db.Column(db.DateTime, server_default=func.now())
+    updated_at = db.Column(db.DateTime, onupdate=func.now())

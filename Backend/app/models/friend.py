@@ -1,19 +1,29 @@
-from sqlalchemy import (
-    Column, Integer, String, Timestamp, ForeignKey, UniqueConstraint
-)
+from app.models import db
 from .base import Base
+from sqlalchemy.sql import func
 
 class Friend(Base):
     __tablename__ = "friends"
 
-    id = Column(Integer, primary_key=True)
-    requester_id = Column(Integer, ForeignKey("accounts.id"))
-    addressee_id = Column(Integer, ForeignKey("accounts.id"))
-    status = Column(String(20))
+    id = db.Column(db.Integer, primary_key=True)
 
-    created_at = Column(Timestamp)
-    updated_at = Column(Timestamp)
+    requester_id = db.Column(
+        db.Integer,
+        db.ForeignKey("accounts.id"),
+        nullable=False
+    )
+
+    addressee_id = db.Column(
+        db.Integer,
+        db.ForeignKey("accounts.id"),
+        nullable=False
+    )
+
+    status = db.Column(db.String(20), nullable=False)
+
+    created_at = db.Column(db.DateTime, server_default=func.now())
+    updated_at = db.Column(db.DateTime, onupdate=func.now())
 
     __table_args__ = (
-        UniqueConstraint("requester_id", "addressee_id"),
+        db.UniqueConstraint("requester_id", "addressee_id", name="uq_friend_pair"),
     )

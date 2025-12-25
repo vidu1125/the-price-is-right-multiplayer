@@ -1,23 +1,27 @@
-from sqlalchemy import (
-    Column, Integer, String, Text, Timestamp, ForeignKey
-)
-from sqlalchemy.dialects.postgresql import JSONB
+from app.models import db
 from .base import Base
+from sqlalchemy.sql import func
 
 class Profile(Base):
     __tablename__ = "profiles"
 
-    id = Column(Integer, primary_key=True)
-    account_id = Column(Integer, ForeignKey("accounts.id"))
-    name = Column(String(50))
-    avatar = Column(Text)
-    bio = Column(Text)
+    id = db.Column(db.Integer, primary_key=True)
 
-    matches = Column(Integer, default=0)
-    wins = Column(Integer, default=0)
-    points = Column(Integer, default=0)
+    account_id = db.Column(
+        db.Integer,
+        db.ForeignKey("accounts.id"),
+        nullable=False
+    )
 
-    badges = Column(JSONB)
+    name = db.Column(db.String(50))
+    avatar = db.Column(db.Text)
+    bio = db.Column(db.Text)
 
-    created_at = Column(Timestamp)
-    updated_at = Column(Timestamp)
+    matches = db.Column(db.Integer, default=0)
+    wins = db.Column(db.Integer, default=0)
+    points = db.Column(db.Integer, default=0)
+
+    badges = db.Column(db.JSON)   # 👈 KHÔNG dùng JSONB
+
+    created_at = db.Column(db.DateTime, server_default=func.now())
+    updated_at = db.Column(db.DateTime, onupdate=func.now())

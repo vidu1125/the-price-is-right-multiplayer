@@ -1,32 +1,50 @@
-from sqlalchemy import (
-    Column, Integer, String, Boolean, Timestamp, ForeignKey
-)
-from sqlalchemy.dialects.postgresql import JSONB
+from app.models import db
 from .base import Base
+from sqlalchemy.sql import func
 
 class Match(Base):
     __tablename__ = "matches"
 
-    id = Column(Integer, primary_key=True)
-    room_id = Column(Integer, ForeignKey("rooms.id"))
-    mode = Column(String(20))
-    max_players = Column(Integer)
-    advanced = Column(JSONB)
-    round_time = Column(Integer)
-    started_at = Column(Timestamp)
-    ended_at = Column(Timestamp)
+    id = db.Column(db.Integer, primary_key=True)
+
+    room_id = db.Column(
+        db.Integer,
+        db.ForeignKey("rooms.id"),
+        nullable=False
+    )
+
+    mode = db.Column(db.String(20), nullable=False)
+    max_players = db.Column(db.Integer, nullable=False)
+
+    advanced = db.Column(db.JSON)   # 👈 QUAN TRỌNG (xem lưu ý dưới)
+
+    round_time = db.Column(db.Integer)
+
+    started_at = db.Column(db.DateTime)
+    ended_at = db.Column(db.DateTime)
 
 
 class MatchPlayer(Base):
     __tablename__ = "match_players"
 
-    id = Column(Integer, primary_key=True)
-    match_id = Column(Integer, ForeignKey("matches.id"))
-    account_id = Column(Integer, ForeignKey("accounts.id"))
+    id = db.Column(db.Integer, primary_key=True)
 
-    score = Column(Integer, default=0)
-    eliminated = Column(Boolean, default=False)
-    forfeited = Column(Boolean, default=False)
-    winner = Column(Boolean, default=False)
+    match_id = db.Column(
+        db.Integer,
+        db.ForeignKey("matches.id"),
+        nullable=False
+    )
 
-    joined_at = Column(Timestamp)
+    account_id = db.Column(
+        db.Integer,
+        db.ForeignKey("accounts.id"),
+        nullable=False
+    )
+
+    score = db.Column(db.Integer, default=0)
+
+    eliminated = db.Column(db.Boolean, default=False)
+    forfeited = db.Column(db.Boolean, default=False)
+    winner = db.Column(db.Boolean, default=False)
+
+    joined_at = db.Column(db.DateTime, server_default=func.now())
