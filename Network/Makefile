@@ -17,7 +17,9 @@ BUILD_DIR := build
 SRCS := \
     $(wildcard $(SRC_DIR)/*.c) \
     $(wildcard $(SRC_DIR)/transport/*.c) \
-    $(wildcard $(SRC_DIR)/handlers/*.c)
+    $(wildcard $(SRC_DIR)/handlers/*.c) \
+	$(wildcard $(SRC_DIR)/utils/*.c)
+
 
 # message.c có thể bỏ nếu bạn không dùng helper protocol
 # Nếu không có file này, xóa dòng trên

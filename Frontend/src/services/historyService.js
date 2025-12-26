@@ -11,11 +11,7 @@ export function viewHistory() {
   sendPacket(OPCODE.CMD_HIST);
 }
 
-/**
- * Nhận response từ server
- * CMD_HIST_RESP (ví dụ: 0x0503)
- */
-registerHandler(OPCODE.CMD_HIST_RESP, (payload) => {
+registerHandler(OPCODE.CMD_HIST, (payload) => {
   console.log("[Service][History] response payload:", payload);
 
   // TODO:

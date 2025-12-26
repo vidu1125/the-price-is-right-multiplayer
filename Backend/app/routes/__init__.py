@@ -1,16 +1,22 @@
-from flask import Blueprint, jsonify
-from app import db
-from app.routes.room_routes import room_bp
+import pkgutil
+import importlib
+from pathlib import Path
 
-# Blueprint chỉ để check database
-utils_bp = Blueprint("utils", __name__)
+IGNORE_MODULES = {
+    "db_routes",
+}
 
-@utils_bp.route("/health/db")
-def db_check():
-    try:
-        db.session.execute(db.text("SELECT 1"))
-        return jsonify({"db": "connected"}), 200
-    except Exception as e:
-        return jsonify({"db": "error", "details": str(e)}), 500
+def register_routes(flask_app):
+    package_name = __name__
+    package_path = Path(__file__).parent
 
-__all__ = ["room_bp", "utils_bp"]
+    for module_info in pkgutil.iter_modules([str(package_path)]):
+        module_name = module_info.name
+
+        if module_name.startswith("_") or module_name in IGNORE_MODULES:
+            continue
+
+        module = importlib.import_module(f"{package_name}.{module_name}")
+
+        if hasattr(module, "bp"):
+            flask_app.register_blueprint(module.bp)
