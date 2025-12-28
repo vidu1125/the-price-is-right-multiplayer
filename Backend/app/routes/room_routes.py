@@ -51,3 +51,35 @@ def list_rooms():
 
     result = RoomService.list_rooms(status=status, visibility=visibility)
     return (jsonify(result), 200) if result.get('success') else (jsonify(result), 500)
+
+@room_bp.route('/rules', methods=['PUT'])
+@require_auth
+def update_rules(account_id):
+    """Host updates room rules"""
+    data = request.get_json()
+    room_id = data.get('room_id')
+    rules = data.get('rules')
+    
+    result = RoomService.update_rules(room_id, account_id, rules)
+    return (jsonify(result), 200) if result.get('success') else (jsonify(result), 403)
+
+@room_bp.route('/kick', methods=['POST'])
+@require_auth
+def kick_member(account_id):
+    """Host kicks a member"""
+    data = request.get_json()
+    room_id = data.get('room_id')
+    target_id = data.get('target_id')
+    
+    result = RoomService.kick_member(room_id, account_id, target_id)
+    return (jsonify(result), 200) if result.get('success') else (jsonify(result), 403)
+
+@room_bp.route('/<int:room_id>/leave', methods=['POST'])
+@require_auth
+def leave_room(account_id, room_id):
+    """Member leaves room"""
+    result = RoomService.leave_room(room_id, account_id)
+    return (jsonify(result), 200) if result.get('success') else (jsonify(result), 400)
+
+# Export bp for auto-registration
+bp = room_bp

@@ -20,3 +20,4 @@ def register_routes(flask_app):
 
         if hasattr(module, "bp"):
             flask_app.register_blueprint(module.bp)
+            print(f"✅ Registered blueprint: {module_name}")

@@ -9,5 +9,6 @@ class Account(Base):
     email = db.Column(db.String(100), unique=True, nullable=False)
     password = db.Column(db.String(255))
     role = db.Column(db.String(20), nullable=False, default="user")
+    status = db.Column(db.String(20))  # Column exists in Supabase
     created_at = db.Column(db.DateTime, server_default=func.now())
-    updated_at = db.Column(db.DateTime, onupdate=func.now())
+    updated_at = db.Column(db.DateTime, server_default=func.now(), onupdate=func.now())
