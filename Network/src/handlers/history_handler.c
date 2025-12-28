@@ -20,6 +20,7 @@ void handle_history(
         resp_buf,
         sizeof(resp_buf)
     );
+    
     if (resp_len <= 0) {
             const char *msg = "{\"message\":\"backend unreachable\"}";
             resp_len = strlen(msg);
