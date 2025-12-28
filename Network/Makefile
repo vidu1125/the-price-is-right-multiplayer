@@ -21,9 +21,6 @@ SRCS := \
 	$(wildcard $(SRC_DIR)/utils/*.c)
 
 
-# message.c có thể bỏ nếu bạn không dùng helper protocol
-# Nếu không có file này, xóa dòng trên
-
 OBJS := $(SRCS:$(SRC_DIR)/%.c=$(BUILD_DIR)/%.o)
 
 # ==============================
