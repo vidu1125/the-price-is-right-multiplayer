@@ -1,0 +1,218 @@
+
+**Workflow**
+
+**FRONTEND**
+
+* Frontend UI → Frontend Service
+* Gửi **JSON request** xuống C Server
+* Nhận **JSON response** từ C Server
+
+---
+
+**C SERVER**
+
+* **Transport**
+
+  * Nhận dữ liệu dạng **raw bytes**
+* **Protocol**
+
+  * Nhận raw bytes từ Transport
+  * **Parse message**
+* **Handler**
+
+  * Xử lý logic sau khi message được parse
+* Forward request sang Backend
+* Nhận response từ Backend
+
+---
+
+**BACKEND**
+
+* Nhận request từ C Server
+* Giao tiếp hai chiều với Database
+
+---
+
+**DATABASE**
+
+* Lưu trữ và truy xuất dữ liệu
+* Trả dữ liệu về Backend
+
+---
+
+**Luồng tổng quát:**
+
+Frontend UI
+→ Frontend Service
+→ (JSON request)
+→ C Server (Transport → Protocol → Handler)
+→ Backend
+↔ Database
+→ Backend
+→ C Server
+→ (JSON response)
+→ Frontend Service
+→ Frontend UI
+
+---
+
+**NETWORK worktree**
+Network/
+├─ include/
+│  ├─ protocol/                 🔒 CHUNG – API & CONTRACT
+│  │  ├─ protocol.h
+│  │  │   # magic, version, header size, limits
+│  │  └─ opcode.h
+│  │      # opcode (REQ/RESP/ERROR…)
+│  │
+│  ├─ transport/                🔒 CHUNG – Socket interface
+│  │  └─ socket_server.h
+│  │      # accept/recv/send API
+│  │
+│  └─ handlers/                 🔒 CHUNG – Dispatcher + handler interfaces
+│     ├─ dispatcher.h
+│     │   # map opcode → handler
+│     ├─ room_handler.h         ✳ RIÊNG – Dev A
+│     ├─ match_handler.h        ✳ RIÊNG – Dev B
+│     ├─ profile_handler.h      ✳ RIÊNG – Dev C
+│     └─ history_handler.h      ✳ RIÊNG – (ai phụ trách history)
+│
+├─ src/
+│  ├─ protocol/                 🔒 CHUNG – Encode/Decode
+│  │  └─ message.c
+│  │      # parse/pack header + payload
+│  │
+│  ├─ transport/                🔒 CHUNG – Socket core
+│  │  └─ socket_server.c
+│  │      # recv → decode → dispatch → send
+│  │
+│  └─ handlers/
+│     ├─ dispatcher.c           🔒 CHUNG – điều phối opcode (KHÔNG business)
+│     ├─ room_handler.c         ✳ RIÊNG – Dev A
+│     ├─ match_handler.c        ✳ RIÊNG – Dev B
+│     ├─ profile_handler.c      ✳ RIÊNG – Dev C
+│     └─ history_handler.c      ✳ RIÊNG – (ai phụ trách history)
+│
+├─ main.c                       🔒 CHUNG – Entry point server
+├─ Dockerfile                   🔒 CI – Build & run
+└─ Makefile                     🔒 CHUNG – Build C project
+
+Note:
+
+Chỉ thêm code vào handlers
+
+Name convention
+
+Tên file: <domain>_handler.c và <domain>_handler.h
+
+Tên hàm xử lý:
+
+handle_<domain>(
+    int client_fd,
+    MessageHeader *req,
+    const char *payload
+)
+
+
+Import opcode từ protocols/opcode.h, không tự define lại opcode
+(Nếu cần thêm opcode, phải thông báo với mọi người để tránh conflict mã opcode)
+
+Import protocol.h để define header
+
+**FRONTEND worktree**
+
+Frontend/
+├─ public/                      🔒 CHUNG – static assets
+│
+├─ src/
+│  ├─ components/               ✳ RIÊNG – UI theo domain
+│  │  ├─ Lobby/                 # Dev A – màn hình lobby
+│  │  ├─ Room/                  # Dev A – phòng chơi
+│  │  ├─ Game/                  # Dev B – gameplay
+│  │  └─ RoomOld/               # legacy / refactor (nếu còn dùng)
+│  │
+│  ├─ network/                  🔒 CHUNG – socket core (KHÔNG business)
+│  │  ├─ socketClient.js        # WS connect / send / recv raw bytes
+│  │  ├─ receiver.js            # decode frame → emit event
+│  │  └─ dispatcher.js          # opcode → service handler
+│  │
+│  ├─ services/                 ✳ RIÊNG – business logic theo domain
+│  │  ├─ historyService.js      # Dev D – history
+│  │  ├─ roomService.js         # Dev A – room / lobby
+│  │  └─ socketServices.js      # (nếu có) wrapper tiện ích
+│  │
+│  ├─ App.js                    🔒 CHUNG – root component
+│  ├─ App.css
+│  ├─ index.js                  🔒 CHUNG – entry point
+│  └─ index.css
+│
+├─ .env                         🔒 CHUNG – env config
+├─ Dockerfile                   🔒 CHUNG – build frontend
+├─ package.json                 🔒 CHUNG – deps & scripts
+└─ README.md                    🔒 CHUNG – ước frontend
+
+Note:
+
+Chỉ thêm code service vào thư mục services để define action
+
+KHÔNG thêm function vào components
+(components chỉ gọi các hành động được expose từ service)
+
+Name convention:
+services/<domain>Service.js
+
+
+
+**BACKEND worktre**
+
+Backend/
+├─ app/
+│  ├─ routes/                   ✳ RIÊNG – chia theo dev / domain
+│  │  ├─ __init__.py             🔒 CHUNG – auto register
+│  │  ├─ room_routes.py          ✳ Dev A
+│  │  ├─ match_routes.py         ✳ Dev B
+│  │  └─ history_routes.py       ✳ Dev C
+│  │
+│  ├─ services/                 🔒 CHUNG – business logic
+│  │  ├─ room_service.py
+│  │  ├─ match_service.py
+│  │  └─ history_service.py
+│  │
+│  ├─ models/
+│  │  └─ database.py
+│  │
+│  └─ main.py                   🔒 CHUNG – entry point
+│
+├─ requirements.txt
+└─ Dockerfile
+
+
+**Testing connection**
+-          Frontend: kiểm tra console log
+Connected to gateway                                  socketClient.js:10
+[Service][History] viewHistory() called                historyService.js:10
+[DISPATCH] send  { command: '502', payloadLen: 0 }     dispatcher.js:35
+[Socket] recv                                         socketClient.js:14
+Uint8Array(43) [
+  67, 71, 1, 0, 5, 2, 0, 0, 0, 0, 0, 1, 0, 0, 0, 27,
+  10, 4, 105, 115, 116, 111, 114, 121, 32, 110, 111,
+  116, 32, 105, 110, 32, 116, 105, 101, 108, 101, 109,
+  101, 116, 101, 100
+]
+buffer: ArrayBuffer(43)
+byteLength: 43
+byteOffset: 0
+length: 43
+Symbol(Symbol.toStringTag): "Uint8Array"
+
+
+-          Ws-bridge: docker compose logs -f ws-bridge
+
+thowo@Thowo:~/networkprog/the-price-is-right-multiplayer$ docker compose logs -f ws-bridge
+
+tpir-ws-bridge | 🟢 WS Bridge listening on :8080
+tpir-ws-bridge | 🔗 WS client connected
+tpir-ws-bridge | 🔌 Connected to C server network:5500
+tpir-ws-bridge | 📤 WS -> TCP <Buffer 43 47 01 00 05 02 00 00 00 00 00 01 00 00 00 00>
+tpir-ws-bridge | 📥 TCP -> WS FRAME { command: '0x502', seqNum: 1, length: 27 }
+tpir-ws-bridge | tpir-ws-bridge exited with code 137
