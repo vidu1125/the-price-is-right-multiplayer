@@ -1,3 +1,5 @@
+import { handleIncoming } from "./receiver";
+
 let socket = null;
 
 export function initSocket(url = "ws://localhost:8080") {
@@ -12,6 +14,7 @@ export function initSocket(url = "ws://localhost:8080") {
 
   socket.onmessage = (event) => {
     console.log("[Socket] recv", new Uint8Array(event.data));
+    handleIncoming(event.data);  // ✅ Dispatch to handlers
   };
 
   socket.onerror = (err) => {

@@ -12,8 +12,8 @@ export function registerHandler(opcode, handler) {
 
 /**
  * Xử lý packet raw từ server
- * Format:
- * | opcode (2B) | payload_len (2B) | payload |
+ * 16-byte Header Format:
+ * | magic (2B) | version (1B) | flags (1B) | command (2B) | reserved (2B) | seqNum (4B) | length (4B) | payload |
  */
 export function handleIncoming(buffer) {
   if (!(buffer instanceof ArrayBuffer)) {
@@ -23,25 +23,38 @@ export function handleIncoming(buffer) {
 
   const view = new DataView(buffer);
 
-  if (buffer.byteLength < 4) {
-    console.error("[Receiver] invalid packet length");
+  if (buffer.byteLength < 16) {
+    console.error("[Receiver] invalid packet length, need at least 16 bytes header");
     return;
   }
 
-  const opcode = view.getUint16(0, false);
-  const payloadLen = view.getUint16(2, false);
+  // Parse 16-byte header
+  const magic = view.getUint16(0, false);      // Big-endian
+  const version = view.getUint8(2);
+  const flags = view.getUint8(3);
+  const command = view.getUint16(4, false);    // Big-endian
+  const reserved = view.getUint16(6, false);
+  const seqNum = view.getUint32(8, false);     // Big-endian
+  const payloadLen = view.getUint32(12, false); // Big-endian
 
-  const payload = buffer.slice(4, 4 + payloadLen);
+  // Validate magic number
+  if (magic !== 0x4347) {
+    console.error("[Receiver] invalid magic number:", magic.toString(16));
+    return;
+  }
+
+  const payload = buffer.slice(16, 16 + payloadLen);
 
   console.log(
     "[Receiver]",
-    "opcode=0x" + opcode.toString(16),
+    "command=0x" + command.toString(16),
+    "seqNum=" + seqNum,
     "payloadLen=" + payloadLen
   );
 
-  const handler = handlers.get(opcode);
+  const handler = handlers.get(command);
   if (!handler) {
-    console.warn("[Receiver] no handler for opcode", opcode);
+    console.warn("[Receiver] no handler for opcode", "0x" + command.toString(16));
     return;
   }
 

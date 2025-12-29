@@ -87,6 +87,7 @@ int http_post(
         "Host: %s\r\n"
         "Content-Type: application/json\r\n"
         "Content-Length: %zu\r\n"
+        "X-Account-ID: 1\r\n"
         "Connection: close\r\n\r\n"
         "%s",
         path, host, body_len, body ? body : ""
@@ -142,6 +143,7 @@ int http_put(
         "Host: %s\r\n"
         "Content-Type: application/json\r\n"
         "Content-Length: %zu\r\n"
+        "X-Account-ID: 1\r\n"
         "Connection: close\r\n\r\n"
         "%s",
         path, host, body_len, body ? body : ""
@@ -193,6 +195,7 @@ int http_delete(
     snprintf(req, sizeof(req),
         "DELETE %s HTTP/1.1\r\n"
         "Host: %s\r\n"
+        "X-Account-ID: 1\r\n"
         "Connection: close\r\n\r\n",
         path, host
     );

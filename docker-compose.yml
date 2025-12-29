@@ -49,6 +49,9 @@ services:
       - tpir-net
     environment:
       WS_URL: ws://ws-bridge:8080
+    volumes:
+      - ./Frontend/src:/app/src
+      - ./Frontend/public:/app/public
     restart: unless-stopped
     stdin_open: true
     tty: true
