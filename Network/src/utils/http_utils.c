@@ -213,6 +213,85 @@ int http_delete(
     return total;
 }
 
+//==============================================================================
+// HTTP Parsed Response Functions
+//==============================================================================
+
+static HttpResponse parse_http_response(char *resp_buf, int resp_len) {
+    HttpResponse result = {0};
+    result.status_code = -1;
+    result.body = NULL;
+    result.body_length = 0;
+    
+    if (resp_len <= 0) {
+        return result;
+    }
+    
+    // Parse "HTTP/1.X STATUS_CODE ...\r\n"
+    if (sscanf(resp_buf, "HTTP/1.%*d %d", &result.status_code) != 1) {
+        return result;
+    }
+    
+    // Find body (after \r\n\r\n)
+    char *body_start = strstr(resp_buf, "\r\n\r\n");
+    if (body_start) {
+        result.body = body_start + 4;
+        result.body_length = resp_len - (int)(body_start - resp_buf + 4);
+    }
+    
+    return result;
+}
+
+HttpResponse http_post_parse(
+    const char *host,
+    int port,
+    const char *path,
+    const char *body,
+    char *resp_buf,
+    size_t resp_buf_size
+) {
+    int resp_len = http_post(host, port, path, body, resp_buf, resp_buf_size);
+    return parse_http_response(resp_buf, resp_len);
+}
+
+HttpResponse http_put_parse(
+    const char *host,
+    int port,
+    const char *path,
+    const char *body,
+    char *resp_buf,
+    size_t resp_buf_size
+) {
+    int resp_len = http_put(host, port, path, body, resp_buf, resp_buf_size);
+    return parse_http_response(resp_buf, resp_len);
+}
+
+HttpResponse http_delete_parse(
+    const char *host,
+    int port,
+    const char *path,
+    char *resp_buf,
+    size_t resp_buf_size
+) {
+    int resp_len = http_delete(host, port, path, resp_buf, resp_buf_size);
+    return parse_http_response(resp_buf, resp_len);
+}
+
+HttpResponse http_get_parse(
+    const char *host,
+    int port,
+    const char *path,
+    char *resp_buf,
+    size_t resp_buf_size
+) {
+    int resp_len = http_get(host, port, path, resp_buf, resp_buf_size);
+    return parse_http_response(resp_buf, resp_len);
+}
+
+//==============================================================================
+// Protocol Helper
+//==============================================================================
+
 void forward_response(
     int client_fd,
     MessageHeader *req,

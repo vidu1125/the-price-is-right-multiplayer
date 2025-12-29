@@ -5,6 +5,7 @@
 #include "protocol/opcode.h"
 #include "protocol/protocol.h"
 #include "utils/http_utils.h"
+#include "transport/room_manager.h"
 
 //==============================================================================
 // PAYLOAD DEFINITIONS (Match Handler)
@@ -51,19 +52,29 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
     char json[256];
     snprintf(json, sizeof(json), "{\"room_id\":%u}", room_id);
     
-    // 4. HTTP POST
+    // 4. HTTP POST (parsed)
     char resp_buf[4096];
-    int resp_len = http_post("backend", 5000, "/api/match/start",
-                            json, resp_buf, sizeof(resp_buf));
+    HttpResponse http_resp = http_post_parse("backend", 5000, "/api/match/start",
+                                            json, resp_buf, sizeof(resp_buf));
     
-    if (resp_len <= 0) {
+    if (http_resp.status_code < 0) {
         send_error(client_fd, req, ERR_SERVER_ERROR, "Backend unreachable");
         return;
     }
     
-    // TODO: Parse response & broadcast NTF_GAME_START
-    // TODO: Schedule NTF_ROUND_START after countdown
+    if (http_resp.status_code >= 400) {
+        send_error(client_fd, req, ERR_BAD_REQUEST, http_resp.body);
+        return;
+    }
     
-    // 5. Forward response
-    forward_response(client_fd, req, RES_GAME_STARTED, resp_buf, resp_len);
+    // 5. Broadcast NTF_GAME_START to all members (GAME STARTED!)
+    room_broadcast(room_id, NTF_GAME_START, http_resp.body,
+                  http_resp.body_length, -1);
+    
+    // TODO: Schedule timer for 3-second countdown
+    // TODO: After countdown, broadcast NTF_ROUND_START with questions
+    
+    // 6. Forward response to host
+    forward_response(client_fd, req, RES_GAME_STARTED,
+                    http_resp.body, http_resp.body_length);
 }
