@@ -1,6 +1,7 @@
 from app.models import db
 from .base import Base
 from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 
 class Room(Base):
     __tablename__ = "rooms"
@@ -22,6 +23,9 @@ class Room(Base):
 
     created_at = db.Column(db.DateTime, server_default=func.now())
     updated_at = db.Column(db.DateTime, onupdate=func.now())
+    
+    # Relationship to get members
+    members = relationship("RoomMember", backref="room", lazy="select")
 
 
 class RoomMember(Base):
