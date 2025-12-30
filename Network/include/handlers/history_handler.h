@@ -5,8 +5,9 @@
 
 void handle_history(
     int client_fd,
-    MessageHeader *req,
-    const char *payload
+    MessageHeader *req_header,
+    const char *payload,
+    int32_t account_id
 );
 
 #endif

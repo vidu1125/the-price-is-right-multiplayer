@@ -76,7 +76,6 @@ Table rooms {
 Table room_members {
   room_id int [ref: > rooms.id]
   account_id int [ref: > accounts.id]
-  ready boolean [default: false]
   joined_at timestamp
   Note: "PRIMARY KEY (room_id, account_id)"
 }
