@@ -1,5 +1,6 @@
 #include "db/core/db_client.h"
 #include "db/core/db_config.h"
+#include "db/repo/room_repo.h"
 
 #include <curl/curl.h>
 #include <stdlib.h>
@@ -124,19 +125,45 @@ db_error_t db_get(const char *table, const char *query, cJSON **out_json) {
     return http_request("GET", url, NULL, out_json);
 }
 
+// int db_ping(void) {
+//     cJSON *json = NULL;
+
+//     // 🔹 chỉ test nhẹ: lấy 1 room
+//     db_error_t rc = db_get(
+//         "rooms",
+//         "select=id&limit=1",
+//         &json
+//     );
+
+//     if (rc == DB_OK && json) {
+//         // optional: log cho debug
+//         printf("[DB] ping OK\n");
+
+//         cJSON_Delete(json);
+//         return 0;
+//     }
+
+//     printf("[DB] ping failed rc=%d\n", rc);
+//     return -1;
+// }
+
 int db_ping(void) {
     cJSON *json = NULL;
 
-    db_error_t rc = db_get("rooms", "select=*", &json);
+    db_error_t rc = db_get("rooms", "select=id,code&limit=1", &json);
 
-    if (rc == DB_OK && json) {
-        char *s = cJSON_PrintUnformatted(json);
-        // printf("[DB] ping response: %s\n", s);
-        free(s);
+    if (rc != DB_OK || !json) {
+        printf("[DB] ping failed rc=%d\n", rc);
+        return -1;
+    }
+
+    if (!cJSON_IsArray(json) || cJSON_GetArraySize(json) == 0) {
+        printf("[DB] ping OK but no rooms\n");
         cJSON_Delete(json);
         return 0;
     }
 
-    printf("[DB] ping failed rc=%d\n", rc);
-    return -1;
+    printf("[DB] ping OK, rooms sample found\n");
+    cJSON_Delete(json);
+    return 0;
 }
