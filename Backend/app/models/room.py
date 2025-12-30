@@ -1,6 +1,7 @@
 from app.models import db
 from .base import Base
 from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 
 class Room(Base):
     __tablename__ = "rooms"
@@ -20,8 +21,17 @@ class Room(Base):
 
     status = db.Column(db.String(20), default="waiting")
 
+    # Game settings
+    mode = db.Column(db.String(20), default="scoring")
+    max_players = db.Column(db.Integer, default=5)
+    round_time = db.Column(db.String(20), default="normal")  # slow/normal/fast
+    wager_mode = db.Column(db.Boolean, default=False)
+
     created_at = db.Column(db.DateTime, server_default=func.now())
     updated_at = db.Column(db.DateTime, onupdate=func.now())
+    
+    # Relationship to get members
+    members = relationship("RoomMember", backref="room", lazy="select")
 
 
 class RoomMember(Base):
@@ -39,4 +49,5 @@ class RoomMember(Base):
         primary_key=True
     )
 
+    ready = db.Column(db.Boolean, default=False)
     joined_at = db.Column(db.DateTime, server_default=func.now())

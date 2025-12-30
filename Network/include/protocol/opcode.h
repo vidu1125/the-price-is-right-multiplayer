@@ -16,6 +16,7 @@
 #define CMD_KICK            0x0204
 #define CMD_INVITE_FRIEND   0x0205
 #define CMD_SET_RULE        0x0206
+#define CMD_CLOSE_ROOM      0x0207  // Host closes room
 
 // Gameplay
 #define CMD_START_GAME      0x0300
@@ -44,7 +45,13 @@
 #define RES_SUCCESS         200
 #define RES_LOGIN_OK        201
 #define RES_HEARTBEAT_OK    210
-#define RES_ROOM_JOINED     301
+#define RES_ROOM_CREATED    220
+#define RES_ROOM_JOINED     221
+#define RES_ROOM_LEFT       222
+#define RES_ROOM_CLOSED     223
+#define RES_RULES_UPDATED   224
+#define RES_MEMBER_KICKED   225
+#define RES_GAME_STARTED    301
 
 // Error
 #define ERR_BAD_REQUEST     400
@@ -70,5 +77,10 @@
 #define NTF_SCOREBOARD      705
 #define NTF_ELIMINATION     706
 #define NTF_GAME_END        707
+#define NTF_GAME_START      708
 #define NTF_CHAT_MSG        710
 #define NTF_INVITATION      711
+#define NTF_PLAYER_READY    712
+#define NTF_RULES_CHANGED   713
+#define NTF_MEMBER_KICKED   714
+#define NTF_ROOM_CLOSED     715

@@ -1,19 +1,37 @@
 // MemberListPanel.js
 import "./MemberListPanel.css";
-
-const MEMBERS = [
-    { id: 1, name: "HOST PLAYER", ready: true, isHost: true, avatar: null },
-    { id: 2, name: "ALEX_MASTER", ready: true, isHost: false, avatar: null },
-    { id: 3, name: "ALEX_MASTER", ready: true, isHost: false, avatar: null },
-    { id: 4, name: "ALEX_MASTER", ready: false, isHost: false, avatar: null },
-];
+import { kickMember } from "../../../services/hostService";
+import { registerHandler } from "../../../network/receiver";
+import { OPCODE } from "../../../network/opcode";
+import { useEffect } from "react";
 
 const DEFAULT_AVATAR = "/bg/default-mushroom.jpg";
 const CROWN_ICON = "/bg/crown.png"; 
 
-export default function MemberListPanel({ isHost, roomName, roomCode }) {
-  const maxPlayers = 6;
-  const emptySlots = Array(maxPlayers - MEMBERS.length).fill(null);
+export default function MemberListPanel({ isHost, roomId, hostId, roomName, roomCode, maxPlayers = 6, members = [], onRefresh }) {
+  const emptySlots = Array(Math.max(0, maxPlayers - members.length)).fill(null);
+
+  useEffect(() => {
+    // Register handler for kick response
+    registerHandler(OPCODE.RES_MEMBER_KICKED, (payload) => {
+      console.log("✅ Member kicked response");
+      const text = new TextDecoder().decode(payload);
+      console.log("Response:", text);
+      
+      // Refresh member list
+      if (onRefresh) {
+        onRefresh();
+      }
+    });
+  }, [onRefresh]);
+
+  const handleKick = (memberId) => {
+    if (!window.confirm("Are you sure you want to kick this member?")) {
+      return;
+    }
+    console.log("🔵 Kicking member:", memberId, "from room:", roomId);
+    kickMember(roomId, memberId);
+  };
 
   return (
     <div className="member-list-wrapper">
@@ -29,25 +47,28 @@ export default function MemberListPanel({ isHost, roomName, roomCode }) {
       </div>
 
       <div className="player-grid">
-        {MEMBERS.map((member) => (
-          <div key={member.id} className={`player-card ${member.isHost ? 'host-card' : ''}`}>
-            {member.isHost ? (
-              <img src={CROWN_ICON} alt="Crown" className="crown-image" />
-            ) : (
-              isHost && <button className="card-kick-btn">×</button>
-            )}
-            
-            <div className="card-content">
-              <div className="avatar-circle-wrapper">
-                <img src={member.avatar || DEFAULT_AVATAR} alt="avatar" className="avatar-circle" />
-              </div>
-              <span className="card-name">{member.name}</span>
-              <div className={`status-tag ${member.ready ? 'ready' : 'waiting'}`}>
-                {member.ready ? 'READY' : 'WAITING'}
+        {members.map((member) => {
+          const isHostMember = member.account_id === hostId;
+          return (
+            <div key={member.account_id} className={`player-card ${isHostMember ? 'host-card' : ''}`}>
+              {isHostMember ? (
+                <img src={CROWN_ICON} alt="Crown" className="crown-image" />
+              ) : (
+                isHost && <button className="card-kick-btn" onClick={() => handleKick(member.account_id)}>×</button>
+              )}
+              
+              <div className="card-content">
+                <div className="avatar-circle-wrapper">
+                  <img src={member.avatar || DEFAULT_AVATAR} alt="avatar" className="avatar-circle" />
+                </div>
+                <span className="card-name">{member.email || `Player ${member.account_id}`}</span>
+                <div className={`status-tag ${member.ready ? 'ready' : 'waiting'}`}>
+                  {member.ready ? 'READY' : 'WAITING'}
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
 
         {emptySlots.map((_, index) => (
           <div key={`empty-${index}`} className={`player-card empty`}>
@@ -60,7 +81,7 @@ export default function MemberListPanel({ isHost, roomName, roomCode }) {
       </div>
       
       <div className="grid-footer">
-        PLAYERS ({MEMBERS.length}/{maxPlayers})
+        PLAYERS ({members.length}/{maxPlayers})
       </div>
     </div>
   );

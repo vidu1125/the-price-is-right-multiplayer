@@ -51,3 +51,37 @@ def list_rooms():
 
     result = RoomService.list_rooms(status=status, visibility=visibility)
     return (jsonify(result), 200) if result.get('success') else (jsonify(result), 500)
+
+@room_bp.route('/<int:room_id>/rules', methods=['PUT'])
+@require_auth
+def update_rules(account_id, room_id):
+    """Host updates room rules"""
+    data = request.get_json()
+    rules = data.get('rules')
+    
+    result = RoomService.update_rules(room_id, account_id, rules)
+    return (jsonify(result), 200) if result.get('success') else (jsonify(result), 403)
+
+@room_bp.route('/kick', methods=['POST'])
+@require_auth
+def kick_member_endpoint(account_id):
+    """Host kicks a member from room"""
+    data = request.get_json()
+    room_id = data.get('room_id')
+    target_account_id = data.get('target_account_id')
+    
+    if not room_id or not target_account_id:
+        return jsonify({'success': False, 'error': 'room_id and target_account_id required'}), 400
+    
+    result = RoomService.kick_member(room_id, target_account_id, account_id)
+    return (jsonify(result), 200) if result.get('success') else (jsonify(result), 403)
+
+@room_bp.route('/<int:room_id>/leave', methods=['POST'])
+@require_auth
+def leave_room(account_id, room_id):
+    """Member leaves room"""
+    result = RoomService.leave_room(room_id, account_id)
+    return (jsonify(result), 200) if result.get('success') else (jsonify(result), 400)
+
+# Export bp for auto-registration
+bp = room_bp
