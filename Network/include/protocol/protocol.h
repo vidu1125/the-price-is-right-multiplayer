@@ -31,6 +31,15 @@ typedef struct PACKED {
     uint32_t length;
 } MessageHeader;
 
+void forward_response(
+    int client_fd,
+    MessageHeader *req,
+    uint16_t cmd,
+    const char *payload,
+    uint32_t payload_len
+);
+
+
 #if !defined(__GNUC__) && !defined(__clang__)
 #pragma pack(pop)
 #endif

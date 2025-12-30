@@ -18,8 +18,9 @@ SRCS := \
     $(wildcard $(SRC_DIR)/*.c) \
     $(wildcard $(SRC_DIR)/transport/*.c) \
     $(wildcard $(SRC_DIR)/handlers/*.c) \
-	$(wildcard $(SRC_DIR)/utils/*.c)
-
+	$(wildcard $(SRC_DIR)/utils/*.c) \
+	$(wildcard $(SRC_DIR)/db/repo/*.c) \
+	$(wildcard $(SRC_DIR)/db/core/*.c)
 
 
 OBJS := $(SRCS:$(SRC_DIR)/%.c=$(BUILD_DIR)/%.o)
@@ -35,9 +36,10 @@ TARGET := network_server
 .PHONY: all clean run
 
 all: $(TARGET)
+LIBS := -lcurl -lcjson
 
 $(TARGET): $(OBJS)
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) -o $@ $^ $(LIBS)
 
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
 	@mkdir -p $(dir $@)

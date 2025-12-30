@@ -1,7 +1,8 @@
 #include <string.h>
 #include "handlers/history_handler.h"
 #include "protocol/opcode.h"
-#include "utils/http_utils.h"
+#include "db/repo/question_repo.h"
+#include "protocol/protocol.h"
 
 void handle_history(
     int client_fd,
@@ -12,20 +13,17 @@ void handle_history(
 
     char resp_buf[1024];
 
-   
-    int resp_len = http_get(
-        "backend",      // docker-compose service name
-        5000,
-        "/api/history",
+    // 🔁 Replace backend HTTP with repo call
+    int resp_len = history_repo_get(
         resp_buf,
         sizeof(resp_buf)
     );
-    
+
     if (resp_len <= 0) {
-            const char *msg = "{\"message\":\"backend unreachable\"}";
-            resp_len = strlen(msg);
-            memcpy(resp_buf, msg, resp_len);
-        }
+        const char *msg = "{\"message\":\"failed to fetch history\"}";
+        resp_len = strlen(msg);
+        memcpy(resp_buf, msg, resp_len);
+    }
 
     forward_response(
         client_fd,
