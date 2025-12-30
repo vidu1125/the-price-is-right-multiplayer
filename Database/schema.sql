@@ -60,10 +60,16 @@ Table rooms {
   visibility varchar(20)
   host_id int [ref: > accounts.id]
   status varchar(20)
+  
+  // Game settings ⭐ NEW
+  mode varchar(20) [default: 'scoring']
+  max_players int [default: 5]
+  round_time int [default: 15]
+  wager_mode boolean [default: true]
+  
   created_at timestamp
   updated_at timestamp
 }
-
 ///////////////////////////////////////////////////////////////
 // ROOM MEMBERS
 ///////////////////////////////////////////////////////////////

@@ -10,23 +10,41 @@ import { useNavigate } from "react-router-dom";
 export default function RoomPanel() {
   const navigate = useNavigate();
   const [showModal, setShowModal] = useState(false);
+  
+  // Khởi tạo state form
   const [formData, setFormData] = useState({
     name: "My Room",
     visibility: "public",
-    mode: "normal",
+    mode: "scoring",
     maxPlayers: 6,
     roundTime: 15,
     wagerEnabled: false
   });
 
+  // Xử lý khi đổi Mode
+  const handleModeChange = (newMode) => {
+    let newMax = formData.maxPlayers;
+    
+    if (newMode === "eliminate") {
+      newMax = 4; // Eliminate cố định 4 người
+    } else if (newMode === "scoring") {
+      // Nếu chuyển sang Scoring, đảm bảo số người trong khoảng 4-6
+      if (newMax < 4) newMax = 4;
+      if (newMax > 6) newMax = 6;
+    }
+
+    setFormData({
+      ...formData,
+      mode: newMode,
+      maxPlayers: newMax
+    });
+  };
+
   useEffect(() => {
-    // Register handler for room created response
     registerHandler(OPCODE.RES_ROOM_CREATED, (payload) => {
       console.log("✅ Room created response received");
       const text = new TextDecoder().decode(payload);
-      console.log("Response:", text);
       try {
-        // Parse JSON from response
         let jsonStr = text;
         const bodyStart = text.indexOf('\r\n\r\n');
         if (bodyStart !== -1) {
@@ -36,10 +54,7 @@ export default function RoomPanel() {
         const roomCode = data.room_code || data.room?.code || data.code;
         const roomId = data.room_id || data.room?.id;
         
-        console.log("🎉 Navigating to room:", roomId, roomCode);
         setShowModal(false);
-        
-        // Navigate to waiting room with room info
         navigate('/waitingroom', { 
           state: { 
             roomId: roomId,
@@ -49,15 +64,11 @@ export default function RoomPanel() {
         });
       } catch (err) {
         console.error("Parse error:", err);
-        alert("Room created but failed to parse response");
       }
     });
 
-    // Register handler for error responses
     registerHandler(OPCODE.ERR_BAD_REQUEST, (payload) => {
-      console.error("❌ Bad request error");
       const text = new TextDecoder().decode(payload);
-      console.error("Error response:", text);
       try {
         const data = JSON.parse(text);
         alert(`❌ Error: ${data.error || text}`);
@@ -68,11 +79,7 @@ export default function RoomPanel() {
   }, [navigate]);
 
   const handleCreateRoom = () => {
-    console.log("🔵 CREATE ROOM button clicked");
-    console.log("📤 Sending createRoom request:", formData);
-    
-    createRoom(formData);  // Just send, response will come via handler
-    // Don't close modal yet, wait for response
+    createRoom(formData); 
   };
 
   return (
@@ -95,6 +102,7 @@ export default function RoomPanel() {
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h2>Create New Room</h2>
             <form onSubmit={(e) => { e.preventDefault(); handleCreateRoom(); }}>
+              
               <label>
                 Room Name:
                 <input 
@@ -116,23 +124,26 @@ export default function RoomPanel() {
 
               <label>
                 Game Mode:
-                <select value={formData.mode} onChange={(e) => setFormData({...formData, mode: e.target.value})}>
-                  <option value="normal">Normal</option>
-                  <option value="elimination">Elimination</option>
+                <select value={formData.mode} onChange={(e) => handleModeChange(e.target.value)}>
+                  <option value="scoring">Scoring</option>
+                  <option value="eliminate">Eliminate</option>
                 </select>
               </label>
 
+              {/* --- PHẦN MAX PLAYERS (Đã sửa lại giống Round Time) --- */}
               <label>
                 Max Players:
                 <input 
                   type="number" 
                   value={formData.maxPlayers} 
                   onChange={(e) => setFormData({...formData, maxPlayers: parseInt(e.target.value)})}
-                  min={2}
-                  max={8}
+                  min={4}
+                  max={formData.mode === "eliminate" ? 4 : 6}
+                  disabled={formData.mode === "eliminate"} /* Khóa input nếu là Eliminate */
                   required
                 />
               </label>
+              {/* --------------------------------------------------- */}
 
               <label>
                 Round Time (seconds):
@@ -146,7 +157,7 @@ export default function RoomPanel() {
                 />
               </label>
 
-              <label>
+              <label className="checkbox-label">
                 <input 
                   type="checkbox" 
                   checked={formData.wagerEnabled} 

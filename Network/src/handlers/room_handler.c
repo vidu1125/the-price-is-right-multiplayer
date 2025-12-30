@@ -235,7 +235,7 @@ void handle_kick_member(int client_fd, MessageHeader *req, const char *payload) 
     // 3. Build JSON
     char json[256];
     snprintf(json, sizeof(json),
-        "{\"room_id\":%u,\"target_id\":%u}", room_id, target_id);
+        "{\"room_id\":%u,\"target_account_id\":%u}", room_id, target_id);
     
     // 4. HTTP POST (parsed)
     char resp_buf[1024];

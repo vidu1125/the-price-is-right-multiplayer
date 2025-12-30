@@ -61,5 +61,34 @@ PLAYING (DISCONNECTED): Đang trong phòng game nhưng mất tín hiệu. (Luậ
 Chủ động (User Logout): Client gửi LOGOUT -> Server xóa Session, đóng Socket.
 Bị động (Server Kick): Server gửi gói tin KICK kèm lý do -> Đóng Socket.
 Hết trận đấu: Khi game kết thúc, trạng thái người chơi chuyển từ PLAYING về LOBBY.
+7.  Quy tắc Định dạng & Vệ sinh Dữ liệu (Input Sanitization)
+Vì giao thức sử dụng ký tự xuống dòng \n để kết thúc tin nhắn, dữ liệu xác thực rất nhạy cảm với các ký tự đặc biệt.
+Bộ ký tự cho phép (Allowlist):
+Username: Chỉ chấp nhận chữ cái (a-z, A-Z), số (0-9) và dấu gạch dưới (_).
+Cấm tuyệt đối: Ký tự khoảng trắng (space) và ký tự xuống dòng (\n, \r) trong Username/Password để tránh làm hỏng việc phân tách bản tin TCP.
+Độ dài giới hạn:
+Username: Tối thiểu 6 ký tự, tối đa 30 ký tự. Nếu vi phạm trả về 402 INVALID_USERNAME
+Password: Tối thiểu 6 ký tự.
+Gói tin tổng: Nếu tổng kích thước bản tin REG hoặc LOG vượt quá 4096 bytes, Server ngắt kết nối ngay lập tức để chống tấn công tràn bộ đệm (Buffer Overflow).
+8. Quy tắc Bảo mật Mật khẩu (Password Security)
+Hashing (Bắt buộc): Server không bao giờ lưu mật khẩu dưới dạng Plain Text (văn bản thuần) trong Database:
+Quy trình Đăng ký (REG): Nhận password -> Hash (SHA256) -> Lưu chuỗi Hash vào DB.
+Quy trình Đăng nhập (LOG): Nhận password từ Client -> Hash -> So sánh với chuỗi Hash trong DB.
+Mã hóa đường truyền: Do giao thức là TCP text-based, mật khẩu gửi đi sẽ là clear-text. Nếu không dùng SSL/TLS, hãy coi đây là giới hạn của hệ thống (nhưng Server vẫn phải Hash trước khi lưu).
+
+9. Quy tắc Chống Spam & Brute-force (Anti-Abuse)
+Giới hạn thử sai (Login Attempts):
+Trong trạng thái UNAUTHENTICATED, nếu một Socket gửi lệnh LOG sai mật khẩu 3 lần liên tiếp:
+Hành động: Trả về 401 NOT_LOGGED_IN và ngay lập tức Đóng kết nối (Close Socket). Không cho phép thử lại trên cùng một kết nối để tránh Brute-force.
+Timeout xác thực:
+Thời gian sống của Socket ở trạng thái UNAUTHENTICATED là 10 giây. Đây là quy tắc hợp lý để dọn dẹp các kết nối "treo" (ghost connections) không chịu gửi lệnh đăng nhập.
+10. Quy tắc Ràng buộc Trạng thái (State Enforcement)
+Chỉ nhận lệnh LOG / REG khi UNAUTHENTICATED:
+Nếu Socket đang ở trạng thái LOBBY hoặc PLAYING mà lại gửi lệnh LOG (đăng nhập user khác):
+Hành động: Server từ chối xử lý, trả về lỗi 400 BAD_REQUEST vì sai ngữ cảnh (hoặc có thể coi là hành vi bất thường và đóng socket).
+Xử lý Đăng ký trùng lặp:
+Khi nhận lệnh REG, Server phải kiểm tra Username trong Database.
+Nếu tồn tại: Trả về 400 BAD_REQUEST (hoặc mã lỗi tùy chỉnh cho User Exists) và giữ nguyên trạng thái UNAUTHENTICATED cho Socket đó (không đóng kết nối, cho phép khách nhập lại tên khác).
+
 
 
