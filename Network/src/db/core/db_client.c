@@ -125,6 +125,32 @@ db_error_t db_get(const char *table, const char *query, cJSON **out_json) {
     return http_request("GET", url, NULL, out_json);
 }
 
+db_error_t db_post(const char *table, cJSON *payload, cJSON **out_json) {
+    char url[DB_HTTP_MAX_URL];
+    snprintf(url, sizeof(url), "%s%s/%s",
+             g_supabase_url, SUPABASE_REST_PATH, table);
+    
+    char *body = cJSON_PrintUnformatted(payload);
+    if (!body) return DB_ERR_INVALID_ARG;
+    
+    db_error_t rc = http_request("POST", url, body, out_json);
+    free(body);
+    return rc;
+}
+
+db_error_t db_rpc(const char *function, cJSON *payload, cJSON **out_json) {
+    char url[DB_HTTP_MAX_URL];
+    snprintf(url, sizeof(url), "%s%s/rpc/%s",
+             g_supabase_url, SUPABASE_REST_PATH, function);
+    
+    char *body = cJSON_PrintUnformatted(payload);
+    if (!body) return DB_ERR_INVALID_ARG;
+    
+    db_error_t rc = http_request("POST", url, body, out_json);
+    free(body);
+    return rc;
+}
+
 // int db_ping(void) {
 //     cJSON *json = NULL;
 
