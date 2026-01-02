@@ -1,10 +1,25 @@
 #include "db/repo/room_repo.h"
 #include "db/models/model.h"      // room_t
-#include "db/core/db_client.h"    // db_get, db_error_t, DB_OK
+#include "db/core/db_client.h"    // db_get, db_post, db_error_t, DB_OK
 #include <cjson/cJSON.h>          // cJSON
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 
+//==============================================================================
+// HELPER: Generate random 6-char room code
+//==============================================================================
+static void generate_room_code(char *out_code) {
+    const char charset[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    for (int i = 0; i < 6; i++) {
+        out_code[i] = charset[rand() % (sizeof(charset) - 1)];
+    }
+    out_code[6] = '\0';
+}
+
+//==============================================================================
+// CREATE ROOM
+//==============================================================================
 int room_repo_create(
     const char *name,
     uint8_t visibility,
@@ -16,34 +31,91 @@ int room_repo_create(
     size_t out_size,
     uint32_t *room_id
 ) {
-    (void)visibility;
-    (void)mode;
-    (void)max_players;
-    (void)round_time;
-    (void)wager_enabled;
-
-    *room_id = 1;
-
-    const char *json = "{\"success\":true,\"room_id\":1}";
-    strncpy(out_buf, json, out_size - 1);
-    out_buf[out_size - 1] = '\0';
-
+    // 1. Generate unique room code
+    char code[7];
+    generate_room_code(code);
+    
+    // 2. Build JSON payload
+    cJSON *payload = cJSON_CreateObject();
+    cJSON_AddStringToObject(payload, "name", name);
+    cJSON_AddStringToObject(payload, "code", code);
+    cJSON_AddStringToObject(payload, "visibility", visibility ? "private" : "public");
+    cJSON_AddNumberToObject(payload, "host_id", 1); // TODO: Get from session
+    cJSON_AddStringToObject(payload, "status", "waiting");
+    cJSON_AddStringToObject(payload, "mode", mode ? "elimination" : "scoring");
+    cJSON_AddNumberToObject(payload, "max_players", max_players);
+    cJSON_AddNumberToObject(payload, "round_time", round_time);
+    cJSON_AddBoolToObject(payload, "wager_mode", wager_enabled);
+    
+    // 3. POST to Supabase
+    cJSON *response = NULL;
+    db_error_t rc = db_post("rooms", payload, &response);
+    cJSON_Delete(payload);
+    
+    if (rc != DB_OK || !response) {
+        if (response) cJSON_Delete(response);
+        snprintf(out_buf, out_size, "{\"success\":false,\"error\":\"Database error\"}");
+        return -1;
+    }
+    
+    // 4. Parse response - Supabase returns array with 1 object
+    cJSON *first = cJSON_GetArrayItem(response, 0);
+    if (!first) {
+        cJSON_Delete(response);
+        snprintf(out_buf, out_size, "{\"success\":false,\"error\":\"Invalid response\"}");
+        return -1;
+    }
+    
+    cJSON *id_item = cJSON_GetObjectItem(first, "id");
+    cJSON *code_item = cJSON_GetObjectItem(first, "code");
+    
+    if (!id_item || !code_item) {
+        cJSON_Delete(response);
+        snprintf(out_buf, out_size, "{\"success\":false,\"error\":\"Missing fields\"}");
+        return -1;
+    }
+    
+    *room_id = (uint32_t)id_item->valueint;
+    
+    // 5. Build success response
+    snprintf(out_buf, out_size, 
+        "{\"success\":true,\"room_id\":%d,\"room_code\":\"%s\"}",
+        *room_id, code_item->valuestring);
+    
+    cJSON_Delete(response);
     return 0;
 }
 
+//==============================================================================
+// CLOSE ROOM (UPDATE status to 'closed')
+//==============================================================================
 int room_repo_close(
     uint32_t room_id,
     char *out_buf,
     size_t out_size
 ) {
-    (void)room_id;
-
-    const char *json = "{\"success\":true}";
-    strncpy(out_buf, json, out_size - 1);
-    out_buf[out_size - 1] = '\0';
-
+    // Use RPC to update status and clear members
+    cJSON *payload = cJSON_CreateObject();
+    cJSON_AddNumberToObject(payload, "p_room_id", room_id);
+    
+    cJSON *response = NULL;
+    db_error_t rc = db_rpc("close_room", payload, &response);
+    
+    cJSON_Delete(payload);
+    
+    if (rc != DB_OK) {
+        if (response) cJSON_Delete(response);
+        snprintf(out_buf, out_size, "{\"success\":false,\"error\":\"Close failed\"}");
+        return -1;
+    }
+    
+    snprintf(out_buf, out_size, "{\"success\":true}");
+    if (response) cJSON_Delete(response);
     return 0;
 }
+//==============================================================================
+// SET RULES (UPDATE room settings)
+//==============================================================================
 int room_repo_set_rules(
     uint32_t room_id,
     uint8_t mode,
@@ -53,45 +125,104 @@ int room_repo_set_rules(
     char *out_buf,
     size_t out_size
 ) {
-    (void)room_id;
-    (void)mode;
-    (void)max_players;
-    (void)round_time;
-    (void)wager_enabled;
-
-    const char *json = "{\"success\":true}";
-    strncpy(out_buf, json, out_size - 1);
-    out_buf[out_size - 1] = '\0';
-
+    // Build update payload
+    cJSON *payload = cJSON_CreateObject();
+    cJSON_AddStringToObject(payload, "mode", mode ? "elimination" : "scoring");
+    cJSON_AddNumberToObject(payload, "max_players", max_players);
+    cJSON_AddNumberToObject(payload, "round_time", round_time);
+    cJSON_AddBoolToObject(payload, "wager_mode", wager_enabled);
+    
+    // PATCH /rooms?id=eq.{room_id}
+    char query[128];
+    snprintf(query, sizeof(query), "id=eq.%u", room_id);
+    
+    // Note: db_client doesn't have PATCH yet, use POST to RPC or build custom
+    // For now, use workaround: DELETE old + INSERT new is bad
+    // Better: Add db_patch() to db_client
+    
+    // Workaround: Use RPC function
+    cJSON *rpc_payload = cJSON_CreateObject();
+    cJSON_AddNumberToObject(rpc_payload, "p_room_id", room_id);
+    cJSON_AddStringToObject(rpc_payload, "p_mode", mode ? "elimination" : "scoring");
+    cJSON_AddNumberToObject(rpc_payload, "p_max_players", max_players);
+    cJSON_AddNumberToObject(rpc_payload, "p_round_time", round_time);
+    cJSON_AddBoolToObject(rpc_payload, "p_wager_mode", wager_enabled);
+    
+    cJSON *response = NULL;
+    db_error_t rc = db_rpc("update_room_rules", rpc_payload, &response);
+    
+    cJSON_Delete(payload);
+    cJSON_Delete(rpc_payload);
+    
+    if (rc != DB_OK) {
+        if (response) cJSON_Delete(response);
+        snprintf(out_buf, out_size, "{\"success\":false,\"error\":\"Failed to update\"}" );
+        return -1;
+    }
+    
+    snprintf(out_buf, out_size, "{\"success\":true}");
+    if (response) cJSON_Delete(response);
     return 0;
 }
+//==============================================================================
+// KICK MEMBER (DELETE from room_members)
+//==============================================================================
 int room_repo_kick_member(
     uint32_t room_id,
     uint32_t target_id,
     char *out_buf,
     size_t out_size
 ) {
-    (void)room_id;
-    (void)target_id;
-
-    const char *json = "{\"success\":true}";
-    strncpy(out_buf, json, out_size - 1);
-    out_buf[out_size - 1] = '\0';
-
+    // Use RPC to delete member
+    cJSON *payload = cJSON_CreateObject();
+    cJSON_AddNumberToObject(payload, "p_room_id", room_id);
+    cJSON_AddNumberToObject(payload, "p_account_id", target_id);
+    
+    cJSON *response = NULL;
+    db_error_t rc = db_rpc("kick_member", payload, &response);
+    
+    cJSON_Delete(payload);
+    
+    if (rc != DB_OK) {
+        if (response) cJSON_Delete(response);
+        snprintf(out_buf, out_size, "{\"success\":false,\"error\":\"Kick failed\"}");
+        return -1;
+    }
+    
+    snprintf(out_buf, out_size, "{\"success\":true}");
+    if (response) cJSON_Delete(response);
     return 0;
 }
 
+//==============================================================================
+// LEAVE ROOM (DELETE self from room_members)
+//==============================================================================
 int room_repo_leave(
     uint32_t room_id,
     char *out_buf,
     size_t out_size
 ) {
-    (void)room_id;
-
-    const char *json = "{\"success\":true}";
-    strncpy(out_buf, json, out_size - 1);
-    out_buf[out_size - 1] = '\0';
-
+    // TODO: Get account_id from session
+    uint32_t account_id = 1; // Hardcoded for now
+    
+    // Use RPC to leave
+    cJSON *payload = cJSON_CreateObject();
+    cJSON_AddNumberToObject(payload, "p_room_id", room_id);
+    cJSON_AddNumberToObject(payload, "p_account_id", account_id);
+    
+    cJSON *response = NULL;
+    db_error_t rc = db_rpc("leave_room", payload, &response);
+    
+    cJSON_Delete(payload);
+    
+    if (rc != DB_OK) {
+        if (response) cJSON_Delete(response);
+        snprintf(out_buf, out_size, "{\"success\":false,\"error\":\"Leave failed\"}");
+        return -1;
+    }
+    
+    snprintf(out_buf, out_size, "{\"success\":true}");
+    if (response) cJSON_Delete(response);
     return 0;
 }
 

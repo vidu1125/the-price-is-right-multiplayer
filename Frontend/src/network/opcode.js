@@ -23,11 +23,4 @@ export const OPCODE = {
   CMD_REPLAY: 0x0503,
   CMD_LEAD: 0x0504,
   CMD_HEARTBEAT: 0x0001,
-  
-  // Response opcodes
-  RES_ROOM_CREATED: 220,  // 0xdc
-  RES_MEMBER_KICKED: 221, // 0xdd
-  
-  // Error codes
-  ERR_BAD_REQUEST: 0x0190,  // 400
 };
