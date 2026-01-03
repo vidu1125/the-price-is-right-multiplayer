@@ -72,7 +72,6 @@ CREATE TABLE rooms (
 CREATE TABLE room_members (
     room_id INT REFERENCES rooms(id) ON DELETE CASCADE,
     account_id INT REFERENCES accounts(id) ON DELETE CASCADE,
-    ready BOOLEAN DEFAULT FALSE,
     joined_at TIMESTAMP,
     PRIMARY KEY (room_id, account_id)
 );

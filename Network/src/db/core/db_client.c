@@ -94,6 +94,11 @@ static db_error_t http_request(
 
     long http_code = 0;
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+    
+    printf("[DB_CLIENT] HTTP %ld, curl_res=%d, buf.size=%zu\n", http_code, res, buf.size);
+    if (buf.data) {
+        printf("[DB_CLIENT] Response: %.200s\n", buf.data);
+    }
 
     curl_slist_free_all(headers);
     curl_easy_cleanup(curl);

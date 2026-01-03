@@ -49,5 +49,5 @@ class RoomMember(Base):
         primary_key=True
     )
 
-    ready = db.Column(db.Boolean, default=False)
+
     joined_at = db.Column(db.DateTime, server_default=func.now())

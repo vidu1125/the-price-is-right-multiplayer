@@ -5,11 +5,13 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>                 // time()
 
 //==============================================================================
 // HELPER: Generate random 6-char room code
 //==============================================================================
 static void generate_room_code(char *out_code) {
+    // srand(time(NULL) + (unsigned long)out_code);
     const char charset[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     for (int i = 0; i < 6; i++) {
         out_code[i] = charset[rand() % (sizeof(charset) - 1)];
@@ -40,19 +42,24 @@ int room_repo_create(
     cJSON_AddStringToObject(payload, "name", name);
     cJSON_AddStringToObject(payload, "code", code);
     cJSON_AddStringToObject(payload, "visibility", visibility ? "private" : "public");
-    cJSON_AddNumberToObject(payload, "host_id", 1); // TODO: Get from session
+    cJSON_AddNumberToObject(payload, "host_id", 1); //TODO: Get from session
     cJSON_AddStringToObject(payload, "status", "waiting");
     cJSON_AddStringToObject(payload, "mode", mode ? "elimination" : "scoring");
     cJSON_AddNumberToObject(payload, "max_players", max_players);
     cJSON_AddNumberToObject(payload, "round_time", round_time);
     cJSON_AddBoolToObject(payload, "wager_mode", wager_enabled);
     
+    printf("[ROOM_REPO] Creating room: name='%s', code='%s'\n", name, code);
+    
     // 3. POST to Supabase
     cJSON *response = NULL;
     db_error_t rc = db_post("rooms", payload, &response);
     cJSON_Delete(payload);
     
+    printf("[ROOM_REPO] db_post returned rc=%d, response=%p\n", rc, (void*)response);
+    
     if (rc != DB_OK || !response) {
+        printf("[ROOM_REPO] ERROR: Database POST failed\n");
         if (response) cJSON_Delete(response);
         snprintf(out_buf, out_size, "{\"success\":false,\"error\":\"Database error\"}");
         return -1;
@@ -77,7 +84,24 @@ int room_repo_create(
     
     *room_id = (uint32_t)id_item->valueint;
     
-    // 5. Build success response
+    // 5. Insert host into room_members table
+    cJSON *member_payload = cJSON_CreateObject();
+    cJSON_AddNumberToObject(member_payload, "room_id", *room_id);
+    cJSON_AddNumberToObject(member_payload, "account_id", 1); // TODO: Get from session
+    // cJSON_AddBoolToObject(member_payload, "ready", false);
+    
+    cJSON *member_resp = NULL;
+    db_error_t member_rc = db_post("room_members", member_payload, &member_resp);
+    cJSON_Delete(member_payload);
+    if (member_resp) cJSON_Delete(member_resp);
+    
+    if (member_rc != DB_OK) {
+        cJSON_Delete(response);
+        snprintf(out_buf, out_size, "{\"success\":false,\"error\":\"Failed to add host to room\"}");
+        return -1;
+    }
+    
+    // 6. Build success response
     snprintf(out_buf, out_size, 
         "{\"success\":true,\"room_id\":%d,\"room_code\":\"%s\"}",
         *room_id, code_item->valuestring);
