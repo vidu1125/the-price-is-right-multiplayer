@@ -1,4 +1,3 @@
-#include <stdio.h>
 #include <stdint.h>   // uint32_t
 #include <stddef.h>   // size_t
 #include <string.h>   // memcpy / strlen nếu dùng

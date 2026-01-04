@@ -2,7 +2,6 @@
 #include <arpa/inet.h>
 
 #include "handlers/dispatcher.h"
-#include "handlers/auth_handler.h"
 #include "handlers/history_handler.h"
 #include "handlers/room_handler.h"
 #include "handlers/match_handler.h"
@@ -18,20 +17,6 @@ void dispatch_command(
     printf("[DISPATCH] cmd=0x%04x len=%u\n", cmd, header->length);
 
     switch (cmd) {
-
-    // Authentication & Account
-    case CMD_LOGIN_REQ:
-        handle_login(client_fd, header, payload);
-        break;
-    case CMD_REGISTER_REQ:
-        handle_register(client_fd, header, payload);
-        break;
-    case CMD_LOGOUT_REQ:
-        handle_logout(client_fd, header, payload);
-        break;
-    case CMD_RECONNECT:
-        handle_reconnect(client_fd, header, payload);
-        break;
 
     // Room Management
     case CMD_CREATE_ROOM:
