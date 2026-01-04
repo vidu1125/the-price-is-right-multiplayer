@@ -16,6 +16,7 @@ int room_repo_create(
     size_t out_size,
     uint32_t *room_id
 ) {
+    (void)name;
     (void)visibility;
     (void)mode;
     (void)max_players;
