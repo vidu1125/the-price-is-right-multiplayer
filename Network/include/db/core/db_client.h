@@ -36,6 +36,22 @@ db_error_t db_rpc(
     cJSON *payload,
     cJSON **out_json
 );
+
+/* PATCH /rest/v1/{table}?{filter} */
+db_error_t db_patch(
+    const char *table,
+    const char *filter,
+    cJSON *payload,
+    cJSON **out_json
+);
+
+/* DELETE /rest/v1/{table}?{filter} */
+db_error_t db_delete(
+    const char *table,
+    const char *filter,
+    cJSON **out_json
+);
+
 int db_ping(void);
 
 #endif

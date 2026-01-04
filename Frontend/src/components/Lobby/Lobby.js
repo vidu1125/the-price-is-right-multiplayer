@@ -6,6 +6,13 @@ import RoomPanel from "./RoomPanel";
 import { viewHistory } from "../../services/historyService";
 
 export default function Lobby() {
+  const handleLogout = () => {
+    localStorage.removeItem("account_id");
+    localStorage.removeItem("current_room_id");
+    localStorage.removeItem("current_match_id");
+    window.location.href = "/register";
+  };
+
   return (
     <div className="lobby">
       {/* 1. USER CARD (Định vị tuyệt đối ở góc trên bên trái) */}
@@ -24,7 +31,7 @@ export default function Lobby() {
             <button>VIEW TUTORIAL</button>
 
             <button>SETTING</button>
-            <button className="logout">LOG OUT</button>
+            <button className="logout" onClick={handleLogout}>LOG OUT</button>
           </div>
         </div>
 
