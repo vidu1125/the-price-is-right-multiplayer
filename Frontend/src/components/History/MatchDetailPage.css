@@ -1,0 +1,143 @@
+/* Style bổ sung cho Match Detail */
+.back-home-btn {
+  position: absolute;
+  top: 25px;
+  right: 25px;
+  background: #e74c3c;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 12px;
+  font-family: 'Luckiest Guy', cursive;
+  cursor: pointer;
+  z-index: 101;
+  border-bottom: 4px solid #c0392b;
+}
+
+.detail-question-card {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 16px;
+  padding: 15px;
+  margin-bottom: 15px;
+  border-left: 5px solid #ffde59;
+}
+
+.question-header {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 10px;
+}
+
+.round-badge {
+  background: #ffde59;
+  color: #000;
+  padding: 2px 10px;
+  border-radius: 8px;
+  font-weight: 800;
+  font-size: 0.8rem;
+}
+
+.question-text {
+  font-family: 'Parkinsans', sans-serif;
+  color: #fff;
+  font-weight: 600;
+}
+
+.answers-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.answer-item {
+  font-size: 0.9rem;
+  font-family: 'Parkinsans', sans-serif;
+}
+
+.answer-item.correct .p-ans { color: #2ecc71; }
+.answer-item.wrong .p-ans { color: #ff4757; }
+
+.p-name { color: #8395a7; margin-right: 5px; }
+.p-ans { font-weight: 700; }
+.p-delta { font-size: 0.8rem; margin-left: 5px; }
+
+
+.history-container.detail-view {
+  display: flex;
+  flex-direction: column;
+  max-height: 80vh;
+}
+
+/* Phần danh sách câu hỏi */
+.detail-question-item {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 15px;
+  padding: 15px;
+  margin-bottom: 15px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.round-label {
+  font-family: 'Luckiest Guy', cursive;
+  color: #ffde59;
+  font-size: 0.8rem;
+  background: rgba(255, 222, 89, 0.1);
+  padding: 2px 8px;
+  border-radius: 5px;
+}
+
+.question-desc {
+  margin-top: 8px;
+  color: #fff;
+  font-family: 'Parkinsans', sans-serif;
+  font-weight: 600;
+}
+
+/* Danh sách câu trả lời của các người chơi */
+.player-ans-row {
+  display: grid;
+  grid-template-columns: 1fr 2fr 0.5fr;
+  padding: 8px 10px;
+  margin-top: 5px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  align-items: center;
+}
+
+.player-ans-row.is-me {
+  background: rgba(46, 204, 113, 0.1);
+}
+
+.p-name { color: #8395a7; }
+.p-choice.correct { color: #2ecc71; font-weight: 700; }
+.p-choice.wrong { color: #ff4757; font-weight: 700; }
+.detail-footer {
+  margin-top: 20px;
+  padding-top: 15px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  justify-content: flex-start; /* Căn nút sang bên trái */
+  flex-shrink: 0;
+}
+
+.back-btn {
+  width: fit-content; /* Độ rộng tự động theo chữ */
+  min-width: 120px;
+  padding: 10px 25px;
+  font-size: 1rem;
+  background: #e67e22; 
+  border-bottom: 4px solid #d35400;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Responsive cho mobile */
+@media (max-width: 768px) {
+  .detail-footer {
+    justify-content: center; /* Trên mobile có thể để giữa cho dễ bấm */
+  }
+}

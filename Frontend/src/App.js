@@ -11,6 +11,8 @@ import WaitingRoomLayout from "./layout/layout2";
 import GameLayout from "./layout/layout3";
 import {useLocation } from "react-router-dom";
 import { initSocket } from "./network/socketClient";
+import MatchDetailPage from "./components/History/MatchDetailPage";
+
 import "./App.css";
 function AnimatedRoutes() {
   const location = useLocation();
@@ -25,6 +27,7 @@ function AnimatedRoutes() {
         <Route element={<LobbyLayout />}>
           <Route path="/lobby" element={<Lobby />} />
           <Route path="/history" element={<HistoryPage />} />
+          <Route path="/match/:id" element={<MatchDetailPage />} />
         </Route>
 
         {/* ===== WAITING ROOM ===== */}

@@ -2,6 +2,8 @@ import "./historyPage.css";
 import UserCard from "../Lobby/UserCard";
 import AppTitle from "../Lobby/AppTitle";
 import PageTransition from "../PageTransition";
+import { useNavigate } from "react-router-dom";
+
 const mockHistoryList = [
   { matchId: 1023, score: 120, mode: "Scoring", ranking: "1st", isWinner: true },
   { matchId: 1022, score: -40, mode: "Eliminated", ranking: "4th", isWinner: false },
@@ -12,7 +14,10 @@ const mockHistoryList = [
   { matchId: 1017, score: 200, mode: "Eliminated", ranking: "1st", isWinner: true },
 ];
 
+
 export default function HistoryPage() {
+  const navigate = useNavigate();
+
   const MAX_MATCHES = 10;
   const displayedMatches = mockHistoryList.slice(0, MAX_MATCHES);
 
@@ -30,7 +35,7 @@ export default function HistoryPage() {
 
       {/* <AppTitle title="HISTORY" /> */}
       {/* <h2 className="table-inner-title">HISTORY</h2> */}
-
+      
       <div className="history-content">
         <div className="history-container">
           
@@ -69,19 +74,24 @@ export default function HistoryPage() {
               no more matches available
             </div>
           </div>
+          <div className="detail-footer">
+              <button className="view-btn back-btn" onClick={() => navigate("/history")}>
+                BACK TO LOBBY
+              </button>
+            </div>
         </div>
       </div>
     </div>
     </PageTransition>
   );
 }
-
 function HistoryItem({ match }) {
+  const navigate = useNavigate();
+
   return (
     <div className="history-item">
-      {/* Style ID giống Score */}
       <div className="match-id-text">#{match.matchId}</div>
-      
+
       <div className="mode-col">
         <span className={`mode-badge ${match.mode.toLowerCase()}`}>
           {match.mode.toUpperCase()}
@@ -93,9 +103,14 @@ function HistoryItem({ match }) {
       </div>
 
       <div className="ranking-badge">{match.ranking}</div>
-      
+
       <div className="action-col">
-        <button className="view-btn">VIEW</button>
+        <button
+          className="view-btn"
+          onClick={() => navigate(`/match/${match.matchId}`)}
+        >
+          VIEW
+        </button>
       </div>
     </div>
   );
