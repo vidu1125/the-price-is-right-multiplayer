@@ -4,8 +4,10 @@ import UserCard from "./UserCard";
 import AppTitle from "./AppTitle";
 import RoomPanel from "./RoomPanel";
 import { viewHistory } from "../../services/historyService";
+import { useNavigate } from "react-router-dom";
 
 export default function Lobby() {
+  const navigate = useNavigate(); 
   return (
     <div className="lobby">
       {/* 1. USER CARD (Định vị tuyệt đối ở góc trên bên trái) */}
@@ -20,7 +22,11 @@ export default function Lobby() {
           {/* UserCard đã bị loại bỏ khỏi đây */}
           
           <div className="side-actions">
-            <button onClick={viewHistory}>VIEW HISTORY</button>
+            {/* <button onClick={viewHistory}>VIEW HISTORY</button> */}
+            <button onClick={() => navigate("/history")}>
+              VIEW HISTORY
+            </button>
+
             <button>VIEW TUTORIAL</button>
 
             <button>SETTING</button>

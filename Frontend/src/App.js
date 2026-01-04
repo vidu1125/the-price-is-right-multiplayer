@@ -1,29 +1,54 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import React, { useEffect } from "react";
+
 import Lobby from "./components/Lobby/Lobby";
 import WaitingRoom from "./components/Room/WaitingRoom/WaitingRoom";
-import GameContainer from "./components/Game/GameContainer"; // Import mới
-import "./App.css";
+import GameContainer from "./components/Game/GameContainer";
+import HistoryPage from "./components/History/historyPage";
+import { AnimatePresence } from "framer-motion"; // Thêm dòng này
+import LobbyLayout from "./layout/layout1";
+import WaitingRoomLayout from "./layout/layout2";
+import GameLayout from "./layout/layout3";
+import {useLocation } from "react-router-dom";
 import { initSocket } from "./network/socketClient";
-import React, { useEffect } from "react";
+import "./App.css";
+function AnimatedRoutes() {
+  const location = useLocation();
+
+  return (
+    <AnimatePresence mode="wait"> {/* mode="wait" giúp trang cũ biến mất xong trang mới mới hiện ra */}
+      <Routes location={location} key={location.pathname}>
+        {/* REDIRECT */}
+        <Route path="/" element={<Navigate to="/lobby" replace />} />
+
+        {/* ===== LOBBY + HISTORY ===== */}
+        <Route element={<LobbyLayout />}>
+          <Route path="/lobby" element={<Lobby />} />
+          <Route path="/history" element={<HistoryPage />} />
+        </Route>
+
+        {/* ===== WAITING ROOM ===== */}
+        <Route element={<WaitingRoomLayout />}>
+          <Route path="/waitingroom" element={<WaitingRoom />} />
+        </Route>
+
+        {/* ===== GAME ===== */}
+        <Route element={<GameLayout />}>
+          <Route path="/round" element={<GameContainer />} />
+        </Route>
+      </Routes>
+    </AnimatePresence>
+  );
+}
 
 function App() {
   useEffect(() => {
-    initSocket(); // ✅ connect 1 lần duy nhất
+    initSocket();
   }, []);
-  
+
   return (
     <Router>
-      <div className="App">
-        <Routes>
-          <Route path="/" element={<Navigate to="/lobby" replace />} />
-          <Route path="/lobby" element={<Lobby />} />
-          <Route path="/waitingroom" element={<WaitingRoom />} />
-          
-          {/* Đường dẫn cho toàn bộ các Round của game */}
-          <Route path="/round" element={<GameContainer />} /> 
-          
-        </Routes>
-      </div>
+      <AnimatedRoutes /> {/* Sử dụng component chứa hiệu ứng */}
     </Router>
   );
 }

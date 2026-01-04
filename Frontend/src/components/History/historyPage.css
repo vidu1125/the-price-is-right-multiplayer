@@ -1,0 +1,220 @@
+@import url('https://fonts.googleapis.com/css2?family=Parkinsans&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Luckiest+Guy&display=swap');
+
+.history-page {
+  min-height: 100vh;
+  padding-inline: clamp(24px, 4vw, 64px);
+  padding-top: clamp(80px, 10vh, 120px);
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+
+  gap: clamp(32px, 6vh, 64px);
+
+  background: transparent;
+  position: relative;
+}
+/* KHÔNG CHỈNH - Giữ nguyên style Lobby */
+.top-left-info {
+  position: absolute;
+  top: 25px;
+  left: 25px;
+  z-index: 100;
+}
+
+.history-title-wrapper {
+
+  transform: scale(0.8); /* Giảm nhỏ toàn bộ tiêu đề xuống 70% */
+}
+/* Style cho chữ HISTORY mới thêm vào */
+.table-inner-title {
+  font-family: 'Luckiest Guy', cursive; /* */
+  color: #ffde59; /* Màu vàng giống header */
+  text-align: center;
+  font-size: 3rem;
+  margin-top: -40px;
+  letter-spacing: 2px;
+  text-shadow: 2px 2px 0px #000;
+}
+/* --- PHẦN BẢNG (PADDING ĐỂ TRÁNH TRÙNG TITLE) --- */
+.history-content {
+  width: 100%;
+  /* Responsive: co giãn từ 80% đến 1200px tùy kích thước màn hình */
+  max-width: clamp(800px, 85vw, 1250px); 
+  display: flex;
+  justify-content: center;
+  /* Padding top lớn để bảng nằm dưới AppTitle của Lobby */
+  height: clamp(500px, 68vh, 850px);
+  z-index: 5;
+  padding: 0 20px;
+}
+
+.history-container {
+  width: 100%; 
+  height: 100%;
+  background: rgba(20, 26, 39, 0.96);
+  border: 4px solid #2c3e50;
+  border-radius: 24px;
+  padding: clamp(15px, 2vw, 30px);
+  box-shadow: 0 25px 50px rgba(0,0,0,0.8);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Overall Stats Header */
+.overall-stats {
+  display: flex;
+  justify-content: space-around;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 16px;
+  padding: 15px;
+  margin-bottom: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.stat-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.stat-label {
+  font-family: 'Luckiest Guy', cursive;
+  color: #8395a7;
+  font-size: 1rem;
+  letter-spacing: 1px;
+}
+
+.stat-value {
+  font-family: 'Parkinsans', sans-serif;
+  font-weight: 800;
+  font-size: 2rem;
+  color: #ffde59;
+}
+
+.stat-value.highlight { color: #f1c40f; }
+.win-text { color: #2ecc71; }
+.lose-text { color: #ff4d4d; }
+
+/* Grid System - Responsive Columns */
+.history-header, .history-item {
+  display: grid;
+  /* 5 cột đều nhau, căn giữa nội dung */
+  grid-template-columns: 0.8fr 1.2fr 1fr 1fr 0.8fr;
+  align-items: center;
+  justify-items: center;
+  gap: 10px;
+}
+
+.history-header {
+  padding: 15px 20px;
+  border-bottom: 2px solid #ffde59;
+  margin-bottom: 10px;
+}
+
+.history-header span {
+  color: #ffde59;
+  font-family: 'Luckiest Guy', cursive;
+  font-size: clamp(0.8rem, 1.2vw, 1.1rem);
+  text-transform: uppercase;
+}
+
+/* List & Scroll nội bộ */
+.history-list-fixed {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 10px;
+}
+
+.history-list-fixed::-webkit-scrollbar { width: 6px; }
+.history-list-fixed::-webkit-scrollbar-thumb { background: #ffde59; border-radius: 10px; }
+
+.history-item {
+  height: 65px; 
+  margin-bottom: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 12px;
+  padding: 0 20px;
+  transition: background 0.2s;
+}
+
+.history-item:hover { background: rgba(255, 255, 255, 0.07); }
+
+/* Typography */
+.match-id-text {
+  font-family: 'Parkinsans', sans-serif;
+  font-weight: 550;
+  font-size: 1rem;
+  color: #dde3ec;
+}
+.score-text {
+  font-family: 'Parkinsans', sans-serif;
+  font-weight: 700;
+  font-size: 1.2rem;
+}
+
+
+.score-text.win { color: #2ecc71; }
+.score-text.lose { color: #ff4757; }
+
+/* Mode Badges */
+.mode-badge {
+  display: inline-block;
+  width: 120px;
+  padding: 8px 0;
+  border-radius: 12px;
+  font-family: 'Luckiest Guy', cursive; /* Đổi font cho giống lobby */
+  font-size: 0.9rem;
+  text-align: center;
+  color: white;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+  cursor: default;
+  transition: all 0.2s;
+}
+
+.mode-badge.scoring {
+  background: #3498db;
+  border-bottom: 4px solid #2980b9; /* Tạo độ dày cho nút */
+  letter-spacing: 1px;
+}
+
+/* Màu Đỏ (Eliminated) */
+.mode-badge.eliminated {
+  background: #e74c3c;
+  border-bottom: 4px solid #c0392b; /* Tạo độ dày cho nút */
+  letter-spacing: 1px;
+}
+.ranking-badge {
+  background: rgba(241, 196, 15, 0.1);
+  color: #f1c40f;
+  border: 1px solid #f1c40f;
+  padding: 4px 15px;
+  border-radius: 20px;
+  font-weight: 700;
+  font-family: 'Parkinsans', sans-serif;
+}
+
+.view-btn {
+  background: #2ecc71;
+  border: none;
+  border-bottom: 4px solid #1d8248;
+  color: white;
+  font-family: 'Luckiest Guy', cursive;
+  padding: 8px 25px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: transform 0.1s;
+}
+
+.view-btn:active { transform: scale(0.95); border-bottom-width: 2px; }
+
+.no-more-matches {
+  text-align: center;
+  padding: 20px;
+  color: rgba(255, 255, 255, 0.2);
+  font-size: 0.8rem;
+  font-family: 'Luckiest Guy', cursive;
+  letter-spacing: 1.5px;
+}

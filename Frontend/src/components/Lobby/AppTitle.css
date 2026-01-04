@@ -5,7 +5,7 @@
   
   /* ÁP DỤNG FONT LUCKIEST GUY VÀ CỠ LỚN */
   font-family: 'Luckiest Guy', cursive; 
-  font-size: 40px; /* Tăng cỡ chữ */
+  font-size: 30px; /* Tăng cỡ chữ */
   font-weight: 400; 
   line-height: 1;
   color: #1F2A44; 
@@ -21,4 +21,8 @@
     2px 2px 0 #fff, 
     -2px 2px 0 #fff,
     4px 4px 0 #ffaa00; 
+}
+
+.app-title {
+  font-size: clamp(10px, 3.2vw, 60px);
 }

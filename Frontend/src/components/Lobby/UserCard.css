@@ -42,3 +42,13 @@
   
   text-shadow: 1px 1px 0 #fff, -1px -1px 0 #fff;
 }
+
+
+.avatar {
+  width: clamp(42px, 3vw, 64px);
+  height: clamp(42px, 3vw, 64px);
+}
+
+.user-name {
+  font-size: clamp(16px, 1.2vw, 22px);
+}
