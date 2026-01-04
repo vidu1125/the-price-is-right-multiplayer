@@ -17,6 +17,11 @@ typedef struct PACKED {
     uint64_t ended_at;      
 } HistoryListItem;
 
+typedef struct {
+    int match_id;
+    int score;
+    int ranking;
+} HistoryRecord;
 
 typedef struct PACKED {
     uint8_t count;              
