@@ -178,6 +178,34 @@ db_error_t db_rpc(const char *function, cJSON *payload, cJSON **out_json) {
 //     return -1;
 // }
 
+db_error_t db_patch(const char *table, const char *filter, cJSON *payload, cJSON **out_json) {
+    if (!table || !filter || !payload) {
+        return DB_ERR_INVALID_ARG;
+    }
+    
+    char url[DB_HTTP_MAX_URL];
+    snprintf(url, sizeof(url), "%s%s/%s?%s",
+             g_supabase_url, SUPABASE_REST_PATH, table, filter);
+    
+    char *body = cJSON_PrintUnformatted(payload);
+    if (!body) return DB_ERR_PARSE;
+    
+    db_error_t err = http_request("PATCH", url, body, out_json);
+    free(body);
+    return err;
+}
+
+db_error_t db_delete(const char *table, const char *filter, cJSON **out_json) {
+    if (!table || !filter) {
+        return DB_ERR_INVALID_ARG;
+    }
+    
+    char url[DB_HTTP_MAX_URL];
+    snprintf(url, sizeof(url), "%s%s/%s?%s",
+             g_supabase_url, SUPABASE_REST_PATH, table, filter);
+    
+    return http_request("DELETE", url, NULL, out_json);
+}
 int db_ping(void) {
     cJSON *json = NULL;
 

@@ -1,37 +1,30 @@
 FROM node:18-alpine
 
 WORKDIR /app
+
+# ===== System deps =====
 RUN apk add --no-cache python3
 
-# Copy only necessary files for opcode generation
+# ===== Opcode generation =====
 RUN mkdir -p /app/Network/include/protocol
 COPY Network/include/protocol/opcode.h /app/Network/include/protocol/opcode.h
 COPY tools /app/tools
 
-# Create Frontend directory for opcode output
 RUN mkdir -p /app/Frontend/src/network
-
-# Generate opcode.js
 RUN python3 /app/tools/gen_opcode_js.py
 
-# Setup frontend
+# ===== Frontend =====
 WORKDIR /app/Frontend
 
-# Copy package files first for better caching
+# Copy package.json FIRST (cache npm install)
 COPY Frontend/package*.json ./
 
-# Install dependencies as node user
+# Install deps (must include framer-motion in package.json)
 RUN npm install
 
-# Copy frontend source code (excluding node_modules from host)
+# Copy source code
 COPY Frontend/src ./src
 COPY Frontend/public ./public
-
-# Fix permissions for node_modules
-RUN chown -R node:node /app/Frontend/node_modules
-
-# Switch to node user
-USER node
 
 EXPOSE 3000
 CMD ["npm", "start"]
