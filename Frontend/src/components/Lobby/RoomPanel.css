@@ -205,3 +205,14 @@
 .room-actions .create-room-btn {
   background: #8BC34A; 
 }
+
+
+
+.room-panel {
+  width: min(92%, 720px);
+  max-height: 80vh;
+}
+
+.room-panel h3 {
+  font-size: clamp(28px, 3vw, 42px);
+}

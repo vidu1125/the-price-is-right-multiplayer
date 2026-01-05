@@ -12,6 +12,7 @@ void dispatch_command(
     MessageHeader *header,
     const char *payload
 ) {
+    int32_t account_id = 1;   
     uint16_t cmd = header->command;
 
     printf("[DISPATCH] cmd=0x%04x len=%u\n", cmd, header->length);
@@ -42,7 +43,12 @@ void dispatch_command(
 
     // History
     case CMD_HIST:
-        handle_history(client_fd, header, payload);
+        handle_history(
+            client_fd,
+            header,
+            payload,
+            account_id    // 🔹 truyền từ dispatcher
+        );        
         break;
 
     default:

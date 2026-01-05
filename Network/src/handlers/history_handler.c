@@ -1,35 +1,37 @@
+#include <stdio.h>
 #include <string.h>
+#include <stdlib.h>   // free
+
 #include "handlers/history_handler.h"
 #include "protocol/opcode.h"
 #include "db/repo/question_repo.h"
 #include "protocol/protocol.h"
+#include <cjson/cJSON.h>
+
+
+
 
 void handle_history(
     int client_fd,
     MessageHeader *req_header,
-    const char *payload
+    const char *payload,
+    int32_t account_id
 ) {
-    (void)payload;
+    cJSON *history = NULL;
 
-    char resp_buf[1024];
-
-    // 🔁 Replace backend HTTP with repo call
-    int resp_len = history_repo_get(
-        resp_buf,
-        sizeof(resp_buf)
-    );
-
-    if (resp_len <= 0) {
-        const char *msg = "{\"message\":\"failed to fetch history\"}";
-        resp_len = strlen(msg);
-        memcpy(resp_buf, msg, resp_len);
+    if (history_repo_get(account_id, &history) != 0) {
+        printf("[handler] failed to get match history\n");
+        return;
     }
 
-    forward_response(
-        client_fd,
-        req_header,
-        CMD_HIST,
-        resp_buf,
-        (uint32_t)resp_len
-    );
+    // Convert JSON → string để gửi qua socket / websocket
+    char *json_str = cJSON_PrintUnformatted(history);
+    if (json_str) {
+        printf("[handler] history = %s\n", json_str);
+
+        // TODO: send json_str to client
+        free(json_str);
+    }
+
+    cJSON_Delete(history);
 }
