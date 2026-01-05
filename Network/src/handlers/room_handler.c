@@ -22,9 +22,8 @@ typedef struct PACKED {
     uint8_t visibility;
     uint8_t mode;
     uint8_t max_players;
-    uint8_t round_time;
     uint8_t wager_enabled;
-    uint8_t reserved[3];
+    uint8_t reserved[4];
 } CreateRoomPayload;
 
 typedef struct PACKED {
@@ -35,8 +34,8 @@ typedef struct PACKED {
     uint32_t room_id;
     uint8_t mode;
     uint8_t max_players;
-    uint8_t round_time;
     uint8_t wager_enabled;
+    uint8_t reserved;
 } SetRulesPayload;
 
 typedef struct PACKED {
@@ -80,10 +79,7 @@ void handle_create_room(int client_fd, MessageHeader *req, const char *payload) 
         return;
     }
     
-    if (data.round_time < 10 || data.round_time > 60) {
-        send_error(client_fd, req, ERR_BAD_REQUEST, "round_time must be 10-60s");
-        return;
-    }
+
     
     if (strlen(room_name) == 0) {
         send_error(client_fd, req, ERR_BAD_REQUEST, "Room name required");

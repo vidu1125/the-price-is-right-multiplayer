@@ -50,8 +50,7 @@ export default function WaitingRoom() {
           maxPlayers: data.room.max_players || 5,
           visibility: data.room.visibility || "public",
           mode: data.room.mode || "scoring",
-          wagerMode: data.room.wager_mode ?? false,
-          roundTime: data.room.round_time || "normal"
+          wagerMode: data.room.wager_mode ?? false
         });
       } else {
         console.error("Failed to fetch room:", data.error);

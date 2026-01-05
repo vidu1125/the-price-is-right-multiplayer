@@ -33,12 +33,11 @@ function encodeString(str, maxLength) {
  * - uint8_t visibility
  * - uint8_t mode
  * - uint8_t max_players
- * - uint8_t round_time
  * - uint8_t wager_enabled
- * - uint8_t reserved[3]
+ * - uint8_t reserved[4]
  */
 export function createRoom(roomData) {
-    const { name, visibility, mode, maxPlayers, roundTime, wagerEnabled } = roomData;
+    const { name, visibility, mode, maxPlayers, wagerEnabled } = roomData;
 
     const buffer = new ArrayBuffer(72);
     const view = new DataView(buffer);
@@ -51,11 +50,10 @@ export function createRoom(roomData) {
     view.setUint8(64, visibility === 'private' ? 1 : 0);
     view.setUint8(65, mode === 'elimination' ? 1 : 0);
     view.setUint8(66, maxPlayers || 6);
-    view.setUint8(67, roundTime || 15);
-    view.setUint8(68, wagerEnabled ? 1 : 0);
-    // reserved[3] = already zeros
+    view.setUint8(67, wagerEnabled ? 1 : 0);
+    // reserved[4] = already zeros
 
-    console.log('[Host] Creating room:', { name, visibility, mode, maxPlayers, roundTime, wagerEnabled });
+    console.log('[Host] Creating room:', { name, visibility, mode, maxPlayers, wagerEnabled });
     sendPacket(OPCODE.CMD_CREATE_ROOM, buffer);
 }
 
@@ -132,8 +130,8 @@ registerHandler(OPCODE.RES_ROOM_CLOSED, (payload) => {
  * - uint32_t room_id
  * - uint8_t mode
  * - uint8_t max_players
- * - uint8_t round_time
  * - uint8_t wager_enabled
+ * - uint8_t reserved
  */
 export function setRules(roomId, rules) {
     const buffer = new ArrayBuffer(8);
@@ -142,8 +140,8 @@ export function setRules(roomId, rules) {
     view.setUint32(0, roomId, false); // Network byte order
     view.setUint8(4, rules.mode === 'elimination' ? 1 : 0);
     view.setUint8(5, rules.maxPlayers || 6);
-    view.setUint8(6, rules.roundTime || 15);
-    view.setUint8(7, rules.wagerEnabled ? 1 : 0);
+    view.setUint8(6, rules.wagerEnabled ? 1 : 0);
+    // view.setUint8(7, 0); // reserved
 
     console.log('[Host] Setting rules:', rules);
     sendPacket(OPCODE.CMD_SET_RULE, buffer);
