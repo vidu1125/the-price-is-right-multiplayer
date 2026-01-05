@@ -64,7 +64,6 @@ Table rooms {
   // Game settings ⭐ NEW
   mode varchar(20) [default: 'scoring']
   max_players int [default: 5]
-  round_time int [default: 15]
   wager_mode boolean [default: true]
   
   created_at timestamp
@@ -89,7 +88,6 @@ Table matches {
   mode varchar(20)
   max_players int
   advanced jsonb
-  round_time int
   started_at timestamp
   ended_at timestamp
 }

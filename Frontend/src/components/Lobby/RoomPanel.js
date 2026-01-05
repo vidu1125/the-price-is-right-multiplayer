@@ -10,7 +10,7 @@ import { useNavigate } from "react-router-dom";
 export default function RoomPanel() {
   const navigate = useNavigate();
   const [showModal, setShowModal] = useState(false);
-  
+
   // Khởi tạo state form
   const [formData, setFormData] = useState({
     name: "My Room",
@@ -24,7 +24,7 @@ export default function RoomPanel() {
   // Xử lý khi đổi Mode
   const handleModeChange = (newMode) => {
     let newMax = formData.maxPlayers;
-    
+
     if (newMode === "eliminate") {
       newMax = 4; // Eliminate cố định 4 người
     } else if (newMode === "scoring") {
@@ -53,14 +53,14 @@ export default function RoomPanel() {
         const data = JSON.parse(jsonStr);
         const roomCode = data.room_code || data.room?.code || data.code;
         const roomId = data.room_id || data.room?.id;
-        
+
         setShowModal(false);
-        navigate('/waitingroom', { 
-          state: { 
+        navigate('/waitingroom', {
+          state: {
             roomId: roomId,
             roomCode: roomCode,
-            isHost: true 
-          } 
+            isHost: true
+          }
         });
       } catch (err) {
         console.error("Parse error:", err);
@@ -79,7 +79,7 @@ export default function RoomPanel() {
   }, [navigate]);
 
   const handleCreateRoom = () => {
-    createRoom(formData); 
+    createRoom(formData);
   };
 
   return (
@@ -102,13 +102,13 @@ export default function RoomPanel() {
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h2>Create New Room</h2>
             <form onSubmit={(e) => { e.preventDefault(); handleCreateRoom(); }}>
-              
+
               <label>
                 Room Name:
-                <input 
-                  type="text" 
-                  value={formData.name} 
-                  onChange={(e) => setFormData({...formData, name: e.target.value})}
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   maxLength={63}
                   required
                 />
@@ -116,7 +116,7 @@ export default function RoomPanel() {
 
               <label>
                 Visibility:
-                <select value={formData.visibility} onChange={(e) => setFormData({...formData, visibility: e.target.value})}>
+                <select value={formData.visibility} onChange={(e) => setFormData({ ...formData, visibility: e.target.value })}>
                   <option value="public">Public</option>
                   <option value="private">Private</option>
                 </select>
@@ -133,10 +133,10 @@ export default function RoomPanel() {
               {/* --- PHẦN MAX PLAYERS (Đã sửa lại giống Round Time) --- */}
               <label>
                 Max Players:
-                <input 
-                  type="number" 
-                  value={formData.maxPlayers} 
-                  onChange={(e) => setFormData({...formData, maxPlayers: parseInt(e.target.value)})}
+                <input
+                  type="number"
+                  value={formData.maxPlayers}
+                  onChange={(e) => setFormData({ ...formData, maxPlayers: parseInt(e.target.value) })}
                   min={4}
                   max={formData.mode === "eliminate" ? 4 : 6}
                   disabled={formData.mode === "eliminate"} /* Khóa input nếu là Eliminate */
@@ -145,23 +145,13 @@ export default function RoomPanel() {
               </label>
               {/* --------------------------------------------------- */}
 
-              <label>
-                Round Time (seconds):
-                <input 
-                  type="number" 
-                  value={formData.roundTime} 
-                  onChange={(e) => setFormData({...formData, roundTime: parseInt(e.target.value)})}
-                  min={10}
-                  max={60}
-                  required
-                />
-              </label>
+
 
               <label className="checkbox-label">
-                <input 
-                  type="checkbox" 
-                  checked={formData.wagerEnabled} 
-                  onChange={(e) => setFormData({...formData, wagerEnabled: e.target.checked})}
+                <input
+                  type="checkbox"
+                  checked={formData.wagerEnabled}
+                  onChange={(e) => setFormData({ ...formData, wagerEnabled: e.target.checked })}
                 />
                 Enable Wager Mode
               </label>

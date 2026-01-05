@@ -7,7 +7,6 @@ int room_repo_create(
     uint8_t visibility,
     uint8_t mode,
     uint8_t max_players,
-    uint8_t round_time,
     uint8_t wager_enabled,
     char *out_buf,
     size_t out_size,
@@ -20,7 +19,6 @@ int room_repo_set_rules(
     uint32_t room_id,
     uint8_t mode,
     uint8_t max_players,
-    uint8_t round_time,
     uint8_t wager_enabled,
     char *out_buf,
     size_t out_size

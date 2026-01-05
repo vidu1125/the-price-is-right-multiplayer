@@ -94,6 +94,11 @@ static db_error_t http_request(
 
     long http_code = 0;
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+    
+    printf("[DB_CLIENT] HTTP %ld, curl_res=%d, buf.size=%zu\n", http_code, res, buf.size);
+    if (buf.data) {
+        printf("[DB_CLIENT] Response: %.200s\n", buf.data);
+    }
 
     curl_slist_free_all(headers);
     curl_easy_cleanup(curl);
@@ -123,6 +128,32 @@ db_error_t db_get(const char *table, const char *query, cJSON **out_json) {
     snprintf(url, sizeof(url), "%s%s/%s?%s",
              g_supabase_url, SUPABASE_REST_PATH, table, query);
     return http_request("GET", url, NULL, out_json);
+}
+
+db_error_t db_post(const char *table, cJSON *payload, cJSON **out_json) {
+    char url[DB_HTTP_MAX_URL];
+    snprintf(url, sizeof(url), "%s%s/%s",
+             g_supabase_url, SUPABASE_REST_PATH, table);
+    
+    char *body = cJSON_PrintUnformatted(payload);
+    if (!body) return DB_ERR_INVALID_ARG;
+    
+    db_error_t rc = http_request("POST", url, body, out_json);
+    free(body);
+    return rc;
+}
+
+db_error_t db_rpc(const char *function, cJSON *payload, cJSON **out_json) {
+    char url[DB_HTTP_MAX_URL];
+    snprintf(url, sizeof(url), "%s%s/rpc/%s",
+             g_supabase_url, SUPABASE_REST_PATH, function);
+    
+    char *body = cJSON_PrintUnformatted(payload);
+    if (!body) return DB_ERR_INVALID_ARG;
+    
+    db_error_t rc = http_request("POST", url, body, out_json);
+    free(body);
+    return rc;
 }
 
 // int db_ping(void) {

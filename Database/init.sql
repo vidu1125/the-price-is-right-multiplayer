@@ -62,6 +62,12 @@ CREATE TABLE rooms (
     visibility VARCHAR(20),
     host_id INT REFERENCES accounts(id) ON DELETE SET NULL,
     status VARCHAR(20),
+    
+    -- Game settings
+    mode VARCHAR(20) DEFAULT 'scoring',
+    max_players INT DEFAULT 6,
+    wager_mode BOOLEAN DEFAULT FALSE,
+
     created_at TIMESTAMP,
     updated_at TIMESTAMP
 );
@@ -72,7 +78,6 @@ CREATE TABLE rooms (
 CREATE TABLE room_members (
     room_id INT REFERENCES rooms(id) ON DELETE CASCADE,
     account_id INT REFERENCES accounts(id) ON DELETE CASCADE,
-    ready BOOLEAN DEFAULT FALSE,
     joined_at TIMESTAMP,
     PRIMARY KEY (room_id, account_id)
 );
@@ -86,7 +91,6 @@ CREATE TABLE matches (
     mode VARCHAR(20),
     max_players INT,
     wager BOOLEAN,
-    round_time INT,
     started_at TIMESTAMP,
     ended_at TIMESTAMP
 );
