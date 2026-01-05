@@ -24,7 +24,7 @@ class Room(Base):
     # Game settings
     mode = db.Column(db.String(20), default="scoring")
     max_players = db.Column(db.Integer, default=5)
-    round_time = db.Column(db.String(20), default="normal")  # slow/normal/fast
+
     wager_mode = db.Column(db.Boolean, default=False)
 
     created_at = db.Column(db.DateTime, server_default=func.now())

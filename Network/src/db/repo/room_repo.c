@@ -27,7 +27,6 @@ int room_repo_create(
     uint8_t visibility,
     uint8_t mode,
     uint8_t max_players,
-    uint8_t round_time,
     uint8_t wager_enabled,
     char *out_buf,
     size_t out_size,
@@ -46,7 +45,6 @@ int room_repo_create(
     cJSON_AddStringToObject(payload, "status", "waiting");
     cJSON_AddStringToObject(payload, "mode", mode ? "elimination" : "scoring");
     cJSON_AddNumberToObject(payload, "max_players", max_players);
-    cJSON_AddNumberToObject(payload, "round_time", round_time);
     cJSON_AddBoolToObject(payload, "wager_mode", wager_enabled);
     
     printf("[ROOM_REPO] Creating room: name='%s', code='%s'\n", name, code);
@@ -144,7 +142,6 @@ int room_repo_set_rules(
     uint32_t room_id,
     uint8_t mode,
     uint8_t max_players,
-    uint8_t round_time,
     uint8_t wager_enabled,
     char *out_buf,
     size_t out_size
@@ -153,7 +150,6 @@ int room_repo_set_rules(
     cJSON *payload = cJSON_CreateObject();
     cJSON_AddStringToObject(payload, "mode", mode ? "elimination" : "scoring");
     cJSON_AddNumberToObject(payload, "max_players", max_players);
-    cJSON_AddNumberToObject(payload, "round_time", round_time);
     cJSON_AddBoolToObject(payload, "wager_mode", wager_enabled);
     
     // PATCH /rooms?id=eq.{room_id}
@@ -169,7 +165,6 @@ int room_repo_set_rules(
     cJSON_AddNumberToObject(rpc_payload, "p_room_id", room_id);
     cJSON_AddStringToObject(rpc_payload, "p_mode", mode ? "elimination" : "scoring");
     cJSON_AddNumberToObject(rpc_payload, "p_max_players", max_players);
-    cJSON_AddNumberToObject(rpc_payload, "p_round_time", round_time);
     cJSON_AddBoolToObject(rpc_payload, "p_wager_mode", wager_enabled);
     
     cJSON *response = NULL;
@@ -285,8 +280,6 @@ int room_repo_get_by_code(const char *code, room_t *out_room) {
         cJSON_GetObjectItem(item, "host_id")->valueint;
     out_room->max_players =
         cJSON_GetObjectItem(item, "max_players")->valueint;
-    out_room->round_time =
-        cJSON_GetObjectItem(item, "round_time")->valueint;
     out_room->wager_mode =
         cJSON_IsTrue(cJSON_GetObjectItem(item, "wager_mode"));
 

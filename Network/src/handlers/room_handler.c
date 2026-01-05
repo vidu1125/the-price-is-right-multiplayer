@@ -137,7 +137,6 @@ void handle_create_room(int client_fd, MessageHeader *req, const char *payload) 
         data.visibility,
         data.mode,
         data.max_players,
-        data.round_time,
         data.wager_enabled,
         result_payload,
         sizeof(result_payload),
@@ -245,7 +244,6 @@ void handle_set_rules(int client_fd, MessageHeader *req, const char *payload) {
         room_id,
         data.mode,
         data.max_players,
-        data.round_time,
         data.wager_enabled,
         resp_buf,
         sizeof(resp_buf)
