@@ -3,6 +3,10 @@ import UserCard from "../Lobby/UserCard";
 import AppTitle from "../Lobby/AppTitle";
 import PageTransition from "../PageTransition";
 import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import historyService from "../../services/historyService";
+
+
 
 const mockHistoryList = [
   { matchId: 1023, score: 120, mode: "Scoring", ranking: "1st", isWinner: true },
@@ -17,6 +21,7 @@ const mockHistoryList = [
 
 export default function HistoryPage() {
   const navigate = useNavigate();
+  
 
   const MAX_MATCHES = 10;
   const displayedMatches = mockHistoryList.slice(0, MAX_MATCHES);
