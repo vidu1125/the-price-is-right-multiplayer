@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import "./Register.css";
-import { loginAccount } from "../../services/authService";
+import { loginAccount, persistAuth } from "../../services/authService";
 import { initSocket, isConnected } from "../../network/socketClient";
 
 export default function Login() {
@@ -39,8 +39,8 @@ export default function Login() {
     try {
       const response = await loginAccount({ email: cleanEmail, password: form.password });
       if (response?.success) {
-        if (response.account_id) localStorage.setItem("account_id", response.account_id);
-        if (response.session_id) localStorage.setItem("session_id", response.session_id);
+        // Persist full auth data including profile
+        persistAuth(response);
         setStatus({ loading: false, error: "", success: "Welcome back!" });
         setTimeout(() => navigate("/lobby", { replace: true }), 600);
       } else {

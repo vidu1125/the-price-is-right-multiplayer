@@ -6,7 +6,11 @@
 #include "handlers/history_handler.h"
 #include "handlers/room_handler.h"
 #include "handlers/match_handler.h"
+#include "handlers/session_context.h"
+#include "handlers/auth_guard.h"
 #include "protocol/opcode.h"
+#include "protocol/protocol.h"
+#include <string.h>
 
 void dispatch_command(
     int client_fd,
@@ -16,6 +20,12 @@ void dispatch_command(
     uint16_t cmd = header->command;
 
     printf("[DISPATCH] cmd=0x%04x len=%u\n", cmd, header->length);
+
+    // Require authenticated session for non-auth commands
+    bool is_auth_cmd = (cmd == CMD_LOGIN_REQ || cmd == CMD_REGISTER_REQ || cmd == CMD_RECONNECT || cmd == CMD_LOGOUT_REQ);
+    if (!is_auth_cmd) {
+        if (!require_auth(client_fd, header)) return;
+    }
 
     switch (cmd) {
 

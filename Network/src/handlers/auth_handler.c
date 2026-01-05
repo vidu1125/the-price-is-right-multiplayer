@@ -7,6 +7,7 @@
 #include "db/repo/account_repo.h"
 #include "db/repo/session_repo.h"
 #include "db/repo/profile_repo.h"
+#include "handlers/session_context.h"
 #include "protocol/protocol.h"
 #include "protocol/opcode.h"
 #include "utils/crypto.h"
@@ -41,6 +42,28 @@ static void send_error(
 
     send_response(client_fd, req, error_code, payload);
     cJSON_Delete(payload);
+}
+
+static void add_profile_to_response(cJSON *response, profile_t *profile, account_t *account) {
+    cJSON *profile_json = cJSON_CreateObject();
+    if (profile) {
+        cJSON_AddNumberToObject(profile_json, "id", profile->id);
+        cJSON_AddNumberToObject(profile_json, "account_id", profile->account_id);
+        if (profile->name) cJSON_AddStringToObject(profile_json, "name", profile->name);
+        if (profile->avatar) cJSON_AddStringToObject(profile_json, "avatar", profile->avatar);
+        if (profile->bio) cJSON_AddStringToObject(profile_json, "bio", profile->bio);
+        cJSON_AddNumberToObject(profile_json, "matches", profile->matches);
+        cJSON_AddNumberToObject(profile_json, "wins", profile->wins);
+        cJSON_AddNumberToObject(profile_json, "points", profile->points);
+        if (profile->badges) cJSON_AddStringToObject(profile_json, "badges", profile->badges);
+    }
+
+    if (account) {
+        cJSON_AddStringToObject(profile_json, "email", account->email);
+        cJSON_AddStringToObject(profile_json, "role", account->role);
+    }
+
+    cJSON_AddItemToObject(response, "profile", profile_json);
 }
 
 void handle_login(
@@ -127,6 +150,13 @@ void handle_login(
         }
     }
 
+    // Fetch profile (create default if missing)
+    profile_t *profile = NULL;
+    db_error_t profile_err = profile_find_by_account(account->id, &profile);
+    if (profile_err == DB_ERROR_NOT_FOUND) {
+        profile_create(account->id, NULL, NULL, NULL, &profile);
+    }
+
     // TODO: Fetch profile data
     // For now, send basic response
 
@@ -135,13 +165,12 @@ void handle_login(
     cJSON_AddBoolToObject(response, "success", true);
     cJSON_AddNumberToObject(response, "account_id", account->id);
     cJSON_AddStringToObject(response, "session_id", session->session_id);
-    
-    cJSON *profile = cJSON_CreateObject();
-    cJSON_AddStringToObject(profile, "email", account->email);
-    cJSON_AddStringToObject(profile, "role", account->role);
-    cJSON_AddItemToObject(response, "profile", profile);
+    add_profile_to_response(response, profile, account);
 
     send_response(client_fd, header, RES_LOGIN_OK, response);
+
+    // Bind session to this connection for downstream commands
+    set_client_session(client_fd, session->session_id, account->id);
 
     printf("[AUTH] Login successful: account_id=%d, session_id=%s\n", 
            account->id, session->session_id);
@@ -151,6 +180,7 @@ void handle_login(
     cJSON_Delete(json);
     account_free(account);
     session_free(session);
+    profile_free(profile);
 }
 
 void handle_register(
@@ -224,15 +254,44 @@ void handle_register(
         return;
     }
 
-    // TODO: Create profile for the account
+    // Create profile for the account (name optional)
+    const char *name_val = NULL;
+    if (name_json && cJSON_IsString(name_json) && strlen(name_json->valuestring) > 0) {
+        name_val = name_json->valuestring;
+    }
 
-    // Build success response
+    profile_t *profile = NULL;
+    err = profile_create(account->id, name_val, NULL, NULL, &profile);
+    if (err != DB_SUCCESS) {
+        cJSON_Delete(json);
+        account_free(account);
+        send_error(client_fd, header, ERR_SERVER_ERROR, "Failed to create profile");
+        return;
+    }
+
+    // Create session immediately so user is logged in after register
+    session_t *session = NULL;
+    err = session_create(account->id, &session);
+    if (err != DB_SUCCESS || !session) {
+        cJSON_Delete(json);
+        account_free(account);
+        profile_free(profile);
+        send_error(client_fd, header, ERR_SERVER_ERROR, "Failed to create session");
+        return;
+    }
+
+    // Build success response with session + profile
     cJSON *response = cJSON_CreateObject();
     cJSON_AddBoolToObject(response, "success", true);
     cJSON_AddNumberToObject(response, "account_id", account->id);
+    cJSON_AddStringToObject(response, "session_id", session->session_id);
     cJSON_AddStringToObject(response, "message", "Registration successful");
+    add_profile_to_response(response, profile, account);
 
     send_response(client_fd, header, RES_SUCCESS, response);
+
+    // Bind session to this connection for downstream commands
+    set_client_session(client_fd, session->session_id, account->id);
 
     printf("[AUTH] Registration successful: account_id=%d, email=%s\n", 
            account->id, email);
@@ -241,6 +300,8 @@ void handle_register(
     cJSON_Delete(response);
     cJSON_Delete(json);
     account_free(account);
+    session_free(session);
+    profile_free(profile);
 }
 
 void handle_logout(
@@ -282,6 +343,9 @@ void handle_logout(
 
     // Delete session
     session_delete(session_id);
+
+    // Clear binding
+    clear_client_session(client_fd);
 
     // Build success response
     cJSON *response = cJSON_CreateObject();
@@ -347,6 +411,16 @@ void handle_reconnect(
     // Update session as connected
     session_reconnect(session_id);
 
+    // Bind session to this connection
+    set_client_session(client_fd, session_id, account->id);
+
+    // Fetch profile (best effort)
+    profile_t *profile = NULL;
+    db_error_t profile_err = profile_find_by_account(account->id, &profile);
+    if (profile_err == DB_ERROR_NOT_FOUND) {
+        profile_create(account->id, NULL, NULL, NULL, &profile);
+    }
+
     // TODO: Restore room state if player was in a room
 
     // Build success response
@@ -354,11 +428,7 @@ void handle_reconnect(
     cJSON_AddBoolToObject(response, "success", true);
     cJSON_AddNumberToObject(response, "account_id", account->id);
     cJSON_AddStringToObject(response, "session_id", session->session_id);
-    
-    cJSON *profile = cJSON_CreateObject();
-    cJSON_AddStringToObject(profile, "email", account->email);
-    cJSON_AddStringToObject(profile, "role", account->role);
-    cJSON_AddItemToObject(response, "profile", profile);
+    add_profile_to_response(response, profile, account);
 
     send_response(client_fd, header, RES_LOGIN_OK, response);
 
@@ -370,4 +440,5 @@ void handle_reconnect(
     cJSON_Delete(json);
     account_free(account);
     session_free(session);
+    profile_free(profile);
 }

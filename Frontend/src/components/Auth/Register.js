@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import "./Register.css";
-import { registerAccount } from "../../services/authService";
+import { persistAuth, registerAccount } from "../../services/authService";
 import { initSocket, isConnected } from "../../network/socketClient";
 
 const MIN_PASSWORD = 6;
@@ -58,9 +58,8 @@ export default function Register() {
       });
 
       if (response?.success) {
-        if (response.account_id) {
-          localStorage.setItem("account_id", response.account_id);
-        }
+        // Persist full auth (account, session, profile) then forward to lobby
+        persistAuth(response);
         setStatus({
           loading: false,
           error: "",

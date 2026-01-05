@@ -9,6 +9,7 @@ const decoder = new TextDecoder();
 
 let registerPending = null;
 let loginPending = null;
+let reconnectPending = null;
 
 function parsePayload(payload) {
   const text = decoder.decode(payload);
@@ -20,16 +21,27 @@ function parsePayload(payload) {
 }
 
 function finishAuth(result, isError = false) {
-  // Route to whichever is pending (register or login)
+  // Resolve whichever auth flow is pending: register, login, reconnect
   if (registerPending) {
     const { resolve, reject, timeoutId } = registerPending;
     clearTimeout(timeoutId);
     registerPending = null;
     isError ? reject(result) : resolve(result);
-  } else if (loginPending) {
+    return;
+  }
+
+  if (loginPending) {
     const { resolve, reject, timeoutId } = loginPending;
     clearTimeout(timeoutId);
     loginPending = null;
+    isError ? reject(result) : resolve(result);
+    return;
+  }
+
+  if (reconnectPending) {
+    const { resolve, reject, timeoutId } = reconnectPending;
+    clearTimeout(timeoutId);
+    reconnectPending = null;
     isError ? reject(result) : resolve(result);
   }
 }
@@ -44,11 +56,12 @@ registerDefaultHandler((opcode, payload) => {
   const RES_SUCCESS = 200;
   const RES_LOGIN_OK = 201;
   const ERR_BAD_REQUEST = 400;
+  const ERR_NOT_LOGGED_IN = 401;
   const ERR_INVALID_USERNAME = 402;
   const ERR_SERVER_ERROR = 500;
   const ERR_SERVICE_UNAVAILABLE = 501;
 
-  const authOpcodes = [RES_SUCCESS, RES_LOGIN_OK, ERR_BAD_REQUEST, ERR_INVALID_USERNAME, ERR_SERVER_ERROR, ERR_SERVICE_UNAVAILABLE];
+  const authOpcodes = [RES_SUCCESS, RES_LOGIN_OK, ERR_BAD_REQUEST, ERR_NOT_LOGGED_IN, ERR_INVALID_USERNAME, ERR_SERVER_ERROR, ERR_SERVICE_UNAVAILABLE];
   const isAuth = authOpcodes.includes(opcode);
 
   console.log("[Auth] default handler invoked", { opcode, authOpcodes, isAuth });
@@ -86,7 +99,7 @@ registerHandler(OPCODE.RES_LOGIN_OK, (payload) => {
   finishAuth(data, !data?.success);
 });
 
-[OPCODE.ERR_BAD_REQUEST, OPCODE.ERR_INVALID_USERNAME, OPCODE.ERR_SERVER_ERROR, OPCODE.ERR_SERVICE_UNAVAILABLE]
+[OPCODE.ERR_BAD_REQUEST, OPCODE.ERR_NOT_LOGGED_IN, OPCODE.ERR_INVALID_USERNAME, OPCODE.ERR_SERVER_ERROR, OPCODE.ERR_SERVICE_UNAVAILABLE]
   .forEach((opcode) => {
     registerHandler(opcode, (payload) => {
       const text = new TextDecoder().decode(payload);
@@ -147,4 +160,62 @@ export function loginAccount({ email, password }) {
     const payload = encoder.encode(JSON.stringify({ email: cleanEmail, password }));
     sendPacket(OPCODE.CMD_LOGIN_REQ, payload);
   });
+}
+
+export function reconnectSession({ sessionId } = {}) {
+  return new Promise((resolve, reject) => {
+    const sid = sessionId || localStorage.getItem("session_id");
+    if (!sid) {
+      reject({ success: false, error: "Missing session" });
+      return;
+    }
+
+    // Cancel other pending auth flows
+    if (reconnectPending) {
+      clearTimeout(reconnectPending.timeoutId);
+    }
+    if (loginPending) {
+      clearTimeout(loginPending.timeoutId);
+      loginPending = null;
+    }
+    if (registerPending) {
+      clearTimeout(registerPending.timeoutId);
+      registerPending = null;
+    }
+
+    reconnectPending = { resolve, reject, timeoutId: null };
+    reconnectPending.timeoutId = setTimeout(() => {
+      finishAuth({ success: false, error: "Reconnect timed out" }, true);
+    }, AUTH_TIMEOUT);
+
+    const payload = encoder.encode(JSON.stringify({ session_id: sid }));
+    sendPacket(OPCODE.CMD_RECONNECT, payload);
+  });
+}
+
+// Persist auth to localStorage
+export function persistAuth(data) {
+  if (data?.account_id) localStorage.setItem("account_id", String(data.account_id));
+  if (data?.session_id) localStorage.setItem("session_id", String(data.session_id));
+  if (data?.profile?.email) localStorage.setItem("email", data.profile.email);
+  // Store other profile data for UI (display name, avatar, etc)
+  if (data?.profile) localStorage.setItem("profile", JSON.stringify(data.profile));
+}
+
+// Get current auth state
+export function getAuthState() {
+  return {
+    accountId: localStorage.getItem("account_id"),
+    sessionId: localStorage.getItem("session_id"),
+    email: localStorage.getItem("email"),
+    profile: JSON.parse(localStorage.getItem("profile") || "{}"),
+  };
+}
+
+// Clear auth
+export function clearAuth() {
+  localStorage.removeItem("account_id");
+  localStorage.removeItem("session_id");
+  localStorage.removeItem("email");
+  localStorage.removeItem("profile");
 }

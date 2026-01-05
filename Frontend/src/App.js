@@ -4,22 +4,13 @@ import WaitingRoom from "./components/Room/WaitingRoom/WaitingRoom";
 import GameContainer from "./components/Game/GameContainer"; // Import mới
 import Register from "./components/Auth/Register";
 import Login from "./components/Auth/Login";
+import { isAuthenticated, RequireAuth, RedirectIfAuthed } from "./services/authGuard";
 import "./App.css";
 import React from "react";
-
-function isAuthenticated() {
-  return Boolean(localStorage.getItem("account_id"));
-}
-
-function RequireAuth({ children }) {
-  return isAuthenticated() ? children : <Navigate to="/login" replace />;
-}
-
-function RedirectIfAuthed({ children }) {
-  return isAuthenticated() ? <Navigate to="/lobby" replace /> : children;
-}
+import { useAuthBootstrap } from "./services/authBootstrap";
 
 function App() {
+  useAuthBootstrap();
   const defaultRoute = isAuthenticated() ? "/lobby" : "/login";
   
   return (
