@@ -3,41 +3,42 @@ import "./WaitingRoom.css";
 import { setRules } from "../../../services/hostService";
 import { useState, useEffect } from "react";
 
-export default function GameRulesPanel({ isHost, roomId, gameRules, onRulesChange }) {
+export default function GameRulesPanel({ isHost, roomId, gameRules }) {
   const [editMode, setEditMode] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  // Hàm xử lý thay đổi rule chung
+  // Send rules to server - DON'T update local state
   const handleRuleChange = async (ruleKey, value) => {
+    if (!isHost || loading) return;
+    
     let newRules = { ...gameRules, [ruleKey]: value };
 
     // LOGIC ĐẶC BIỆT: Khi thay đổi Mode
     if (ruleKey === "mode") {
       if (value === "eliminate") {
-        // Nếu chọn Eliminate -> Mặc định là 4 người
         newRules.maxPlayers = 4;
       } else if (value === "scoring") {
-        // Nếu chọn Scoring -> Đảm bảo nằm trong khoảng 4-6
-        // Nếu đang là 4 thì giữ nguyên, nếu khác thì reset về 4 (hoặc logic khác tùy bạn)
         if ((newRules.maxPlayers || 0) < 4) newRules.maxPlayers = 4;
         if ((newRules.maxPlayers || 0) > 6) newRules.maxPlayers = 6;
       }
     }
 
-    onRulesChange(newRules);
-
-    // Send to server if host
-    if (isHost) {
-      try {
-        await setRules(roomId, newRules);
-        console.log("✅ Game rules updated", newRules);
-      } catch (error) {
-        console.error("❌ Failed to update rules:", error);
-      }
+    // Send to server and wait for NTF_RULES_CHANGED to update UI
+    try {
+      setLoading(true);
+      await setRules(roomId, newRules);
+      console.log("✅ Rules update request sent, waiting for server confirmation");
+      // UI will update when NTF_RULES_CHANGED arrives
+    } catch (error) {
+      console.error("❌ Failed to send rules update:", error);
+      setLoading(false);
     }
   };
 
   // Helper để tăng/giảm số lượng người chơi
   const handleMaxPlayersChange = (delta) => {
+    if (loading) return;
+    
     const currentMode = gameRules?.mode || "scoring";
     const currentMax = gameRules?.maxPlayers || 5;
     const newMax = currentMax + delta;
@@ -45,21 +46,24 @@ export default function GameRulesPanel({ isHost, roomId, gameRules, onRulesChang
     let min = 4;
     let max = 6;
 
-    // Nếu là Eliminate, không cho chỉnh (hoặc logic khác nếu bạn muốn)
-    // Theo yêu cầu "mặc định là 4", mình sẽ khóa cứng ở 4 cho chế độ này
     if (currentMode === "eliminate") {
-      return;
-    }
-
-    if (currentMode === "scoring") {
-      min = 4;
-      max = 6;
+      return; // Không cho chỉnh ở eliminate mode
     }
 
     if (newMax >= min && newMax <= max) {
       handleRuleChange("maxPlayers", newMax);
     }
   };
+  
+  // Listen for rules-changed event to clear loading state
+  useEffect(() => {
+    const handleRulesChanged = () => {
+      setLoading(false);
+    };
+    
+    window.addEventListener('rules-changed', handleRulesChanged);
+    return () => window.removeEventListener('rules-changed', handleRulesChanged);
+  }, []);
 
   return (
     <div className="wr-panel game-rules-panel">

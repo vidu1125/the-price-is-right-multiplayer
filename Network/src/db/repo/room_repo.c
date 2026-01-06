@@ -100,9 +100,12 @@ int room_repo_create(
     }
     
     // 6. Build success response
+    cJSON *name_item = cJSON_GetObjectItem(first, "name");
+    const char *room_name = name_item ? name_item->valuestring : "Room";
+    
     snprintf(out_buf, out_size, 
-        "{\"success\":true,\"room_id\":%d,\"room_code\":\"%s\"}",
-        *room_id, code_item->valuestring);
+        "{\"success\":true,\"room_id\":%d,\"room_code\":\"%s\",\"room_name\":\"%s\"}",
+        *room_id, code_item->valuestring, room_name);
     
     cJSON_Delete(response);
     return 0;

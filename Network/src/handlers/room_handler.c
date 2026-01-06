@@ -159,6 +159,25 @@ void handle_create_room(int client_fd, MessageHeader *req, const char *payload) 
         result_len
     );
 
+    // 7. Push snapshot to client (server-driven architecture)
+    // Build rules payload
+    char rules_json[256];
+    snprintf(rules_json, sizeof(rules_json),
+        "{\"mode\":\"%s\",\"max_players\":%u,\"wager_mode\":%s,\"visibility\":\"%s\"}",
+        data.mode ? "elimination" : "scoring",
+        data.max_players,
+        data.wager_enabled ? "true" : "false",
+        data.visibility ? "private" : "public"
+    );
+    room_broadcast((int)room_id, NTF_RULES_CHANGED, rules_json, strlen(rules_json), -1);
+
+    // Build player list payload (host only at this point)
+    char player_json[512];
+    snprintf(player_json, sizeof(player_json),
+        "{\"players\":[{\"account_id\":1,\"username\":\"Host\",\"is_host\":true,\"is_ready\":false}]}"
+    );
+    room_broadcast((int)room_id, NTF_PLAYER_LIST, player_json, strlen(player_json), -1);
+
 }
 
 //==============================================================================

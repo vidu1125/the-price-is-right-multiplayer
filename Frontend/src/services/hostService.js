@@ -57,32 +57,7 @@ export function createRoom(roomData) {
     sendPacket(OPCODE.CMD_CREATE_ROOM, buffer);
 }
 
-registerHandler(OPCODE.RES_ROOM_CREATED, (payload) => {
-    const text = new TextDecoder().decode(payload);
-
-    // Skip HTTP headers if present
-    let jsonStr = text;
-    const bodyStart = text.indexOf('\r\n\r\n');
-    if (bodyStart !== -1) {
-        jsonStr = text.substring(bodyStart + 4);
-    }
-
-    try {
-        const response = JSON.parse(jsonStr);
-
-        if (response.success) {
-            console.log('[Host] Room created:', response);
-            localStorage.setItem('current_room_id', response.room_id.toString());
-            // Store code too if needed
-            sessionStorage.setItem('room_code', response.room_code);
-            window.location.href = '/waitingroom';
-        } else {
-            alert('Failed to create room: ' + response.error);
-        }
-    } catch (e) {
-        console.error('[Host] Parse error:', e, jsonStr);
-    }
-});
+// NOTE: RES_ROOM_CREATED is handled in RoomPanel.js to avoid navigation conflicts
 
 //==============================================================================
 // 2. CLOSE ROOM
@@ -103,11 +78,8 @@ export function closeRoom(roomId) {
 }
 
 registerHandler(OPCODE.RES_ROOM_CLOSED, (payload) => {
-    const text = new TextDecoder().decode(payload);
-    let jsonStr = text.substring(text.indexOf('\r\n\r\n') + 4);
-
     try {
-        const response = JSON.parse(jsonStr);
+        const response = JSON.parse(new TextDecoder().decode(payload));
 
         if (response.success) {
             console.log('[Host] Room closed');
@@ -140,7 +112,7 @@ export function setRules(roomId, rules) {
     view.setUint32(0, roomId, false); // Network byte order
     view.setUint8(4, rules.mode === 'elimination' ? 1 : 0);
     view.setUint8(5, rules.maxPlayers || 6);
-    view.setUint8(6, rules.wagerEnabled ? 1 : 0);
+    view.setUint8(6, rules.wagerMode ? 1 : 0);  // ⚠️ Fix: wagerMode not wagerEnabled
     // view.setUint8(7, 0); // reserved
 
     console.log('[Host] Setting rules:', rules);
@@ -148,16 +120,12 @@ export function setRules(roomId, rules) {
 }
 
 registerHandler(OPCODE.RES_RULES_UPDATED, (payload) => {
-    const text = new TextDecoder().decode(payload);
-    let jsonStr = text.substring(text.indexOf('\r\n\r\n') + 4);
-
     try {
-        const response = JSON.parse(jsonStr);
+        const response = JSON.parse(new TextDecoder().decode(payload));
 
         if (response.success) {
-            console.log('[Host] Rules updated:', response.rules);
-            // TODO: Update UI to reflect new rules
-            alert('Rules updated successfully!');
+            console.log('[Host] Rules update request accepted');
+            // Don't update UI here - wait for NTF_RULES_CHANGED
         } else {
             alert('Failed to update rules: ' + response.error);
         }
@@ -187,11 +155,8 @@ export function kickMember(roomId, targetId) {
 }
 
 registerHandler(OPCODE.RES_MEMBER_KICKED, (payload) => {
-    const text = new TextDecoder().decode(payload);
-    let jsonStr = text.substring(text.indexOf('\r\n\r\n') + 4);
-
     try {
-        const response = JSON.parse(jsonStr);
+        const response = JSON.parse(new TextDecoder().decode(payload));
 
         if (response.success) {
             console.log('[Host] Member kicked');
@@ -224,11 +189,8 @@ export function startGame(roomId) {
 }
 
 registerHandler(OPCODE.RES_GAME_STARTED, (payload) => {
-    const text = new TextDecoder().decode(payload);
-    let jsonStr = text.substring(text.indexOf('\r\n\r\n') + 4);
-
     try {
-        const response = JSON.parse(jsonStr);
+        const response = JSON.parse(new TextDecoder().decode(payload));
 
         if (response.success) {
             console.log('[Host] Game started, match_id:', response.match_id);
@@ -263,11 +225,8 @@ export function leaveRoom(roomId) {
 }
 
 registerHandler(OPCODE.RES_ROOM_LEFT, (payload) => {
-    const text = new TextDecoder().decode(payload);
-    let jsonStr = text.substring(text.indexOf('\r\n\r\n') + 4);
-
     try {
-        const response = JSON.parse(jsonStr);
+        const response = JSON.parse(new TextDecoder().decode(payload));
 
         if (response.success) {
             console.log('[Member] Left room');
@@ -284,31 +243,44 @@ registerHandler(OPCODE.RES_ROOM_LEFT, (payload) => {
 //==============================================================================
 
 registerHandler(OPCODE.NTF_GAME_START, (payload) => {
-    const text = new TextDecoder().decode(payload);
-    const data = JSON.parse(text);
-
-    console.log('[Notification] Game starting:', data);
-    // Show countdown UI: 3... 2... 1...
+    try {
+        const data = JSON.parse(new TextDecoder().decode(payload));
+        console.log('[Notification] Game starting:', data);
+        // Show countdown UI: 3... 2... 1...
+    } catch (e) {
+        console.error('[NTF] Game start parse error:', e);
+    }
 });
 
 registerHandler(OPCODE.NTF_ROUND_START, (payload) => {
-    const text = new TextDecoder().decode(payload);
-    const data = JSON.parse(text);
-
-    console.log('[Notification] Round started:', data);
-    localStorage.setItem('current_round', data.round);
-
-    // Navigate to game screen
-    window.location.href = '/round';
+    try {
+        const data = JSON.parse(new TextDecoder().decode(payload));
+        console.log('[Notification] Round started:', data);
+        localStorage.setItem('current_round', data.round);
+        // Navigate to game screen
+        window.location.href = '/round';
+    } catch (e) {
+        console.error('[NTF] Round start parse error:', e);
+    }
 });
 
 registerHandler(OPCODE.NTF_RULES_CHANGED, (payload) => {
-    const text = new TextDecoder().decode(payload);
-    const data = JSON.parse(text);
-
-    console.log('[Notification] Rules changed:', data);
-    alert('Host changed the rules!');
-    // TODO: Update UI to reflect new rules
+    try {
+        const data = JSON.parse(new TextDecoder().decode(payload));
+        console.log('[Notification] Rules changed:', data);
+        
+        // Dispatch custom event for WaitingRoom to catch
+        window.dispatchEvent(new CustomEvent('rules-changed', { 
+            detail: {
+                mode: data.mode,
+                maxPlayers: data.max_players,
+                wagerMode: data.wager_mode,
+                visibility: data.visibility
+            }
+        }));
+    } catch (e) {
+        console.error('[NTF] Rules changed parse error:', e);
+    }
 });
 
 registerHandler(OPCODE.NTF_MEMBER_KICKED, (payload) => {
@@ -326,9 +298,27 @@ registerHandler(OPCODE.NTF_ROOM_CLOSED, (payload) => {
 });
 
 registerHandler(OPCODE.NTF_PLAYER_LEFT, (payload) => {
-    const text = new TextDecoder().decode(payload);
-    const data = JSON.parse(text);
+    try {
+        const data = JSON.parse(new TextDecoder().decode(payload));
+        console.log('[Notification] Player left:', data);
+        
+        // Dispatch event for WaitingRoom
+        window.dispatchEvent(new CustomEvent('player-left', { detail: data }));
+    } catch (e) {
+        console.error('[NTF] Player left parse error:', e);
+    }
+});
 
-    console.log('[Notification] Player left:', data);
-    // TODO: Update member list UI
+registerHandler(OPCODE.NTF_PLAYER_LIST, (payload) => {
+    try {
+        const data = JSON.parse(new TextDecoder().decode(payload));
+        console.log('[Notification] Player list:', data);
+        
+        // Dispatch event for MemberListPanel
+        window.dispatchEvent(new CustomEvent('player-list', { 
+            detail: data.players || []
+        }));
+    } catch (e) {
+        console.error('[NTF] Player list parse error:', e);
+    }
 });

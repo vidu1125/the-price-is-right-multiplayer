@@ -43,25 +43,24 @@ export default function RoomPanel() {
   useEffect(() => {
     registerHandler(OPCODE.RES_ROOM_CREATED, (payload) => {
       console.log("✅ Room created response received");
-      const text = new TextDecoder().decode(payload);
       try {
-        let jsonStr = text;
-        const bodyStart = text.indexOf('\r\n\r\n');
-        if (bodyStart !== -1) {
-          jsonStr = text.substring(bodyStart + 4);
-        }
-        const data = JSON.parse(jsonStr);
+        const data = JSON.parse(new TextDecoder().decode(payload));
         const roomCode = data.room_code || data.room?.code || data.code;
         const roomId = data.room_id || data.room?.id;
+        const roomName = data.room_name || data?.room_name;
+
+        // Lưu vào localStorage
+        localStorage.setItem('room_id', String(roomId));
+        localStorage.setItem('room_code', roomCode);
+        localStorage.setItem('room_name', roomName);
+        localStorage.setItem('is_host', 'true');
+
+        console.log('[RoomPanel] Stored to localStorage:', { roomId, roomCode, roomName });
 
         setShowModal(false);
-        navigate('/waitingroom', {
-          state: {
-            roomId: roomId,
-            roomCode: roomCode,
-            isHost: true
-          }
-        });
+        
+        // Use React Router navigate (NO page reload, keeps WebSocket alive)
+        navigate('/waitingroom');
       } catch (err) {
         console.error("Parse error:", err);
       }
