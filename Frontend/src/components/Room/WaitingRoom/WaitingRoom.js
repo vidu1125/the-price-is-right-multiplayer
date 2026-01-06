@@ -76,7 +76,6 @@ export default function WaitingRoom() {
     
     // Listen for server notifications
     const handleRulesChanged = (event) => {
-      console.log('[WaitingRoom] Rules changed event:', event.detail);
       setGameRules(event.detail);
     };
     

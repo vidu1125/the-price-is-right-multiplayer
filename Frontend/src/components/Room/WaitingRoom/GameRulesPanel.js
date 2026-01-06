@@ -6,12 +6,19 @@ import { useState, useEffect } from "react";
 export default function GameRulesPanel({ isHost, roomId, gameRules }) {
   const [editMode, setEditMode] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [localRules, setLocalRules] = useState(gameRules); // ← Add local state
+
+  // Sync local rules when prop changes
+  useEffect(() => {
+    setLocalRules(gameRules);
+    setLoading(false);
+  }, [gameRules]);
 
   // Send rules to server - DON'T update local state
   const handleRuleChange = async (ruleKey, value) => {
     if (!isHost || loading) return;
 
-    let newRules = { ...gameRules, [ruleKey]: value };
+    let newRules = { ...localRules, [ruleKey]: value };
 
     // LOGIC ĐẶC BIỆT: Khi thay đổi Mode
     if (ruleKey === "mode") {
@@ -39,8 +46,8 @@ export default function GameRulesPanel({ isHost, roomId, gameRules }) {
   const handleMaxPlayersChange = (delta) => {
     if (loading) return;
 
-    const currentMode = gameRules?.mode || "scoring";
-    const currentMax = gameRules?.maxPlayers || 5;
+    const currentMode = localRules?.mode || "scoring";
+    const currentMax = localRules?.maxPlayers || 5;
     const newMax = currentMax + delta;
 
     let min = 4;
@@ -84,39 +91,36 @@ export default function GameRulesPanel({ isHost, roomId, gameRules }) {
         <label>Max Players:</label>
         {isHost && editMode ? (
           <div className="number-control" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            {/* Nút Giảm */}
             <button
               className="control-btn"
               onClick={() => handleMaxPlayersChange(-1)}
-              disabled={gameRules?.mode === "elimination" || (gameRules?.maxPlayers <= 4)}
+              disabled={localRules?.mode === "elimination" || (localRules?.maxPlayers <= 4)}
               style={{
                 width: '28px', height: '28px', cursor: 'pointer',
-                opacity: (gameRules?.mode === "elimination" || gameRules?.maxPlayers <= 4) ? 0.3 : 1
+                opacity: (localRules?.mode === "elimination" || localRules?.maxPlayers <= 4) ? 0.3 : 1
               }}
             >
               -
             </button>
 
-            {/* Số hiển thị - Dùng lại class rule-value-static để giữ nguyên font */}
             <span className="rule-value-static">
-              {gameRules?.maxPlayers || 5}
+              {localRules?.maxPlayers || 5}
             </span>
 
-            {/* Nút Tăng */}
             <button
               className="control-btn"
               onClick={() => handleMaxPlayersChange(1)}
-              disabled={gameRules?.mode === "elimination" || (gameRules?.maxPlayers >= 6)}
+              disabled={localRules?.mode === "elimination" || (localRules?.maxPlayers >= 6)}
               style={{
                 width: '28px', height: '28px', cursor: 'pointer',
-                opacity: (gameRules?.mode === "elimination" || gameRules?.maxPlayers >= 6) ? 0.3 : 1
+                opacity: (localRules?.mode === "elimination" || localRules?.maxPlayers >= 6) ? 0.3 : 1
               }}
             >
               +
             </button>
           </div>
         ) : (
-          <span className="rule-value-static">{gameRules?.maxPlayers || 5}</span>
+          <span className="rule-value-static">{localRules?.maxPlayers || 5}</span>
         )}
       </div>
 
@@ -125,14 +129,14 @@ export default function GameRulesPanel({ isHost, roomId, gameRules }) {
         <label>Visibility:</label>
         <div className="mode-options">
           <button
-            className={gameRules?.visibility === "public" ? "active" : ""}
+            className={localRules?.visibility === "public" ? "active" : ""}
             onClick={() => isHost && editMode && handleRuleChange("visibility", "public")}
             disabled={!isHost || !editMode}
           >
             Public
           </button>
           <button
-            className={gameRules?.visibility === "private" ? "active" : ""}
+            className={localRules?.visibility === "private" ? "active" : ""}
             onClick={() => isHost && editMode && handleRuleChange("visibility", "private")}
             disabled={!isHost || !editMode}
           >
@@ -146,14 +150,14 @@ export default function GameRulesPanel({ isHost, roomId, gameRules }) {
         <label>Mode:</label>
         <div className="mode-options">
           <button
-            className={gameRules?.mode === "elimination" ? "active" : ""}
+            className={localRules?.mode === "elimination" ? "active" : ""}
             onClick={() => isHost && editMode && handleRuleChange("mode", "elimination")}
             disabled={!isHost || !editMode}
           >
             Elimination
           </button>
           <button
-            className={gameRules?.mode === "scoring" ? "active" : ""}
+            className={localRules?.mode === "scoring" ? "active" : ""}
             onClick={() => isHost && editMode && handleRuleChange("mode", "scoring")}
             disabled={!isHost || !editMode}
           >
@@ -167,7 +171,7 @@ export default function GameRulesPanel({ isHost, roomId, gameRules }) {
         <label>Wager Mode:</label>
         <div className="status-badges-container">
           <button
-            className={`status-badge on ${gameRules?.wagerMode ? "active-badge" : ""}`}
+            className={`status-badge on ${localRules?.wagerMode ? "active-badge" : ""}`}
             onClick={() => handleRuleChange("wagerMode", true)}
             disabled={!isHost || !editMode}
             style={{ opacity: (!isHost || !editMode) ? 0.6 : 1 }}
@@ -175,7 +179,7 @@ export default function GameRulesPanel({ isHost, roomId, gameRules }) {
             ON
           </button>
           <button
-            className={`status-badge off ${!gameRules?.wagerMode ? "active-badge" : ""}`}
+            className={`status-badge off ${!localRules?.wagerMode ? "active-badge" : ""}`}
             onClick={() => handleRuleChange("wagerMode", false)}
             disabled={!isHost || !editMode}
             style={{ opacity: (!isHost || !editMode) ? 0.6 : 1 }}
