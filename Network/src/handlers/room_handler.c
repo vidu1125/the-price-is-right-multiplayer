@@ -86,44 +86,8 @@ void handle_create_room(int client_fd, MessageHeader *req, const char *payload) 
         return;
     }
     
-    // // 4. Escape JSON string
-    // const char *safe_name = json_escape_string(room_name);
-    
-    // // 5. Build JSON for backend
-    // char json[1024];
-    // snprintf(json, sizeof(json),
-    //     "{\"name\":\"%s\",\"visibility\":\"%s\",\"mode\":\"%s\","
-    //     "\"max_players\":%u,\"round_time\":%u,\"advanced\":{\"wager\":%s}}",
-    //     safe_name,
-    //     data.visibility ? "private" : "public",
-    //     data.mode ? "elimination" : "scoring",
-    //     data.max_players,
-    //     data.round_time,
-    //     data.wager_enabled ? "true" : "false"
-    // );
-    
-    // // 6. HTTP POST to backend (parsed)
-    // char resp_buf[2048];
-    // HttpResponse http_resp = http_post_parse("backend", 5000, "/api/room/create",
-    //                                          json, resp_buf, sizeof(resp_buf));
-    
-    // if (http_resp.status_code < 0) {
-    //     send_error(client_fd, req, ERR_SERVER_ERROR, "Backend unreachable");
-    //     return;
-    // }
-    
-    // if (http_resp.status_code >= 400) {
-    //     send_error(client_fd, req, ERR_BAD_REQUEST, http_resp.body);
-    //     return;
-    // }
-    
-    // // 7. Parse room_id from response (simplified: assume {"room_id":123,...})
-    // int room_id = 0;
-    // if (sscanf(http_resp.body, "{\"success\":true,\"room_id\":%d", &room_id) == 1) {
-    //     room_add_member(room_id, client_fd);
-    // }
-    
 
+    
     // 4. Call room_repo instead of backend
     char result_payload[2048];
     uint32_t room_id = 0;
@@ -269,9 +233,19 @@ void handle_set_rules(int client_fd, MessageHeader *req, const char *payload) {
         return;
     }
 
-    // 6. Broadcast success to all members (except host)
+    // 6. Build rules notification payload
+    char rules_json[256];
+    snprintf(rules_json, sizeof(rules_json),
+        "{\"mode\":\"%s\",\"max_players\":%u,\"wager_mode\":%s,\"visibility\":\"%s\"}",
+        data.mode ? "elimination" : "scoring",
+        data.max_players,
+        data.wager_enabled ? "true" : "false",
+        "public" // TODO: get from DB or track in memory
+    );
+    
+    // Broadcast rules to all members (INCLUDING host)
     room_broadcast(room_id, NTF_RULES_CHANGED,
-              resp_buf, strlen(resp_buf), client_fd);
+              rules_json, strlen(rules_json), -1);
 
     // 7. Forward response to host
     forward_response(client_fd, req, RES_RULES_UPDATED,

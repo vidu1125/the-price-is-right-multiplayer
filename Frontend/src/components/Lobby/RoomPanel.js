@@ -25,7 +25,7 @@ export default function RoomPanel() {
   const handleModeChange = (newMode) => {
     let newMax = formData.maxPlayers;
 
-    if (newMode === "eliminate") {
+    if (newMode === "elimination") {
       newMax = 4; // Eliminate cố định 4 người
     } else if (newMode === "scoring") {
       // Nếu chuyển sang Scoring, đảm bảo số người trong khoảng 4-6
@@ -58,7 +58,7 @@ export default function RoomPanel() {
         console.log('[RoomPanel] Stored to localStorage:', { roomId, roomCode, roomName });
 
         setShowModal(false);
-        
+
         // Use React Router navigate (NO page reload, keeps WebSocket alive)
         navigate('/waitingroom');
       } catch (err) {
@@ -125,7 +125,7 @@ export default function RoomPanel() {
                 Game Mode:
                 <select value={formData.mode} onChange={(e) => handleModeChange(e.target.value)}>
                   <option value="scoring">Scoring</option>
-                  <option value="eliminate">Eliminate</option>
+                  <option value="elimination">Elimination</option>
                 </select>
               </label>
 
@@ -137,8 +137,8 @@ export default function RoomPanel() {
                   value={formData.maxPlayers}
                   onChange={(e) => setFormData({ ...formData, maxPlayers: parseInt(e.target.value) })}
                   min={4}
-                  max={formData.mode === "eliminate" ? 4 : 6}
-                  disabled={formData.mode === "eliminate"} /* Khóa input nếu là Eliminate */
+                  max={formData.mode === "elimination" ? 4 : 6}
+                  disabled={formData.mode === "elimination"} /* Khóa input nếu là Eliminate */
                   required
                 />
               </label>

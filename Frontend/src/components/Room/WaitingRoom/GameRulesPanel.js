@@ -10,12 +10,12 @@ export default function GameRulesPanel({ isHost, roomId, gameRules }) {
   // Send rules to server - DON'T update local state
   const handleRuleChange = async (ruleKey, value) => {
     if (!isHost || loading) return;
-    
+
     let newRules = { ...gameRules, [ruleKey]: value };
 
     // LOGIC ĐẶC BIỆT: Khi thay đổi Mode
     if (ruleKey === "mode") {
-      if (value === "eliminate") {
+      if (value === "elimination") {
         newRules.maxPlayers = 4;
       } else if (value === "scoring") {
         if ((newRules.maxPlayers || 0) < 4) newRules.maxPlayers = 4;
@@ -38,7 +38,7 @@ export default function GameRulesPanel({ isHost, roomId, gameRules }) {
   // Helper để tăng/giảm số lượng người chơi
   const handleMaxPlayersChange = (delta) => {
     if (loading) return;
-    
+
     const currentMode = gameRules?.mode || "scoring";
     const currentMax = gameRules?.maxPlayers || 5;
     const newMax = currentMax + delta;
@@ -46,7 +46,7 @@ export default function GameRulesPanel({ isHost, roomId, gameRules }) {
     let min = 4;
     let max = 6;
 
-    if (currentMode === "eliminate") {
+    if (currentMode === "elimination") {
       return; // Không cho chỉnh ở eliminate mode
     }
 
@@ -54,13 +54,13 @@ export default function GameRulesPanel({ isHost, roomId, gameRules }) {
       handleRuleChange("maxPlayers", newMax);
     }
   };
-  
+
   // Listen for rules-changed event to clear loading state
   useEffect(() => {
     const handleRulesChanged = () => {
       setLoading(false);
     };
-    
+
     window.addEventListener('rules-changed', handleRulesChanged);
     return () => window.removeEventListener('rules-changed', handleRulesChanged);
   }, []);
@@ -88,10 +88,10 @@ export default function GameRulesPanel({ isHost, roomId, gameRules }) {
             <button
               className="control-btn"
               onClick={() => handleMaxPlayersChange(-1)}
-              disabled={gameRules?.mode === "eliminate" || (gameRules?.maxPlayers <= 4)}
+              disabled={gameRules?.mode === "elimination" || (gameRules?.maxPlayers <= 4)}
               style={{
                 width: '28px', height: '28px', cursor: 'pointer',
-                opacity: (gameRules?.mode === "eliminate" || gameRules?.maxPlayers <= 4) ? 0.3 : 1
+                opacity: (gameRules?.mode === "elimination" || gameRules?.maxPlayers <= 4) ? 0.3 : 1
               }}
             >
               -
@@ -106,10 +106,10 @@ export default function GameRulesPanel({ isHost, roomId, gameRules }) {
             <button
               className="control-btn"
               onClick={() => handleMaxPlayersChange(1)}
-              disabled={gameRules?.mode === "eliminate" || (gameRules?.maxPlayers >= 6)}
+              disabled={gameRules?.mode === "elimination" || (gameRules?.maxPlayers >= 6)}
               style={{
                 width: '28px', height: '28px', cursor: 'pointer',
-                opacity: (gameRules?.mode === "eliminate" || gameRules?.maxPlayers >= 6) ? 0.3 : 1
+                opacity: (gameRules?.mode === "elimination" || gameRules?.maxPlayers >= 6) ? 0.3 : 1
               }}
             >
               +
@@ -146,11 +146,11 @@ export default function GameRulesPanel({ isHost, roomId, gameRules }) {
         <label>Mode:</label>
         <div className="mode-options">
           <button
-            className={gameRules?.mode === "eliminate" ? "active" : ""}
-            onClick={() => isHost && editMode && handleRuleChange("mode", "eliminate")}
+            className={gameRules?.mode === "elimination" ? "active" : ""}
+            onClick={() => isHost && editMode && handleRuleChange("mode", "elimination")}
             disabled={!isHost || !editMode}
           >
-            Eliminate
+            Elimination
           </button>
           <button
             className={gameRules?.mode === "scoring" ? "active" : ""}
