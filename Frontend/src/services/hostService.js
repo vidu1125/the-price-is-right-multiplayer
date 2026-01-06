@@ -9,6 +9,25 @@ import { registerHandler } from "../network/receiver";
 import { OPCODE } from "../network/opcode";
 
 //==============================================================================
+// MODULE STATE: Cache latest snapshots for race condition fix
+//==============================================================================
+let latestRulesSnapshot = null;
+let latestPlayersSnapshot = null;
+
+export function getLatestRulesSnapshot() {
+    return latestRulesSnapshot;
+}
+
+export function getLatestPlayersSnapshot() {
+    return latestPlayersSnapshot;
+}
+
+export function clearSnapshots() {
+    latestRulesSnapshot = null;
+    latestPlayersSnapshot = null;
+}
+
+//==============================================================================
 // HELPER: Encode string to fixed-size buffer (null-terminated)
 //==============================================================================
 function encodeString(str, maxLength) {
@@ -269,14 +288,18 @@ registerHandler(OPCODE.NTF_RULES_CHANGED, (payload) => {
         const data = JSON.parse(new TextDecoder().decode(payload));
         console.log('[Notification] Rules changed:', data);
         
+        // Cache snapshot
+        const rulesSnapshot = {
+            mode: data.mode,
+            maxPlayers: data.max_players,
+            wagerMode: data.wager_mode,
+            visibility: data.visibility
+        };
+        latestRulesSnapshot = rulesSnapshot;
+        
         // Dispatch custom event for WaitingRoom to catch
         window.dispatchEvent(new CustomEvent('rules-changed', { 
-            detail: {
-                mode: data.mode,
-                maxPlayers: data.max_players,
-                wagerMode: data.wager_mode,
-                visibility: data.visibility
-            }
+            detail: rulesSnapshot
         }));
     } catch (e) {
         console.error('[NTF] Rules changed parse error:', e);
@@ -313,6 +336,9 @@ registerHandler(OPCODE.NTF_PLAYER_LIST, (payload) => {
     try {
         const data = JSON.parse(new TextDecoder().decode(payload));
         console.log('[Notification] Player list:', data);
+        
+        // Cache snapshot
+        latestPlayersSnapshot = data.players || [];
         
         // Dispatch event for MemberListPanel
         window.dispatchEvent(new CustomEvent('player-list', { 

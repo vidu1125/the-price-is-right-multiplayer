@@ -6,9 +6,8 @@ import GameRulesPanel from "./GameRulesPanel";
 import MemberListPanel from "./MemberListPanel";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
-// Import to register notification handlers
-import "../../../services/hostService";
-import "../../../services/hostService"; // Import to register notification handlers
+// Import to register notification handlers AND access cached snapshots
+import { getLatestRulesSnapshot, getLatestPlayersSnapshot, clearSnapshots } from "../../../services/hostService";
 
 export default function WaitingRoom() {
   const location = useLocation();
@@ -55,6 +54,23 @@ export default function WaitingRoom() {
       name: storedRoomName,
       host_id: 1 // TODO: Get from session
     });
+    
+    // Load cached snapshots (fix race condition)
+    const cachedRules = getLatestRulesSnapshot();
+    const cachedPlayers = getLatestPlayersSnapshot();
+    
+    if (cachedRules) {
+      console.log('[WaitingRoom] Loading cached rules:', cachedRules);
+      setGameRules(cachedRules);
+    }
+    
+    if (cachedPlayers) {
+      console.log('[WaitingRoom] Loading cached players:', cachedPlayers);
+      setMembers(cachedPlayers);
+    }
+    
+    // Clear snapshots after loading
+    clearSnapshots();
     
     setLoading(false);
     
