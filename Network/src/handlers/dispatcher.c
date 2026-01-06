@@ -5,6 +5,7 @@
 #include "handlers/history_handler.h"
 #include "handlers/room_handler.h"
 #include "handlers/match_handler.h"
+#include "handlers/round1_handler.h"
 #include "protocol/opcode.h"
 
 void dispatch_command(
@@ -49,6 +50,14 @@ void dispatch_command(
             payload,
             account_id    // 🔹 truyền từ dispatcher
         );        
+        break;
+    case OP_C2S_ROUND1_READY:
+    case OP_C2S_ROUND1_GET_QUESTION:
+    case OP_C2S_ROUND1_ANSWER:
+    case OP_C2S_ROUND1_END:
+    case OP_C2S_ROUND1_PLAYER_READY:
+    case OP_C2S_ROUND1_FINISHED:
+        handle_round1(client_fd, header, payload);
         break;
 
     default:

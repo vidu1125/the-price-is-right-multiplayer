@@ -1,0 +1,716 @@
+#include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdbool.h>
+#include <arpa/inet.h>
+#include <time.h>
+
+#include "handlers/round1_handler.h"
+#include "protocol/opcode.h"
+#include "protocol/protocol.h"
+#include "db/core/db_client.h"
+#include <cjson/cJSON.h>
+
+// Payload structures
+#if defined(__GNUC__) || defined(__clang__)
+  #define PACKED __attribute__((packed))
+#else
+  #pragma pack(push, 1)
+  #define PACKED
+#endif
+
+typedef struct PACKED {
+  uint32_t room_id;
+  uint32_t match_id;
+} Round1ReadyPayload;
+
+typedef struct PACKED {
+  uint32_t match_id;
+  uint32_t player_id;
+  uint32_t question_idx;
+} GetQuestionPayload;
+
+typedef struct PACKED {
+  uint32_t match_id;
+  uint32_t player_id;
+  uint32_t question_idx;
+  uint8_t  choice;
+  uint32_t time_taken_ms;
+} SubmitAnswerPayload;
+
+typedef struct PACKED {
+  uint32_t match_id;
+  uint32_t player_id;
+} EndRoundPayload;
+
+#if !defined(__GNUC__) && !defined(__clang__)
+  #pragma pack(pop)
+#endif
+
+//==============================================================================
+// RANDOM QUESTION INDICES - Pre-shuffle for each match
+//==============================================================================
+#define MAX_QUESTIONS 100
+#define QUESTIONS_PER_ROUND 10
+#define MAX_PLAYERS 4
+
+static int g_random_indices[QUESTIONS_PER_ROUND];
+static int g_total_questions = 0;
+static bool g_indices_initialized = false;
+
+//==============================================================================
+// PLAYER STATE TRACKING
+//==============================================================================
+typedef struct {
+  int client_fd;
+  uint32_t player_id;
+  bool is_ready;
+  bool is_finished;
+  int score;
+} PlayerState;
+
+static PlayerState g_players[MAX_PLAYERS];
+static int g_player_count = 0;
+static int g_ready_count = 0;
+static int g_finished_count = 0;
+static bool g_game_started = false;
+static uint32_t g_current_match_id = 0;
+
+static void reset_player_states(void) {
+  for (int i = 0; i < MAX_PLAYERS; i++) {
+    g_players[i].client_fd = -1;
+    g_players[i].player_id = 0;
+    g_players[i].is_ready = false;
+    g_players[i].is_finished = false;
+    g_players[i].score = 0;
+  }
+  g_player_count = 0;
+  g_ready_count = 0;
+  g_finished_count = 0;
+  g_game_started = false;
+}
+
+static int find_player_index(int client_fd) {
+  for (int i = 0; i < MAX_PLAYERS; i++) {
+    if (g_players[i].client_fd == client_fd) return i;
+  }
+  return -1;
+}
+
+static int add_or_get_player(int client_fd, uint32_t player_id) {
+  printf("[Round1] add_or_get_player: client_fd=%d, player_id=%u\n", client_fd, player_id);
+  
+  // First check if this player_id already exists (reconnection case)
+  for (int i = 0; i < MAX_PLAYERS; i++) {
+    if (g_players[i].player_id == player_id && g_players[i].client_fd >= 0) {
+      printf("[Round1] Player %u already exists at slot %d, updating fd from %d to %d\n", 
+             player_id, i, g_players[i].client_fd, client_fd);
+      g_players[i].client_fd = client_fd; // Update to new fd
+      return i;
+    }
+  }
+  
+  // Find empty slot for new player
+  for (int i = 0; i < MAX_PLAYERS; i++) {
+    if (g_players[i].client_fd == -1) {
+      g_players[i].client_fd = client_fd;
+      g_players[i].player_id = player_id;
+      g_players[i].is_ready = false;
+      g_players[i].is_finished = false;
+      g_players[i].score = 0;
+      g_player_count++;
+      printf("[Round1] Added player %u at slot %d (fd=%d), total=%d\n", 
+             player_id, i, client_fd, g_player_count);
+      return i;
+    }
+  }
+  printf("[Round1] No empty slot! All %d slots used\n", MAX_PLAYERS);
+  return -1; // Full
+}
+
+static void shuffle_question_indices(int total, int count) {
+  if (total <= 0) return;
+  if (count > total) count = total;
+  
+  int *all = malloc(total * sizeof(int));
+  if (!all) return;
+  
+  for (int i = 0; i < total; i++) all[i] = i;
+  
+  srand((unsigned int)time(NULL));
+  for (int i = 0; i < count && i < total; i++) {
+    int j = i + rand() % (total - i);
+    int tmp = all[i];
+    all[i] = all[j];
+    all[j] = tmp;
+    g_random_indices[i] = all[i];
+  }
+  
+  free(all);
+  
+  printf("[Round1] Shuffled %d random questions from %d total: ", count, total);
+  for (int i = 0; i < count; i++) printf("%d ", g_random_indices[i]);
+  printf("\n");
+}
+
+static int get_total_question_count(void) {
+  cJSON *arr = NULL;
+  db_error_t rc = db_get("questions", "select=id&active=eq.true", &arr);
+  if (rc != DB_OK || !arr || !cJSON_IsArray(arr)) {
+    if (arr) cJSON_Delete(arr);
+    printf("[Round1] Failed to get question count, rc=%d\n", rc);
+    return 0;
+  }
+  int count = cJSON_GetArraySize(arr);
+  cJSON_Delete(arr);
+  printf("[Round1] Total questions in DB: %d\n", count);
+  return count;
+}
+
+static void ensure_random_indices(void) {
+  if (!g_indices_initialized) {
+    g_total_questions = get_total_question_count();
+    if (g_total_questions > 0) {
+      shuffle_question_indices(g_total_questions, QUESTIONS_PER_ROUND);
+      g_indices_initialized = true;
+    } else {
+      printf("[Round1] WARNING: No questions found in database!\n");
+    }
+  }
+}
+
+static void reset_random_indices(void) {
+  g_indices_initialized = false;
+}
+
+//==============================================================================
+// HELPER: Send JSON
+//==============================================================================
+static void send_json_response(
+  int client_fd,
+  MessageHeader *req,
+  uint16_t cmd,
+  const char *json
+) {
+  forward_response(client_fd, req, cmd, json, (uint32_t)strlen(json));
+}
+
+//==============================================================================
+// HELPER: Broadcast to all players
+//==============================================================================
+static void broadcast_to_all_players(MessageHeader *req, uint16_t cmd, const char *json) {
+  for (int i = 0; i < MAX_PLAYERS; i++) {
+    if (g_players[i].client_fd >= 0) {
+      printf("[Round1] Broadcasting 0x%04X to player %d (fd=%d)\n", 
+             cmd, g_players[i].player_id, g_players[i].client_fd);
+      forward_response(g_players[i].client_fd, req, cmd, json, (uint32_t)strlen(json));
+    }
+  }
+}
+
+//==============================================================================
+// HELPER: Build ready status JSON
+//==============================================================================
+static char* build_ready_status_json(void) {
+  cJSON *resp = cJSON_CreateObject();
+  cJSON_AddTrueToObject(resp, "success");
+  cJSON_AddNumberToObject(resp, "ready_count", g_ready_count);
+  cJSON_AddNumberToObject(resp, "player_count", g_player_count);
+  cJSON_AddNumberToObject(resp, "required_players", MAX_PLAYERS);
+  
+  cJSON *players = cJSON_CreateArray();
+  for (int i = 0; i < MAX_PLAYERS; i++) {
+    if (g_players[i].client_fd >= 0) {
+      cJSON *p = cJSON_CreateObject();
+      cJSON_AddNumberToObject(p, "id", g_players[i].player_id);
+      char name[32];
+      snprintf(name, sizeof(name), "PLAYER%u", g_players[i].player_id);
+      cJSON_AddStringToObject(p, "name", name);
+      cJSON_AddBoolToObject(p, "is_ready", g_players[i].is_ready);
+      cJSON_AddItemToArray(players, p);
+    }
+  }
+  cJSON_AddItemToObject(resp, "players", players);
+  
+  char *json = cJSON_PrintUnformatted(resp);
+  cJSON_Delete(resp);
+  return json;
+}
+
+//==============================================================================
+// HELPER: Build final scoreboard JSON
+//==============================================================================
+static char* build_scoreboard_json(void) {
+  cJSON *resp = cJSON_CreateObject();
+  cJSON_AddTrueToObject(resp, "success");
+  cJSON_AddNumberToObject(resp, "match_id", g_current_match_id);
+  cJSON_AddNumberToObject(resp, "round_completed", 1);
+  
+  cJSON *players = cJSON_CreateArray();
+  for (int i = 0; i < MAX_PLAYERS; i++) {
+    if (g_players[i].client_fd >= 0) {
+      cJSON *p = cJSON_CreateObject();
+      cJSON_AddNumberToObject(p, "id", g_players[i].player_id);
+      char name[32];
+      snprintf(name, sizeof(name), "PLAYER%u", g_players[i].player_id);
+      cJSON_AddStringToObject(p, "name", name);
+      cJSON_AddNumberToObject(p, "score", g_players[i].score);
+      cJSON_AddItemToArray(players, p);
+    }
+  }
+  cJSON_AddItemToObject(resp, "players", players);
+  
+  char *json = cJSON_PrintUnformatted(resp);
+  cJSON_Delete(resp);
+  return json;
+}
+
+//==============================================================================
+// HELPER: Read question by offset
+//==============================================================================
+static int get_question_by_offset(int offset, char *out_buf, size_t out_size, int *out_correct_index) {
+  char query[256];
+  snprintf(query, sizeof(query), "select=*&active=eq.true&order=id.asc&limit=1&offset=%d", offset);
+
+  printf("[Round1] Fetching question with query: %s\n", query);
+
+  cJSON *arr = NULL;
+  db_error_t rc = db_get("questions", query, &arr);
+  if (rc != DB_OK || !arr || !cJSON_IsArray(arr) || cJSON_GetArraySize(arr) == 0) {
+    printf("[Round1] DB get questions failed rc=%d offset=%d\n", rc, offset);
+    if (arr) cJSON_Delete(arr);
+    return -1;
+  }
+
+  cJSON *row = cJSON_GetArrayItem(arr, 0);
+
+  cJSON *text = cJSON_GetObjectItem(row, "text");
+  cJSON *image = cJSON_GetObjectItem(row, "image");
+  cJSON *a = cJSON_GetObjectItem(row, "a");
+  cJSON *b = cJSON_GetObjectItem(row, "b");
+  cJSON *c = cJSON_GetObjectItem(row, "c");
+  cJSON *d = cJSON_GetObjectItem(row, "d");
+  cJSON *correct = cJSON_GetObjectItem(row, "correct");
+
+  if (!text || !cJSON_IsString(text) || !correct || !cJSON_IsString(correct)) {
+    printf("[Round1] Missing text/correct fields\n");
+    cJSON_Delete(arr);
+    return -1;
+  }
+
+  int correct_index = -1;
+  const char *corr = correct->valuestring;
+  if (corr && corr[0]) {
+    switch (corr[0]) {
+      case 'a': case 'A': correct_index = 0; break;
+      case 'b': case 'B': correct_index = 1; break;
+      case 'c': case 'C': correct_index = 2; break;
+      case 'd': case 'D': correct_index = 3; break;
+      default: correct_index = -1; break;
+    }
+  }
+  if (correct_index < 0) {
+    printf("[Round1] Invalid correct value: %s\n", correct->valuestring);
+    cJSON_Delete(arr);
+    return -1;
+  }
+
+  cJSON *resp = cJSON_CreateObject();
+  cJSON_AddTrueToObject(resp, "success");
+  cJSON_AddStringToObject(resp, "question", text->valuestring);
+  cJSON_AddStringToObject(resp, "product_image", (image && cJSON_IsString(image)) ? image->valuestring : "");
+
+  cJSON *choices = cJSON_CreateArray();
+  cJSON_AddItemToArray(choices, cJSON_CreateString((a && cJSON_IsString(a)) ? a->valuestring : ""));
+  cJSON_AddItemToArray(choices, cJSON_CreateString((b && cJSON_IsString(b)) ? b->valuestring : ""));
+  cJSON_AddItemToArray(choices, cJSON_CreateString((c && cJSON_IsString(c)) ? c->valuestring : ""));
+  cJSON_AddItemToArray(choices, cJSON_CreateString((d && cJSON_IsString(d)) ? d->valuestring : ""));
+  cJSON_AddItemToObject(resp, "choices", choices);
+
+  cJSON_AddNumberToObject(resp, "correct_index", correct_index);
+
+  char *s = cJSON_PrintUnformatted(resp);
+  if (!s) {
+    cJSON_Delete(resp);
+    cJSON_Delete(arr);
+    return -1;
+  }
+
+  strncpy(out_buf, s, out_size - 1);
+  out_buf[out_size - 1] = '\0';
+
+  free(s);
+  cJSON_Delete(resp);
+  cJSON_Delete(arr);
+
+  if (out_correct_index) *out_correct_index = correct_index;
+  return 0;
+}
+
+//==============================================================================
+// CASE 1: READY (Legacy - starts game immediately for single player testing)
+//==============================================================================
+static void handle_ready(int client_fd, MessageHeader *req, const char *payload) {
+  if (req->length != sizeof(Round1ReadyPayload)) {
+    send_json_response(client_fd, req, ERR_BAD_REQUEST,
+      "{\"success\":false,\"error\":\"Invalid payload size\"}");
+    return;
+  }
+
+  Round1ReadyPayload data;
+  memcpy(&data, payload, sizeof(data));
+
+  uint32_t room_id = ntohl(data.room_id);
+  uint32_t match_id = ntohl(data.match_id);
+
+  printf("[Round1] Player ready - room_id=%u match_id=%u\n", room_id, match_id);
+
+  // Reset và shuffle lại câu hỏi cho match mới
+  reset_random_indices();
+  ensure_random_indices();
+
+  char json[256];
+  snprintf(json, sizeof(json),
+    "{\"success\":true,\"match_id\":%u,\"room_id\":%u,\"total_questions\":%d,\"time_per_question\":15,\"round\":1}",
+    match_id, room_id, QUESTIONS_PER_ROUND
+  );
+
+  send_json_response(client_fd, req, OP_S2C_ROUND1_START, json);
+}
+
+//==============================================================================
+// CASE 1B: PLAYER READY (New multiplayer ready system)
+//==============================================================================
+static void handle_player_ready(int client_fd, MessageHeader *req, const char *payload) {
+  // Payload: match_id(4) + player_id(4)
+  if (req->length < 8) {
+    send_json_response(client_fd, req, ERR_BAD_REQUEST,
+      "{\"success\":false,\"error\":\"Invalid payload\"}");
+    return;
+  }
+
+  uint32_t match_id = 0, player_id = 0;
+  memcpy(&match_id, payload, 4);
+  memcpy(&player_id, payload + 4, 4);
+  match_id = ntohl(match_id);
+  player_id = ntohl(player_id);
+
+  printf("[Round1] Player %u ready for match %u\n", player_id, match_id);
+
+  // If new match, reset everything
+  if (match_id != g_current_match_id) {
+    printf("[Round1] New match %u, resetting state\n", match_id);
+    reset_player_states();
+    reset_random_indices();
+    g_current_match_id = match_id;
+  }
+
+  // Add player
+  int idx = add_or_get_player(client_fd, player_id);
+  if (idx < 0) {
+    send_json_response(client_fd, req, ERR_ROOM_FULL,
+      "{\"success\":false,\"error\":\"Game is full\"}");
+    return;
+  }
+
+  // Mark ready
+  if (!g_players[idx].is_ready) {
+    g_players[idx].is_ready = true;
+    g_ready_count++;
+    printf("[Round1] Player %u is now ready (%d/%d)\n", player_id, g_ready_count, g_player_count);
+  }
+
+  // Build and broadcast ready status
+  char *status_json = build_ready_status_json();
+  broadcast_to_all_players(req, OP_S2C_ROUND1_READY_STATUS, status_json);
+  free(status_json);
+
+  // Check if all players ready (minimum 1 for testing, can change to MAX_PLAYERS)
+  int min_players = 4; // Change to 4 for real game
+  if (g_ready_count >= min_players && g_ready_count == g_player_count && !g_game_started) {
+    printf("[Round1] All %d players ready! Starting game...\n", g_ready_count);
+    g_game_started = true;
+    
+    // Shuffle questions
+    ensure_random_indices();
+    
+    // Broadcast ALL_READY to start game
+    char start_json[512];
+    snprintf(start_json, sizeof(start_json),
+      "{\"success\":true,\"match_id\":%u,\"total_questions\":%d,\"time_per_question\":15,\"player_count\":%d}",
+      match_id, QUESTIONS_PER_ROUND, g_player_count
+    );
+    broadcast_to_all_players(req, OP_S2C_ROUND1_ALL_READY, start_json);
+  }
+}
+
+//==============================================================================
+// CASE 2: GET QUESTION
+//==============================================================================
+static void handle_get_question(int client_fd, MessageHeader *req, const char *payload) {
+  // Accept both 8-byte (old) and 12-byte (new with player_id) payloads
+  if (req->length != 8 && req->length != sizeof(GetQuestionPayload)) {
+    printf("[Round1] Invalid GET_QUESTION payload size: got %u, expected 8 or %zu\n", 
+           req->length, sizeof(GetQuestionPayload));
+    send_json_response(client_fd, req, ERR_BAD_REQUEST,
+      "{\"success\":false,\"error\":\"Invalid payload\"}");
+    return;
+  }
+
+  uint32_t match_id = 0;
+  uint32_t question_idx = 0;
+  
+  if (req->length == 8) {
+    // Old format: match_id + question_idx
+    memcpy(&match_id, payload, 4);
+    memcpy(&question_idx, payload + 4, 4);
+    match_id = ntohl(match_id);
+    question_idx = ntohl(question_idx);
+  } else {
+    // New format with player_id
+    GetQuestionPayload data;
+    memcpy(&data, payload, sizeof(data));
+    match_id = ntohl(data.match_id);
+    question_idx = ntohl(data.question_idx);
+  }
+
+  printf("[Round1] Get question - match=%u idx=%u\n", match_id, question_idx);
+
+  // Đảm bảo đã có random indices
+  ensure_random_indices();
+  
+  // Lấy offset thực từ mảng random
+  int actual_offset = 0;
+  if (question_idx < (uint32_t)QUESTIONS_PER_ROUND && g_total_questions > 0) {
+    actual_offset = g_random_indices[question_idx];
+  } else if (g_total_questions > 0) {
+    actual_offset = (int)question_idx % g_total_questions;
+  }
+  
+  printf("[Round1] Using random offset=%d for idx=%u (total=%d)\n", actual_offset, question_idx, g_total_questions);
+
+  char qbuf[4096];
+  int correct_index = -1;
+  
+  if (get_question_by_offset(actual_offset, qbuf, sizeof(qbuf), &correct_index) != 0) {
+    send_json_response(client_fd, req, ERR_SERVER_ERROR,
+      "{\"success\":false,\"error\":\"Failed to load question\"}");
+    return;
+  }
+
+  cJSON *obj = cJSON_Parse(qbuf);
+  if (!obj) {
+    send_json_response(client_fd, req, ERR_SERVER_ERROR,
+      "{\"success\":false,\"error\":\"Question JSON parse failed\"}");
+    return;
+  }
+
+  cJSON_AddNumberToObject(obj, "match_id", match_id);
+  cJSON_AddNumberToObject(obj, "question_idx", question_idx);
+
+  char *final_json = cJSON_PrintUnformatted(obj);
+  cJSON_Delete(obj);
+
+  if (!final_json) {
+    send_json_response(client_fd, req, ERR_SERVER_ERROR,
+      "{\"success\":false,\"error\":\"Failed to build response\"}");
+    return;
+  }
+
+  printf("[Round1] Sending question %u: %.100s...\n", question_idx, final_json);
+  send_json_response(client_fd, req, OP_S2C_ROUND1_QUESTION, final_json);
+  free(final_json);
+}
+
+//==============================================================================
+// CASE 3: SUBMIT ANSWER - Fixed to handle 17-byte payload
+//==============================================================================
+static void handle_submit_answer(int client_fd, MessageHeader *req, const char *payload) {
+  printf("[Round1] SUBMIT_ANSWER payload size: %u bytes\n", req->length);
+  
+  // Accept 13-byte (old), 17-byte (new), or struct size
+  if (req->length < 13) {
+    printf("[Round1] Invalid SUBMIT_ANSWER payload size: got %u\n", req->length);
+    send_json_response(client_fd, req, ERR_BAD_REQUEST,
+      "{\"success\":false,\"error\":\"Invalid payload\"}");
+    return;
+  }
+
+  uint32_t match_id = 0;
+  uint32_t player_id = 0;
+  uint32_t question_idx = 0;
+  uint8_t choice = 0;
+  uint32_t time_ms = 0;
+
+  if (req->length == 13) {
+    // Old format: match_id(4) + question_idx(4) + choice(1) + time_ms(4)
+    memcpy(&match_id, payload, 4);
+    memcpy(&question_idx, payload + 4, 4);
+    choice = (uint8_t)payload[8];
+    memcpy(&time_ms, payload + 9, 4);
+    match_id = ntohl(match_id);
+    question_idx = ntohl(question_idx);
+    time_ms = ntohl(time_ms);
+    player_id = 1; // default
+  } else if (req->length == 17) {
+    // New format: match_id(4) + player_id(4) + question_idx(4) + choice(1) + time_ms(4)
+    memcpy(&match_id, payload, 4);
+    memcpy(&player_id, payload + 4, 4);
+    memcpy(&question_idx, payload + 8, 4);
+    choice = (uint8_t)payload[12];
+    memcpy(&time_ms, payload + 13, 4);
+    match_id = ntohl(match_id);
+    player_id = ntohl(player_id);
+    question_idx = ntohl(question_idx);
+    time_ms = ntohl(time_ms);
+  } else {
+    // Struct format (with padding)
+    SubmitAnswerPayload data;
+    memcpy(&data, payload, sizeof(data));
+    match_id = ntohl(data.match_id);
+    player_id = ntohl(data.player_id);
+    question_idx = ntohl(data.question_idx);
+    choice = data.choice;
+    time_ms = ntohl(data.time_taken_ms);
+  }
+
+  printf("[Round1] Submit answer - match=%u player=%u idx=%u choice=%u time=%ums\n", 
+         match_id, player_id, question_idx, choice, time_ms);
+
+  // Lấy offset thực từ mảng random
+  int actual_offset = 0;
+  if (question_idx < (uint32_t)QUESTIONS_PER_ROUND && g_total_questions > 0) {
+    actual_offset = g_random_indices[question_idx];
+    printf("[Round1] Using random_indices[%u] = %d\n", question_idx, actual_offset);
+  } else if (g_total_questions > 0) {
+    actual_offset = (int)question_idx % g_total_questions;
+    printf("[Round1] Using fallback offset=%d\n", actual_offset);
+  }
+
+  char qbuf[4096];
+  int correct_index = 0;
+  if (get_question_by_offset(actual_offset, qbuf, sizeof(qbuf), &correct_index) != 0) {
+    printf("[Round1] WARNING: Could not get question for offset=%d, defaulting correct_index=0\n", actual_offset);
+    correct_index = 0;
+  }
+
+  bool is_correct = (choice <= 3) && ((int)choice == correct_index);
+
+  int score = 0;
+  if (is_correct) {
+    float time_sec = time_ms / 1000.0f;
+    score = (int)(200 - (time_sec / 15.0f) * 100);
+    if (score < 100) score = 100;
+    score = (score / 10) * 10;
+  }
+
+  printf("[Round1] Answer result - correct_index=%d choice=%u is_correct=%s score=%d\n",
+         correct_index, choice, is_correct ? "true" : "false", score);
+
+  // Track player score
+  int player_idx = find_player_index(client_fd);
+  if (player_idx >= 0) {
+    g_players[player_idx].score += score;
+    printf("[Round1] Player %u total score: %d\n", player_id, g_players[player_idx].score);
+  }
+
+  char json[512];
+  snprintf(json, sizeof(json),
+    "{"
+    "\"success\":true,"
+    "\"match_id\":%u,"
+    "\"player_id\":%u,"
+    "\"question_idx\":%u,"
+    "\"is_correct\":%s,"
+    "\"score\":%d,"
+    "\"correct_index\":%d,"
+    "\"time_taken_ms\":%u"
+    "}",
+    match_id, player_id, question_idx,
+    is_correct ? "true" : "false",
+    score, correct_index, time_ms
+  );
+
+  send_json_response(client_fd, req, OP_S2C_ROUND1_RESULT, json);
+}
+//==============================================================================
+// CASE 4: END ROUND (Player finished all questions)
+//==============================================================================
+static void handle_end_round(int client_fd, MessageHeader *req, const char *payload) {
+  // Accept both 4-byte (old) and 8-byte (new) payloads
+  if (req->length < 4) {
+    send_json_response(client_fd, req, ERR_BAD_REQUEST,
+      "{\"success\":false,\"error\":\"Invalid payload\"}");
+    return;
+  }
+
+  uint32_t match_id = 0;
+  uint32_t player_id = 0;
+  memcpy(&match_id, payload, 4);
+  match_id = ntohl(match_id);
+  
+  if (req->length >= 8) {
+    memcpy(&player_id, payload + 4, 4);
+    player_id = ntohl(player_id);
+  }
+
+  printf("[Round1] Player %u finished - match_id=%u\n", player_id, match_id);
+
+  // Mark player as finished
+  int player_idx = find_player_index(client_fd);
+  if (player_idx >= 0 && !g_players[player_idx].is_finished) {
+    g_players[player_idx].is_finished = true;
+    g_finished_count++;
+    printf("[Round1] Player %u marked finished (%d/%d)\n", 
+           g_players[player_idx].player_id, g_finished_count, g_player_count);
+  }
+
+  // Send WAITING status to this player
+  char waiting_json[256];
+  snprintf(waiting_json, sizeof(waiting_json),
+    "{\"success\":true,\"finished_count\":%d,\"player_count\":%d,\"waiting\":true}",
+    g_finished_count, g_player_count);
+  send_json_response(client_fd, req, OP_S2C_ROUND1_WAITING, waiting_json);
+
+  // Check if all players finished
+  if (g_finished_count >= g_player_count && g_player_count > 0) {
+    printf("[Round1] All %d players finished! Sending final scoreboard...\n", g_player_count);
+    
+    // Build scoreboard with real scores
+    char *scoreboard_json = build_scoreboard_json();
+    printf("[Round1] Final scoreboard: %s\n", scoreboard_json);
+    
+    // Broadcast to all players
+    broadcast_to_all_players(req, OP_S2C_ROUND1_ALL_FINISHED, scoreboard_json);
+    free(scoreboard_json);
+  }
+}
+
+//==============================================================================
+// MAIN DISPATCHER
+//==============================================================================
+void handle_round1(int client_fd, MessageHeader *req_header, const char *payload) {
+  printf("[Round1] cmd=0x%04X len=%u\n", req_header->command, req_header->length);
+
+  switch (req_header->command) {
+    case OP_C2S_ROUND1_READY:
+      handle_ready(client_fd, req_header, payload);
+      break;
+    case OP_C2S_ROUND1_PLAYER_READY:
+      handle_player_ready(client_fd, req_header, payload);
+      break;
+    case OP_C2S_ROUND1_GET_QUESTION:
+      handle_get_question(client_fd, req_header, payload);
+      break;
+    case OP_C2S_ROUND1_ANSWER:
+      handle_submit_answer(client_fd, req_header, payload);
+      break;
+    case OP_C2S_ROUND1_END:
+    case OP_C2S_ROUND1_FINISHED:
+      handle_end_round(client_fd, req_header, payload);
+      break;
+    default:
+      printf("[Round1] Unknown command: 0x%04X\n", req_header->command);
+      break;
+  }
+}
