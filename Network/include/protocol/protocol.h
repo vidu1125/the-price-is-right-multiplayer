@@ -12,6 +12,9 @@
 #define BUFF_SIZE 4096
 #define MAX_PAYLOAD_SIZE 4096
 
+// Game Settings
+#define DEFAULT_ROUND_TIME 30  // seconds per round
+
 
 
 #if defined(__GNUC__) || defined(__clang__)
