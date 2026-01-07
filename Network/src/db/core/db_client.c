@@ -110,6 +110,7 @@ static db_error_t http_request(
 
     if (http_code == 401) return DB_ERR_UNAUTHORIZED;
     if (http_code == 403) return DB_ERR_FORBIDDEN;
+    if (http_code == 409) return DB_ERR_CONFLICT;
     if (http_code >= 400) return DB_ERR_HTTP;
 
     if (!buf.data) return DB_ERR_EMPTY;

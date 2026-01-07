@@ -33,6 +33,20 @@ void dispatch_command(
 
     switch (cmd) {
 
+    // Auth
+    case CMD_LOGIN_REQ:
+        handle_login(client_fd, header, payload);
+        break;
+    case CMD_REGISTER_REQ:
+        handle_register(client_fd, header, payload);
+        break;
+    case CMD_LOGOUT_REQ:
+        handle_logout(client_fd, header, payload);
+        break;
+    case CMD_RECONNECT:
+        handle_reconnect(client_fd, header, payload);
+        break;
+
     // Room Management
     case CMD_CREATE_ROOM:
         handle_create_room(client_fd, header, payload);

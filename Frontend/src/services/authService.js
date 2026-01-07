@@ -10,6 +10,7 @@ const decoder = new TextDecoder();
 let registerPending = null;
 let loginPending = null;
 let reconnectPending = null;
+let logoutPending = null;
 
 function parsePayload(payload) {
   const text = decoder.decode(payload);
@@ -42,6 +43,13 @@ function finishAuth(result, isError = false) {
     const { resolve, reject, timeoutId } = reconnectPending;
     clearTimeout(timeoutId);
     reconnectPending = null;
+    isError ? reject(result) : resolve(result);
+  }
+
+  if (logoutPending) {
+    const { resolve, reject, timeoutId } = logoutPending;
+    clearTimeout(timeoutId);
+    logoutPending = null;
     isError ? reject(result) : resolve(result);
   }
 }
@@ -108,7 +116,7 @@ registerHandler(OPCODE.RES_LOGIN_OK, (payload) => {
     });
   });
 
-export function registerAccount({ email, password, name }) {
+export function registerAccount({ email, password, confirm, name }) {
   return new Promise((resolve, reject) => {
     const cleanEmail = email?.trim().toLowerCase();
     if (!cleanEmail || !password) {
@@ -130,7 +138,7 @@ export function registerAccount({ email, password, name }) {
       finishAuth({ success: false, error: "Server timed out. Please try again." }, true);
     }, AUTH_TIMEOUT);
 
-    const payload = encoder.encode(JSON.stringify({ email: cleanEmail, password, name }));
+    const payload = encoder.encode(JSON.stringify({ email: cleanEmail, password, confirm, name }));
     sendPacket(OPCODE.CMD_REGISTER_REQ, payload);
   });
 }
@@ -190,6 +198,36 @@ export function reconnectSession({ sessionId } = {}) {
 
     const payload = encoder.encode(JSON.stringify({ session_id: sid }));
     sendPacket(OPCODE.CMD_RECONNECT, payload);
+  });
+}
+
+export function logoutAccount() {
+  return new Promise((resolve, reject) => {
+    const sessionId = localStorage.getItem("session_id");
+
+    // If already logged out locally, resolve quickly
+    if (!sessionId) {
+      clearAuth();
+      resolve({ success: true, message: "Already logged out" });
+      return;
+    }
+
+    if (logoutPending) {
+      clearTimeout(logoutPending.timeoutId);
+    }
+
+    logoutPending = { resolve, reject, timeoutId: null };
+    logoutPending.timeoutId = setTimeout(() => {
+      finishAuth({ success: false, error: "Logout timed out" }, true);
+    }, AUTH_TIMEOUT);
+
+    const payload = encoder.encode(JSON.stringify({ session_id: sessionId }));
+    sendPacket(OPCODE.CMD_LOGOUT_REQ, payload);
+  }).then((result) => {
+    if (result?.success) {
+      clearAuth();
+    }
+    return result;
   });
 }
 
