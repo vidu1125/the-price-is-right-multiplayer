@@ -8,9 +8,6 @@
 #include "db/repo/match_repo.h"
 #include "protocol/protocol.h"
 
-
-
-
 void handle_history(
     int client_fd,
     MessageHeader *req_header,
@@ -67,4 +64,36 @@ void handle_history(
     );
 
     free(resp_payload);
+}
+
+void handle_replay(
+    int client_fd,
+    MessageHeader *req_header,
+    const char *payload,
+    int32_t account_id
+) {
+    if (req_header->length < 4) return;
+
+    uint32_t match_id = *(uint32_t *)payload; 
+    printf("[HANDLER] <handle_replay> match_id=%u\n", match_id);
+
+    cJSON *json_res = NULL;
+    db_error_t err = db_match_get_detail(match_id, &json_res);
+
+    if (err != DB_SUCCESS || !json_res) {
+        forward_response(client_fd, req_header, CMD_REPLAY, "{}", 2);
+        return;
+    }
+
+    char *json_str = cJSON_PrintUnformatted(json_res);
+    cJSON_Delete(json_res);
+
+    if (!json_str) {
+        forward_response(client_fd, req_header, CMD_REPLAY, "{}", 2);
+        return;
+    }
+
+    size_t len = strlen(json_str);
+    forward_response(client_fd, req_header, CMD_REPLAY, json_str, len);
+    free(json_str);
 }

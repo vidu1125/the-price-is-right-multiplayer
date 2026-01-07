@@ -84,8 +84,13 @@ void dispatch_command(
             client_fd,
             header,
             payload,
-            account_id    // 🔹 truyền từ dispatcher
+            account_id
         );        
+        break;
+    
+    case CMD_REPLAY:
+        printf("[DISPATCH] Parsing to replayHandler\n");       
+        handle_replay(client_fd, header, payload, account_id);
         break;
 
     default:

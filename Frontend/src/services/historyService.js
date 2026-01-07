@@ -133,3 +133,61 @@ registerHandler(OPCODE.CMD_HIST, (payload) => {
     }
   }
 });
+
+let pendingMatchDetail = null;
+
+/**
+ * Get match details
+ * Uses CMD_REPLAY (0x0503)
+ * @param {number} matchId
+ * @returns {Promise<Object>} Match details
+ */
+export function viewMatchDetails(matchId) {
+  console.log("[SERVICE] <viewMatchDetails> called", { matchId });
+
+  return new Promise((resolve, reject) => {
+    if (pendingMatchDetail) {
+      clearTimeout(pendingMatchDetail.timeoutId);
+    }
+
+    pendingMatchDetail = {
+      resolve,
+      reject,
+      timeoutId: setTimeout(() => {
+        if (pendingMatchDetail) {
+          pendingMatchDetail.reject(new Error("Request timed out"));
+          pendingMatchDetail = null;
+        }
+      }, TIMEOUT_MS)
+    };
+
+    // Payload: match_id (4 bytes)
+    const buffer = new ArrayBuffer(4);
+    const view = new DataView(buffer);
+    view.setUint32(0, Number(matchId), true); // Little endian
+
+    sendPacket(OPCODE.CMD_REPLAY, buffer);
+  });
+}
+
+// Handle CMD_REPLAY response
+registerHandler(OPCODE.CMD_REPLAY, (payload) => {
+  console.log("[SERVICE] <viewMatchDetails> response payload len:", payload.byteLength);
+
+  if (pendingMatchDetail) {
+    clearTimeout(pendingMatchDetail.timeoutId);
+    try {
+      // TODO: Parse actual binary detail data here
+      // For now, logging and resolving empty object with raw payload
+      console.log("[SERVICE] <viewMatchDetails> Received data");
+
+      pendingMatchDetail.resolve({ matchId: 0, rawData: payload });
+
+    } catch (e) {
+      console.error("[SERVICE] <viewMatchDetails> Parse error", e);
+      pendingMatchDetail.reject(e);
+    } finally {
+      pendingMatchDetail = null;
+    }
+  }
+});

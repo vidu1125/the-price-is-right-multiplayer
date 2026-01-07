@@ -223,6 +223,56 @@ db_error_t db_match_get_history(
     return DB_SUCCESS;
 }
 
+db_error_t db_match_get_detail(
+    uint32_t match_id,
+    cJSON **out_json
+) {
+    if (match_id == 0 || !out_json) return DB_ERROR_INVALID_PARAM;
+    
+    // MOCK: Return dummy data for now
+    cJSON *root = cJSON_CreateObject();
+    cJSON_AddNumberToObject(root, "id", match_id);
+    cJSON_AddStringToObject(root, "mode", "Scoring");
+    cJSON_AddStringToObject(root, "mock", "This is mock data from C server");
+    
+    // Create empty arrays to prevents frontend crash
+    cJSON *players = cJSON_CreateArray();
+    cJSON_AddItemToObject(root, "match_players", players);
+
+    cJSON *questions = cJSON_CreateArray();
+    cJSON_AddItemToObject(root, "match_question", questions);
+
+    *out_json = root;
+    return DB_SUCCESS;
+
+    /* 
+    // REAL IMPLEMENTATION (Commented out for now)
+    char query[512];
+    snprintf(query, sizeof(query), 
+        "id=eq.%u&select=*,match_players(*),match_question(*,match_answer(*))",
+        match_id
+    );
+
+    cJSON *res = NULL;
+    db_error_t err = db_get("matches", query, &res);
+
+    if (err != DB_SUCCESS) {
+        if (res) cJSON_Delete(res);
+        return err;
+    }
+
+    if (!cJSON_IsArray(res) || cJSON_GetArraySize(res) == 0) {
+        cJSON_Delete(res);
+        return DB_ERROR_NOT_FOUND;
+    }
+
+    *out_json = cJSON_DetachItemFromArray(res, 0);
+    cJSON_Delete(res);
+
+    return DB_SUCCESS;
+    */
+}
+
 int match_repo_start(
     uint32_t room_id,
     char *out_buf,

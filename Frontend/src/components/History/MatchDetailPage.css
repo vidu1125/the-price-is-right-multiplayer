@@ -57,12 +57,27 @@
   font-family: 'Parkinsans', sans-serif;
 }
 
-.answer-item.correct .p-ans { color: #2ecc71; }
-.answer-item.wrong .p-ans { color: #ff4757; }
+.answer-item.correct .p-ans {
+  color: #2ecc71;
+}
 
-.p-name { color: #8395a7; margin-right: 5px; }
-.p-ans { font-weight: 700; }
-.p-delta { font-size: 0.8rem; margin-left: 5px; }
+.answer-item.wrong .p-ans {
+  color: #ff4757;
+}
+
+.p-name {
+  color: #8395a7;
+  margin-right: 5px;
+}
+
+.p-ans {
+  font-weight: 700;
+}
+
+.p-delta {
+  font-size: 0.8rem;
+  margin-left: 5px;
+}
 
 
 .history-container.detail-view {
@@ -111,24 +126,37 @@
   background: rgba(46, 204, 113, 0.1);
 }
 
-.p-name { color: #8395a7; }
-.p-choice.correct { color: #2ecc71; font-weight: 700; }
-.p-choice.wrong { color: #ff4757; font-weight: 700; }
+.p-name {
+  color: #8395a7;
+}
+
+.p-choice.correct {
+  color: #2ecc71;
+  font-weight: 700;
+}
+
+.p-choice.wrong {
+  color: #ff4757;
+  font-weight: 700;
+}
+
 .detail-footer {
   margin-top: 20px;
   padding-top: 15px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
-  justify-content: flex-start; /* Căn nút sang bên trái */
+  justify-content: flex-start;
+  /* Căn nút sang bên trái */
   flex-shrink: 0;
 }
 
 .back-btn {
-  width: fit-content; /* Độ rộng tự động theo chữ */
+  width: fit-content;
+  /* Độ rộng tự động theo chữ */
   min-width: 120px;
   padding: 10px 25px;
   font-size: 1rem;
-  background: #e67e22; 
+  background: #e67e22;
   border-bottom: 4px solid #d35400;
   display: flex;
   align-items: center;
@@ -138,6 +166,230 @@
 /* Responsive cho mobile */
 @media (max-width: 768px) {
   .detail-footer {
-    justify-content: center; /* Trên mobile có thể để giữa cho dễ bấm */
+    justify-content: center;
+    /* Trên mobile có thể để giữa cho dễ bấm */
   }
+}
+
+.overall-stats-grid {
+  display: flex;
+  justify-content: space-around;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 16px;
+  padding: 15px;
+  margin-bottom: 25px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.mode-text {
+  color: #3498db !important;
+}
+
+/* Tiêu đề nhỏ hơn cho phần chi tiết */
+.table-inner-title.small {
+  font-size: 1.8rem;
+  margin: 15px 0;
+  text-align: left;
+}
+
+/* Card chứa từng Round */
+.new-detail-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 222, 89, 0.2);
+  border-radius: 15px;
+  margin-bottom: 25px;
+  overflow: hidden;
+}
+
+.round-header-banner {
+  background: #ffde59;
+  color: #000;
+  font-family: 'Luckiest Guy', cursive;
+  padding: 8px 15px;
+  font-size: 1.1rem;
+  letter-spacing: 1px;
+}
+
+/* Phần câu hỏi và ảnh */
+.question-content-box {
+  padding: 15px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.q-title-label {
+  font-family: 'Luckiest Guy', cursive;
+  color: #8395a7;
+  font-size: 0.9rem;
+  margin-bottom: 5px;
+}
+
+.q-main-text {
+  font-family: 'Parkinsans', sans-serif;
+  font-weight: 600;
+  font-size: 1.1rem;
+  color: #fff;
+  margin-bottom: 10px;
+}
+
+.q-img-container img {
+  max-width: 100%;
+  max-height: 200px;
+  border-radius: 10px;
+  border: 2px solid #2c3e50;
+}
+
+/* Danh sách câu trả lời */
+.answers-list {
+  padding: 10px 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ans-row {
+  display: grid;
+  grid-template-columns: 120px 1fr 80px;
+  align-items: center;
+  font-family: 'Parkinsans', sans-serif;
+  font-size: 1rem;
+}
+
+.ans-p-name {
+  color: #ffde59;
+  font-weight: 700;
+}
+
+.ans-p-text {
+  font-weight: 500;
+}
+
+.text-correct {
+  color: #2ecc71;
+}
+
+.text-wrong {
+  color: #ff4757;
+}
+
+.ans-p-pts {
+  text-align: right;
+  font-weight: 800;
+}
+
+/* Footer & Button */
+.detail-footer {
+  margin-top: auto;
+  padding-top: 20px;
+}
+
+
+
+.detail-view {
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Scroll View cho phần chi tiết */
+.detail-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 12px;
+  margin-top: 10px;
+}
+
+.round-group-container {
+  background: rgba(255, 255, 255, 0.02);
+  border: 2px solid rgba(255, 222, 89, 0.15);
+  border-radius: 16px;
+  margin-bottom: 30px;
+  overflow: hidden;
+}
+
+.round-header-banner {
+  background: #ffde59;
+  color: #141a27;
+  font-family: 'Luckiest Guy', cursive;
+  padding: 10px 20px;
+  font-size: 1.2rem;
+  letter-spacing: 1px;
+}
+
+.round-desc-text {
+  padding: 12px 20px;
+  font-family: 'Parkinsans', sans-serif;
+  font-size: 0.9rem;
+  color: #8395a7;
+  font-style: italic;
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.question-item-block {
+  padding: 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.question-item-block:last-child {
+  border-bottom: none;
+}
+
+.question-header-info {
+  margin-bottom: 12px;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.q-index {
+  color: #ffde59;
+  font-family: 'Luckiest Guy', cursive;
+}
+
+.q-text {
+  color: #fff;
+  font-family: 'Parkinsans', sans-serif;
+  font-weight: 600;
+  font-size: 1.05rem;
+}
+
+.q-img-wrapper img {
+  max-width: 100%;
+  max-height: 180px;
+  border-radius: 8px;
+  margin-bottom: 15px;
+  border: 1px solid #2c3e50;
+}
+
+.answers-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.player-row {
+  display: grid;
+  grid-template-columns: 100px 1fr 60px;
+  font-family: 'Parkinsans', sans-serif;
+  font-size: 0.95rem;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.p-name {
+  color: #8395a7;
+}
+
+.p-ans {
+  font-weight: 500;
+}
+
+.p-pts {
+  text-align: right;
+  font-weight: 700;
+}
+
+.mode-text {
+  color: #3498db !important;
 }
