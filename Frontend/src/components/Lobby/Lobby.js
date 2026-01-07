@@ -37,7 +37,9 @@ export default function Lobby() {
               VIEW HISTORY
             </button>
 
-            <button>VIEW TUTORIAL</button>
+            <button onClick={() => navigate("/tutorial")}>
+              VIEW TUTORIAL
+            </button>
 
             <button>SETTING</button>
             <button className="logout" onClick={handleLogout}>LOG OUT</button>

@@ -12,6 +12,7 @@ import Lobby from "./components/Lobby/Lobby";
 import WaitingRoom from "./components/Room/WaitingRoom/WaitingRoom";
 import GameContainer from "./components/Game/GameContainer";
 import HistoryPage from "./components/History/historyPage";
+import TutorialPage from "./components/Tutorial/TutorialPage";
 import Login from "./components/Auth/Login";
 import Register from "./components/Auth/Register";
 
@@ -71,6 +72,7 @@ function AnimatedRoutes() {
         >
           <Route path="/lobby" element={<Lobby />} />
           <Route path="/history" element={<HistoryPage />} />
+          <Route path="/tutorial" element={<TutorialPage />} />
         </Route>
 
         {/* ===== WAITING ROOM (PRIVATE) ===== */}
