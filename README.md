@@ -6,12 +6,12 @@ A real-time multiplayer price guessing game built with a **C/C++ Game Server**, 
 
 This project uses a layered architecture to combine low-level performance with modern web technologies:
 
-```mermaid
+
 graph TD
     Client[React Frontend] <-->|WebSocket| Bridge[WS Bridge (Node.js)]
     Bridge <-->|TCP Socket| Server[C Game Server]
     Server <-->|REST API| DB[(Supabase PostgreSQL)]
-```
+
 
 | Component | Technology | Port | Description |
 |-----------|------------|------|-------------|
