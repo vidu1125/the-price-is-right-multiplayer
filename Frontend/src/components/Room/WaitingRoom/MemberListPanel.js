@@ -61,9 +61,9 @@ export default function MemberListPanel({ isHost, roomId, hostId, roomName, room
                 <div className="avatar-circle-wrapper">
                   <img src={member.avatar || DEFAULT_AVATAR} alt="avatar" className="avatar-circle" />
                 </div>
-                <span className="card-name">{member.email || `Player ${member.account_id}`}</span>
-                <div className={`status-tag ${member.ready ? 'ready' : 'waiting'}`}>
-                  {member.ready ? 'READY' : 'WAITING'}
+                <span className="card-name">{member.username || `Player ${member.account_id}`}</span>
+                <div className={`status-tag ${member.is_ready ? 'ready' : 'waiting'}`}>
+                  {member.is_ready ? 'READY' : 'WAITING'}
                 </div>
               </div>
             </div>

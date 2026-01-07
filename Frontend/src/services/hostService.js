@@ -248,12 +248,36 @@ registerHandler(OPCODE.RES_ROOM_STATE, (payload) => {
         const response = JSON.parse(new TextDecoder().decode(payload));
         console.log('[Host] Room state received:', response);
 
-        // Dispatch separate events for rules and players
+        // Extract rules with proper field mapping
         if (response.rules) {
-            window.dispatchEvent(new CustomEvent('rules-changed', { detail: response.rules }));
+            const rules = {
+                mode: response.rules.mode,
+                maxPlayers: response.rules.maxPlayers || response.rules.max_players,
+                wagerMode: response.rules.wagerMode !== undefined ? response.rules.wagerMode : response.rules.wager_mode,
+                visibility: response.rules.visibility
+            };
+            window.dispatchEvent(new CustomEvent('rules-changed', { detail: rules }));
         }
+        
+        // Extract and normalize players
         if (response.players) {
-            window.dispatchEvent(new CustomEvent('player-list', { detail: response.players }));
+            // Normalize: remove duplicates by account_id
+            const uniquePlayers = Object.values(
+                response.players.reduce((acc, player) => {
+                    acc[player.account_id] = player;
+                    return acc;
+                }, {})
+            );
+            
+            // Sort: host first, then by join order
+            const sortedPlayers = uniquePlayers.sort((a, b) => {
+                if (a.is_host) return -1;
+                if (b.is_host) return 1;
+                return 0;
+            });
+            
+            console.log('[Host] Dispatching normalized player list:', sortedPlayers);
+            window.dispatchEvent(new CustomEvent('player-list', { detail: sortedPlayers }));
         }
     } catch (e) {
         console.error('[Host] Parse error:', e);
@@ -342,10 +366,25 @@ registerHandler(OPCODE.NTF_RULES_CHANGED, (payload) => {
 });
 
 registerHandler(OPCODE.NTF_MEMBER_KICKED, (payload) => {
-    console.log('[Notification] You were kicked!');
-    alert('You have been kicked from the room');
-    localStorage.removeItem('current_room_id');
-    window.location.href = '/lobby';
+    try {
+        const data = JSON.parse(new TextDecoder().decode(payload));
+        const myAccountId = parseInt(localStorage.getItem('account_id') || '1');
+        
+        console.log('[Notification] Member kicked:', data.account_id, 'Me:', myAccountId);
+        
+        // Only redirect if I was the one kicked
+        if (data.account_id === myAccountId) {
+            alert('You have been kicked from the room');
+            localStorage.removeItem('room_id');
+            localStorage.removeItem('room_code');
+            localStorage.removeItem('room_name');
+            localStorage.removeItem('is_host');
+            window.location.href = '/lobby';
+        }
+        // Other members just wait for NTF_PLAYER_LIST update
+    } catch (e) {
+        console.error('[NTF] Member kicked parse error:', e);
+    }
 });
 
 registerHandler(OPCODE.NTF_ROOM_CLOSED, (payload) => {
@@ -370,14 +409,33 @@ registerHandler(OPCODE.NTF_PLAYER_LEFT, (payload) => {
 registerHandler(OPCODE.NTF_PLAYER_LIST, (payload) => {
     try {
         const data = JSON.parse(new TextDecoder().decode(payload));
-        console.log('[Notification] Player list:', data);
+        console.log('[Notification] Player list raw:', data);
+        
+        const players = data.players || data || [];
+        
+        // Normalize: remove duplicates by account_id
+        const uniquePlayers = Object.values(
+            players.reduce((acc, player) => {
+                acc[player.account_id] = player;
+                return acc;
+            }, {})
+        );
+        
+        // Sort: host first, then by join order
+        const sortedPlayers = uniquePlayers.sort((a, b) => {
+            if (a.is_host) return -1;
+            if (b.is_host) return 1;
+            return 0;
+        });
+        
+        console.log('[Notification] Normalized player list:', sortedPlayers);
 
         // Cache snapshot
-        latestPlayersSnapshot = data.players || [];
+        latestPlayersSnapshot = sortedPlayers;
 
-        // Dispatch event for MemberListPanel
+        // Dispatch event for MemberListPanel (REPLACE state)
         window.dispatchEvent(new CustomEvent('player-list', {
-            detail: data.players || []
+            detail: sortedPlayers
         }));
     } catch (e) {
         console.error('[NTF] Player list parse error:', e);

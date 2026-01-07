@@ -96,7 +96,15 @@ export default function WaitingRoom() {
     
     const handlePlayerList = (event) => {
       console.log('[WaitingRoom] Player list event:', event.detail);
-      setMembers(event.detail);
+      // Normalize players: remove duplicates by account_id
+      const normalizedPlayers = Object.values(
+        (event.detail || []).reduce((acc, player) => {
+          acc[player.account_id] = player; // Keep last occurrence
+          return acc;
+        }, {})
+      );
+      console.log('[WaitingRoom] Normalized players:', normalizedPlayers);
+      setMembers(normalizedPlayers); // REPLACE state, not append
     };
     
     const handlePlayerLeft = (event) => {

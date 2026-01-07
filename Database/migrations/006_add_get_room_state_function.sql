@@ -23,14 +23,14 @@ BEGIN
     FROM public.rooms
     WHERE id = p_room_id;
 
-    -- Get room members
+    -- Get room members (host always is_ready=true, sorted with host first)
     SELECT json_agg(
         json_build_object(
             'account_id', rm.account_id,
             'username', COALESCE(p.name, a.email),
             'is_host', (r.host_id = rm.account_id),
-            'is_ready', false
-        )
+            'is_ready', (r.host_id = rm.account_id)
+        ) ORDER BY (r.host_id = rm.account_id) DESC, rm.joined_at ASC
     ) INTO v_members_data
     FROM public.room_members rm
     JOIN public.accounts a ON rm.account_id = a.id

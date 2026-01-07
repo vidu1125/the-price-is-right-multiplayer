@@ -1,6 +1,8 @@
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <arpa/inet.h>
+#include <cjson/cJSON.h>
 #include "handlers/room_handler.h"
 #include "protocol/opcode.h"
 #include "protocol/protocol.h"
@@ -297,11 +299,31 @@ void handle_kick_member(int client_fd, MessageHeader *req, const char *payload) 
         return;
     }
 
-    // 5. Broadcast success to all members
-    room_broadcast(room_id, NTF_MEMBER_KICKED,
-              resp_buf, strlen(resp_buf), -1);
+    // 5. Notify kicked player (send account_id so client knows if it's them)
+    char kick_notif[64];
+    snprintf(kick_notif, sizeof(kick_notif), "{\"account_id\":%u}", target_id);
+    room_broadcast(room_id, NTF_MEMBER_KICKED, kick_notif, strlen(kick_notif), -1);
 
-    // 6. Forward response to host
+    // 6. Query updated player list and broadcast
+    char state_buf[4096];
+    rc = room_repo_get_state(room_id, state_buf, sizeof(state_buf));
+    if (rc == 0) {
+        // Parse JSON to extract players array
+        cJSON *root = cJSON_Parse(state_buf);
+        if (root) {
+            cJSON *players = cJSON_GetObjectItem(root, "players");
+            if (players) {
+                char *players_str = cJSON_PrintUnformatted(players);
+                if (players_str) {
+                    room_broadcast(room_id, NTF_PLAYER_LIST, players_str, strlen(players_str), -1);
+                    free(players_str);
+                }
+            }
+            cJSON_Delete(root);
+        }
+    }
+
+    // 7. Forward response to host
     forward_response(client_fd, req, RES_MEMBER_KICKED,
                     resp_buf, strlen(resp_buf));
 
