@@ -17,21 +17,47 @@ void handle_history(
     const char *payload,
     int32_t account_id
 ) {
-    cJSON *history = NULL;
-
-    if (history_repo_get(account_id, &history) != 0) {
-        printf("[handler] failed to get match history\n");
+   
+    cJSON *root = cJSON_CreateArray();
+    if (!root) {
+        printf("[handler] failed to create cJSON array\n");
         return;
     }
 
-    // Convert JSON → string để gửi qua socket / websocket
-    char *json_str = cJSON_PrintUnformatted(history);
-    if (json_str) {
-        printf("[handler] history = %s\n", json_str);
+    // Mock item 1
+    cJSON *item1 = cJSON_CreateObject();
+    cJSON_AddNumberToObject(item1, "matchID", 1023);
+    cJSON_AddNumberToObject(item1, "score", 120);
+    cJSON_AddStringToObject(item1, "mode", "Scoring");
+    cJSON_AddStringToObject(item1, "ranking", "1st");
+    cJSON_AddBoolToObject(item1, "isWinner", 1);
+    cJSON_AddItemToArray(root, item1);
 
-        // TODO: send json_str to client
+    // Mock item 2
+    cJSON *item2 = cJSON_CreateObject();
+    cJSON_AddNumberToObject(item2, "matchID", 1022);
+    cJSON_AddNumberToObject(item2, "score", -40);
+    cJSON_AddStringToObject(item2, "mode", "Eliminated");
+    cJSON_AddStringToObject(item2, "ranking", "4th");
+    cJSON_AddBoolToObject(item2, "isWinner", 0);
+    cJSON_AddItemToArray(root, item2);
+
+    char *json_str = cJSON_PrintUnformatted(root);
+    if (json_str) {
+        printf("[handler] history response: %s\n", json_str);
+
+        uint32_t payload_len = strlen(json_str);
+
+        forward_response(
+            client_fd,
+            req_header,
+            CMD_HIST,
+            json_str,
+            payload_len
+        );
+
         free(json_str);
     }
 
-    cJSON_Delete(history);
+    cJSON_Delete(root);
 }

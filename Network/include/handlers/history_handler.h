@@ -76,4 +76,20 @@ void handle_history(
     int32_t account_id
 );
 
+
+// New Payloads for CMD_HIST
+typedef struct PACKED {
+    uint8_t limit;
+    uint8_t offset;
+} ViewHistoryRequest;
+
+typedef struct PACKED {
+    uint32_t match_id;
+    int32_t  score;
+    char     mode[16];
+    char     ranking[8];
+    uint8_t  is_winner;
+    uint8_t  reserved[3]; // padding/alignment
+} ViewHistoryResponse;
+
 #endif

@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <signal.h>
+#include <time.h>
 
 #include "transport/socket_server.h"
 #include "db/core/db_client.h"   // 🔹 THÊM
@@ -39,6 +40,9 @@ int main(int argc, char *argv[]) {
     printf("        NETWORK SOCKET SERVER START           \n");
     printf("=============================================\n");
     printf("Press Ctrl+C to stop\n\n");
+
+    // Initialize random seed once
+    srand(time(NULL));
 
     // =====================================================
     // 🔹 INIT DB CLIENT (CHỈ 1 LẦN)

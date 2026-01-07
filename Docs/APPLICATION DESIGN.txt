@@ -204,6 +204,7 @@ typedef enum {
     CMD_LOGIN_REQ       = 0x0100, // Gửi Username/Password
     CMD_REGISTER_REQ    = 0x0101, // Đăng ký mới
     CMD_LOGOUT_REQ      = 0x0102, // Yêu cầu thoát đăng nhập
+    CMD_RECONNECT       = 0x0103, // Kết nối lại với session cũ
 
 
     // --- 2. Nhóm Tương tác Phòng (Lobby) ---
@@ -212,9 +213,10 @@ typedef enum {
     CMD_JOIN_ROOM       = 0x0201, // Xin vào phòng (kèm RoomID)
     CMD_LEAVE_ROOM      = 0x0202, // Rời phòng hiện tại
     CMD_READY           = 0x0203, // Chuyển trạng thái Sẵn sàng
-    CMD_KICK           = 0x0204, // Kick khỏi phòng
+    CMD_KICK            = 0x0204, // Kick khỏi phòng
     CMD_INVITE_FRIEND   = 0x0205, // Mời bạn
-    CMD_SET_RULE   = 0x0206, // Đặt luật
+    CMD_SET_RULE        = 0x0206, // Đặt luật
+    CMD_CLOSE_ROOM      = 0x0207, // Host đóng phòng
 
 
 
@@ -233,6 +235,8 @@ typedef enum {
 
     // --- 4. Nhóm Tiện ích & Xã hội ---
     // Nguồn: Slide Social & Shop & History
+    CMD_CHAT            = 0x0500, // Gửi tin nhắn chat
+    CMD_FRIEND_ADD      = 0x0501, // Thêm bạn bè
     CMD_HIST            = 0x0502, // Xem lịch sử đấu
     CMD_REPLAY          = 0x0503, // Yêu cầu xem lại trận cũ
     CMD_LEAD            = 0x0504, // Lấy bảng xếp hạng
@@ -253,22 +257,28 @@ typedef enum {
     RES_SUCCESS         = 200, // Hành động thành công chung
     RES_LOGIN_OK        = 201, // Đăng nhập thành công
     RES_HEARTBEAT_OK    = 210, // Đã nhận Heartbeat
-    RES_ROOM_JOINED     = 301, // Vào phòng thành công
+    RES_ROOM_CREATED    = 220, // Tạo phòng thành công
+    RES_ROOM_JOINED     = 221, // Vào phòng thành công
+    RES_ROOM_LEFT       = 222, // Rời phòng thành công
+    RES_ROOM_CLOSED     = 223, // Đóng phòng thành công
+    RES_RULES_UPDATED   = 224, // Cập nhật luật thành công
+    RES_MEMBER_KICKED   = 225, // Kick thành viên thành công
+    RES_GAME_STARTED    = 301, // Game bắt đầu thành công
 
 
     // --- Lỗi (4xx, 5xx) ---
     // Nguồn: Slide Error Responses
     ERR_BAD_REQUEST     = 400, // Sai cú pháp/dữ liệu
     ERR_NOT_LOGGED_IN   = 401, // Chưa đăng nhập
+    ERR_INVALID_USERNAME = 402, // Username không hợp lệ
     ERR_ROOM_FULL       = 403, // Phòng đầy
     ERR_GAME_STARTED    = 404, // Game đã chơi, không thể vào
     ERR_PAYLOAD_LARGE   = 405, // Gói tin quá lớn (>4096 bytes)
     ERR_NOT_HOST        = 406, // Không phải chủ phòng
     ERR_TIMEOUT         = 408, // Hết thời gian thao tác
-    ERR_SERVER_ERROR    = 500  // Lỗi nội bộ Server
+    ERR_SERVER_ERROR    = 500, // Lỗi nội bộ Server
+    ERR_SERVICE_UNAVAILABLE = 501  // Dịch vụ không khả dụng
 
-
-Mất kết nối
 } ServerResponse;
 
 
@@ -293,6 +303,16 @@ typedef enum {
     NTF_SCOREBOARD      = 705, // Cập nhật điểm số mới nhất
     NTF_ELIMINATION     = 706, // Thông báo: "Người chơi C bị loại"
     NTF_GAME_END        = 707, // Kết thúc game, công bố người thắng
+    NTF_GAME_START      = 708, // Thông báo game bắt đầu
+
+
+    // --- Tương tác khác ---
+    NTF_CHAT_MSG        = 710, // Tin nhắn chat từ người khác
+    NTF_INVITATION      = 711, // Lời mời chơi từ bạn bè
+    NTF_PLAYER_READY    = 712, // Thông báo player sẵn sàng
+    NTF_RULES_CHANGED   = 713, // Thông báo rules phòng đã thay đổi
+    NTF_MEMBER_KICKED   = 714, // Thông báo member bị kick
+    NTF_ROOM_CLOSED     = 715  // Thông báo phòng bị đóng
 
 
     // --- Tương tác khác ---
