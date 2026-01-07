@@ -79,7 +79,7 @@ void dispatch_command(
 
     // History
     case CMD_HIST:
-        printf("[DISPATCH] Parsing to historyHandler");        
+        printf("[DISPATCH] Parsing to historyHandler\n");        
         handle_history(
             client_fd,
             header,

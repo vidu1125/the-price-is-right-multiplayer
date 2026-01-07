@@ -4,43 +4,37 @@ import AppTitle from "../Lobby/AppTitle";
 import PageTransition from "../PageTransition";
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { viewHistory } from "../../services/historyService";
+import { viewHistory, getCachedHistory } from "../../services/historyService";
 
 
-
-const mockHistoryList = [
-  { matchId: 1023, score: 120, mode: "Scoring", ranking: "1st", isWinner: true },
-  { matchId: 1022, score: -40, mode: "Eliminated", ranking: "4th", isWinner: false },
-  { matchId: 1021, score: 80, mode: "Scoring", ranking: "2nd", isWinner: true },
-  { matchId: 1020, score: 150, mode: "Eliminated", ranking: "1st", isWinner: true },
-  { matchId: 1019, score: 60, mode: "Scoring", ranking: "3rd", isWinner: true },
-  { matchId: 1018, score: -20, mode: "Scoring", ranking: "5th", isWinner: false },
-  { matchId: 1017, score: 200, mode: "Eliminated", ranking: "1st", isWinner: true },
-];
+// msg: mockHistoryList removed
 
 
 export default function HistoryPage() {
   const navigate = useNavigate();
+  // Initialize from cache if available
+  const cachedData = getCachedHistory();
+  const [historyList, setHistoryList] = useState(cachedData || []);
+  const [loading, setLoading] = useState(!cachedData);
 
   useEffect(() => {
     console.log("HistoryPage mounted, fetching history...");
     viewHistory({ limit: 10, offset: 0 })
       .then(data => {
-        console.log("History received from server:", data);
-        // Note: Not updating state yet, just logging as requested
+        console.log("History received:", data);
+        setHistoryList(data);
+        setLoading(false);
       })
       .catch(err => {
         console.error("Failed to fetch history:", err);
+        setLoading(false);
       });
   }, []);
 
-  const MAX_MATCHES = 10;
-  const displayedMatches = mockHistoryList.slice(0, MAX_MATCHES);
-
-  // Tính toán Overall Stats
-  const totalMatches = mockHistoryList.length;
-  const top1Wins = mockHistoryList.filter(m => m.ranking === "1st").length;
-  const totalScore = mockHistoryList.reduce((acc, curr) => acc + curr.score, 0);
+  // Calculate stats from real data
+  const totalMatches = historyList.length;
+  const top1Wins = historyList.filter(m => m.ranking === "1st").length;
+  const totalScore = historyList.reduce((acc, curr) => acc + curr.score, 0);
 
   return (
     <PageTransition>
@@ -48,9 +42,6 @@ export default function HistoryPage() {
         {/* Giữ nguyên Style của Lobby */}
         <UserCard />
         <div className="history-title-wrapper"><AppTitle title="HISTORY" /></div>
-
-        {/* <AppTitle title="HISTORY" /> */}
-        {/* <h2 className="table-inner-title">HISTORY</h2> */}
 
         <div className="history-content">
           <div className="history-container">
@@ -82,16 +73,18 @@ export default function HistoryPage() {
             </div>
 
             <div className="history-list-fixed">
-              {displayedMatches.map((match) => (
-                <HistoryItem key={match.matchId} match={match} />
-              ))}
-
-              <div className="no-more-matches">
-                no more matches available
-              </div>
+              {loading ? (
+                <div className="no-more-matches">Loading...</div>
+              ) : historyList.length > 0 ? (
+                historyList.map((match) => (
+                  <HistoryItem key={match.matchId} match={match} />
+                ))
+              ) : (
+                <div className="no-more-matches">No history available</div>
+              )}
             </div>
             <div className="detail-footer">
-              <button className="view-btn back-btn" onClick={() => navigate("/history")}>
+              <button className="view-btn back-btn" onClick={() => navigate("/lobby")}>
                 BACK TO LOBBY
               </button>
             </div>

@@ -9,21 +9,46 @@ const TIMEOUT_MS = 10000;
 /**
  * Gửi request xem history
  * CMD_HIST = 0x0502
+ */
+let cachedHistory = null;
+
+/**
+ * Get cached history synchronously
+ */
+export function getCachedHistory() {
+  return cachedHistory;
+}
+
+
+/**
+ * Gửi request xem history
+ * CMD_HIST = 0x0502
  * @param {object} params
  * @param {number} params.limit Number of items (uint8)
  * @param {number} params.offset Offset (uint8)
+ * @param {boolean} params.forceUpdate Force fetch from server
  * @returns {Promise<Array>} List of matches
  */
-export function viewHistory({ limit = 10, offset = 0 } = {}) {
-  console.log("[Service][History] viewHistory() called", { limit, offset });
+export function viewHistory({ limit = 10, offset = 0, forceUpdate = false } = {}) {
+  console.log("[SERVICE] <viewHistory> called", { limit, offset, forceUpdate });
 
   return new Promise((resolve, reject) => {
+    // Check cache
+    if (!forceUpdate && cachedHistory !== null) {
+      console.log("[SERVICE] <viewHistory> Returning cached data");
+      resolve(cachedHistory);
+      return;
+    }
+
     if (historyPending) {
       clearTimeout(historyPending.timeoutId);
     }
 
     historyPending = {
-      resolve,
+      resolve: (data) => {
+        cachedHistory = data; // Update cache
+        resolve(data);
+      },
       reject,
       timeoutId: setTimeout(() => {
         if (historyPending) {
@@ -44,97 +69,64 @@ export function viewHistory({ limit = 10, offset = 0 } = {}) {
 }
 
 registerHandler(OPCODE.CMD_HIST, (payload) => {
-  console.log("[Service][History] received binary response, len:", payload.byteLength);
+  console.log("[SERVICE] <viewHistory> response payload len:", payload.byteLength);
 
   if (historyPending) {
     clearTimeout(historyPending.timeoutId);
     try {
+      if (payload.byteLength < 2) {
+        throw new Error("Payload too short");
+      }
+
       const view = new DataView(payload);
       const count = view.getUint8(0);
-      const reserved = view.getUint8(1); // alignment
+      const reserved = view.getUint8(1);
 
-      console.log(`[Service][History] count=${count}`);
+      console.log(`[SERVICE] <viewHistory> count=${count}`);
 
       const records = [];
-      const RECORD_SIZE = 24; // 4 + 1 + 1 + 4 + 8 + 8 (padding/ranking?)
-      // Check struct alignment in C:
-      // uint32 match_id (4)
-      // uint8 mode (1)
-      // uint8 is_winner (1)
-      // int32 final_score (4) <-- padding likely added before this? 
-      //    offset 0: match_id (4)
-      //    offset 4: mode (1)
-      //    offset 5: is_winner (1)
-      //    offset 6: padding (2) <-- compiler usually aligns int32 to 4 bytes
-      //    offset 8: final_score (4)
-      //    offset 12: ranking (8)
-      //    offset 20: ended_at (8)
-      // Total size = 28 bytes? No, wait. 
-      // Let's re-verify C struct packing. 
-      // typedef struct {
-      //    uint32_t match_id;      
-      //    uint8_t  mode;          
-      //    uint8_t  is_winner;      
-      //    int32_t  final_score;
-      //    char     ranking[8];
-      //    uint64_t ended_at;    
-      // } HistoryRecord;
-      // 
-      // PACKED is likely missing from HistoryRecord definition in user's last snippet for header file?
-      // User snippet: 
-      // typedef struct { ... } HistoryRecord;
-      // If NOT packed:
-      // 0-3: match_id
-      // 4: mode
-      // 5: is_winner
-      // 6-7: padding
-      // 8-11: final_score
-      // 12-19: ranking
-      // 20-23: padding (for 8-byte alignment of uint64)
-      // 24-31: ended_at
-      // Total = 32 bytes
-
-      // However, usually network structs are attributted with PACKED.
-      // Let's assume user defined `typedef struct PACKED` or we need to treat it as packed manually.
-      // But wait! User's snippet showed: `typedef struct { ... } HistoryRecord`. NO PACKED.
-      // I should double check if `PACKED` macro is used or if `__attribute__((packed))` is implicit.
-      //
-      // Assuming NO PACKED (default alignment):
-      // offset = 2 (header: count + reserved)
-
       let offset = 2;
+      const RECORD_SIZE = 32; // Calculated from C struct with padding
 
       for (let i = 0; i < count; i++) {
-        const matchId = view.getUint32(offset, true); // Little Endian
+        if (offset + RECORD_SIZE > payload.byteLength) {
+          console.warn("[SERVICE] <viewHistory> Payload truncated");
+          break;
+        }
+
+        const matchId = view.getUint32(offset, true);
         const modeVal = view.getUint8(offset + 4);
         const isWinner = view.getUint8(offset + 5) !== 0;
-        // Skip 2 padding bytes (6, 7)
-        const score = view.getInt32(offset + 8, true);
+        const score = view.getInt32(offset + 8, true); // Little Endian
 
+        // Decode ranking (char[8])
         const rankingBytes = new Uint8Array(payload, offset + 12, 8);
-        // Decode string usually stops at null terminator
+        // Remove null terminators
         let ranking = decoder.decode(rankingBytes).replace(/\0/g, '');
 
-        // Skip 4 padding bytes (20, 21, 22, 23) ??
-        // ended_at is uint64. 
-        // BigInt64 get
+        // ended_at
         const endedAt = view.getBigInt64(offset + 24, true);
+
+        // Map mode enum (1=Scoring, 2=Eliminated)
+        let modeStr = "Unknown";
+        if (modeVal === 1) modeStr = "Scoring";
+        if (modeVal === 2) modeStr = "Eliminated";
 
         records.push({
           matchId,
           score,
-          mode: modeVal === 1 ? "Scoring" : "Eliminated", // Mapping enum
+          mode: modeStr,
           ranking,
           isWinner,
-          endedAt: Number(endedAt) // Convert to number for JS (lossy if huge, but date usually fits)
+          endedAt: Number(endedAt)
         });
 
-        offset += 32; // sizeof(HistoryRecord) aligned
+        offset += RECORD_SIZE;
       }
 
       historyPending.resolve(records);
     } catch (e) {
-      console.error("[Service][History] Parse error", e);
+      console.error("[SERVICE] <viewHistory> Parse error", e);
       historyPending.reject(e);
     } finally {
       historyPending = null;
