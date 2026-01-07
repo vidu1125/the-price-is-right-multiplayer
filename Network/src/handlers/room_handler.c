@@ -1,8 +1,6 @@
 #include <string.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <arpa/inet.h>
-#include <cjson/cJSON.h>
 #include "handlers/room_handler.h"
 #include "protocol/opcode.h"
 #include "protocol/protocol.h"
@@ -24,8 +22,9 @@ typedef struct PACKED {
     uint8_t visibility;
     uint8_t mode;
     uint8_t max_players;
+    uint8_t round_time;
     uint8_t wager_enabled;
-    uint8_t reserved[4];
+    uint8_t reserved[3];
 } CreateRoomPayload;
 
 typedef struct PACKED {
@@ -36,8 +35,8 @@ typedef struct PACKED {
     uint32_t room_id;
     uint8_t mode;
     uint8_t max_players;
+    uint8_t round_time;
     uint8_t wager_enabled;
-    uint8_t visibility;
 } SetRulesPayload;
 
 typedef struct PACKED {
@@ -81,15 +80,54 @@ void handle_create_room(int client_fd, MessageHeader *req, const char *payload) 
         return;
     }
     
-
+    if (data.round_time < 10 || data.round_time > 60) {
+        send_error(client_fd, req, ERR_BAD_REQUEST, "round_time must be 10-60s");
+        return;
+    }
     
     if (strlen(room_name) == 0) {
         send_error(client_fd, req, ERR_BAD_REQUEST, "Room name required");
         return;
     }
     
-
+    // // 4. Escape JSON string
+    // const char *safe_name = json_escape_string(room_name);
     
+    // // 5. Build JSON for backend
+    // char json[1024];
+    // snprintf(json, sizeof(json),
+    //     "{\"name\":\"%s\",\"visibility\":\"%s\",\"mode\":\"%s\","
+    //     "\"max_players\":%u,\"round_time\":%u,\"advanced\":{\"wager\":%s}}",
+    //     safe_name,
+    //     data.visibility ? "private" : "public",
+    //     data.mode ? "elimination" : "scoring",
+    //     data.max_players,
+    //     data.round_time,
+    //     data.wager_enabled ? "true" : "false"
+    // );
+    
+    // // 6. HTTP POST to backend (parsed)
+    // char resp_buf[2048];
+    // HttpResponse http_resp = http_post_parse("backend", 5000, "/api/room/create",
+    //                                          json, resp_buf, sizeof(resp_buf));
+    
+    // if (http_resp.status_code < 0) {
+    //     send_error(client_fd, req, ERR_SERVER_ERROR, "Backend unreachable");
+    //     return;
+    // }
+    
+    // if (http_resp.status_code >= 400) {
+    //     send_error(client_fd, req, ERR_BAD_REQUEST, http_resp.body);
+    //     return;
+    // }
+    
+    // // 7. Parse room_id from response (simplified: assume {"room_id":123,...})
+    // int room_id = 0;
+    // if (sscanf(http_resp.body, "{\"success\":true,\"room_id\":%d", &room_id) == 1) {
+    //     room_add_member(room_id, client_fd);
+    // }
+    
+
     // 4. Call room_repo instead of backend
     char result_payload[2048];
     uint32_t room_id = 0;
@@ -110,8 +148,8 @@ void handle_create_room(int client_fd, MessageHeader *req, const char *payload) 
         return;
     }
 
-    // 5. Track host as room member (account_id=1 hardcoded for now, is_host=true)
-    room_add_member((int)room_id, client_fd, 1, true);
+    // 5. Track host as room member
+    room_add_member((int)room_id, client_fd);
 
     // 6. Prepare response
     uint32_t result_len = strlen(result_payload);
@@ -124,25 +162,6 @@ void handle_create_room(int client_fd, MessageHeader *req, const char *payload) 
         result_payload,
         result_len
     );
-
-    // 7. Push snapshot to client (server-driven architecture)
-    // Build rules payload
-    char rules_json[256];
-    snprintf(rules_json, sizeof(rules_json),
-        "{\"mode\":\"%s\",\"max_players\":%u,\"wager_mode\":%s,\"visibility\":\"%s\"}",
-        data.mode ? "elimination" : "scoring",
-        data.max_players,
-        data.wager_enabled ? "true" : "false",
-        data.visibility ? "private" : "public"
-    );
-    room_broadcast((int)room_id, NTF_RULES_CHANGED, rules_json, strlen(rules_json), -1);
-
-    // Build player list payload (host only at this point)
-    char player_json[512];
-    snprintf(player_json, sizeof(player_json),
-        "{\"players\":[{\"account_id\":1,\"username\":\"Host\",\"is_host\":true,\"is_ready\":false}]}"
-    );
-    room_broadcast((int)room_id, NTF_PLAYER_LIST, player_json, strlen(player_json), -1);
 
 }
 
@@ -226,7 +245,6 @@ void handle_set_rules(int client_fd, MessageHeader *req, const char *payload) {
         data.mode,
         data.max_players,
         data.wager_enabled,
-        data.visibility,
         resp_buf,
         sizeof(resp_buf)
     );
@@ -236,19 +254,9 @@ void handle_set_rules(int client_fd, MessageHeader *req, const char *payload) {
         return;
     }
 
-    // 6. Build rules notification payload
-    char rules_json[256];
-    snprintf(rules_json, sizeof(rules_json),
-        "{\"mode\":\"%s\",\"max_players\":%u,\"wager_mode\":%s,\"visibility\":\"%s\"}",
-        data.mode ? "elimination" : "scoring",
-        data.max_players,
-        data.wager_enabled ? "true" : "false",
-        data.visibility ? "private" : "public"
-    );
-    
-    // Broadcast rules to all members (INCLUDING host)
+    // 6. Broadcast success to all members (except host)
     room_broadcast(room_id, NTF_RULES_CHANGED,
-              rules_json, strlen(rules_json), -1);
+              resp_buf, strlen(resp_buf), client_fd);
 
     // 7. Forward response to host
     forward_response(client_fd, req, RES_RULES_UPDATED,
@@ -299,88 +307,14 @@ void handle_kick_member(int client_fd, MessageHeader *req, const char *payload) 
         return;
     }
 
-    // 5. Notify kicked player (send account_id so client knows if it's them)
-    char kick_notif[64];
-    snprintf(kick_notif, sizeof(kick_notif), "{\"account_id\":%u}", target_id);
-    room_broadcast(room_id, NTF_MEMBER_KICKED, kick_notif, strlen(kick_notif), -1);
+    // 5. Broadcast success to all members
+    room_broadcast(room_id, NTF_MEMBER_KICKED,
+              resp_buf, strlen(resp_buf), -1);
 
-    // 6. Query updated player list and broadcast
-    char state_buf[4096];
-    rc = room_repo_get_state(room_id, state_buf, sizeof(state_buf));
-    if (rc == 0) {
-        // Parse JSON to extract players array
-        cJSON *root = cJSON_Parse(state_buf);
-        if (root) {
-            cJSON *players = cJSON_GetObjectItem(root, "players");
-            if (players) {
-                char *players_str = cJSON_PrintUnformatted(players);
-                if (players_str) {
-                    room_broadcast(room_id, NTF_PLAYER_LIST, players_str, strlen(players_str), -1);
-                    free(players_str);
-                }
-            }
-            cJSON_Delete(root);
-        }
-    }
-
-    // 7. Forward response to host
+    // 6. Forward response to host
     forward_response(client_fd, req, RES_MEMBER_KICKED,
                     resp_buf, strlen(resp_buf));
 
-}
-
-//==============================================================================
-// GET ROOM STATE (Pull snapshot from DB)
-//==============================================================================
-void handle_get_room_state(int client_fd, MessageHeader *req, const char *payload) {
-    // 1. Validate
-    if (req->length != sizeof(RoomIDPayload)) {
-        send_error(client_fd, req, ERR_BAD_REQUEST, "Invalid payload size");
-        return;
-    }
-    
-    // 2. Extract room_id
-    RoomIDPayload data;
-    memcpy(&data, payload, sizeof(data));
-    uint32_t room_id = ntohl(data.room_id);
-    
-    // 3. Query DB
-    char resp_buf[4096];
-    int rc = room_repo_get_state(room_id, resp_buf, sizeof(resp_buf));
-    
-    if (rc != 0) {
-        send_error(client_fd, req, ERR_SERVER_ERROR, "Failed to get room state");
-        return;
-    }
-    
-    // 4. Parse JSON to sync players to memory (FIX: sync DB → memory)
-    cJSON *root = cJSON_Parse(resp_buf);
-    if (root) {
-        cJSON *players = cJSON_GetObjectItem(root, "players");
-        if (cJSON_IsArray(players)) {
-            cJSON *player = NULL;
-            cJSON_ArrayForEach(player, players) {
-                cJSON *account_id_obj = cJSON_GetObjectItem(player, "account_id");
-                cJSON *is_host_obj = cJSON_GetObjectItem(player, "is_host");
-                
-                if (cJSON_IsNumber(account_id_obj)) {
-                    uint32_t acc_id = (uint32_t)account_id_obj->valueint;
-                    bool is_host = cJSON_IsTrue(is_host_obj);
-                    
-                    // Use unique fake FD for each DB member (negative to distinguish from real FDs)
-                    // This ensures no duplicate detection issues
-                    int fake_fd = -(int)acc_id - 1000;
-                    room_add_member(room_id, fake_fd, acc_id, is_host);
-                }
-            }
-        }
-        cJSON_Delete(root);
-    }
-    
-    printf("[ROOM] Synced DB state to memory for room=%u\n", room_id);
-    
-    // 5. Send response
-    forward_response(client_fd, req, RES_ROOM_STATE, resp_buf, strlen(resp_buf));
 }
 
 //==============================================================================

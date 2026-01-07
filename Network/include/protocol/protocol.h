@@ -13,7 +13,7 @@
 #define MAX_PAYLOAD_SIZE 4096
 
 // Game Settings
-#define DEFAULT_ROUND_TIME 15  // seconds per round
+#define DEFAULT_ROUND_TIME 30  // seconds per round
 
 
 

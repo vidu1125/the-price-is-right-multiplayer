@@ -37,7 +37,7 @@ typedef struct PACKED {
     uint32_t match_id;
     uint8_t  mode;        
     uint8_t  max_players;
-    uint16_t reserved;
+    uint16_t round_time;
     uint64_t started_at;
     uint64_t ended_at;
 } MatchDetailHeader;
