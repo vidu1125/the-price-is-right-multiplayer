@@ -308,6 +308,34 @@ void handle_kick_member(int client_fd, MessageHeader *req, const char *payload) 
 }
 
 //==============================================================================
+// GET ROOM STATE (Pull snapshot from DB)
+//==============================================================================
+void handle_get_room_state(int client_fd, MessageHeader *req, const char *payload) {
+    // 1. Validate
+    if (req->length != sizeof(RoomIDPayload)) {
+        send_error(client_fd, req, ERR_BAD_REQUEST, "Invalid payload size");
+        return;
+    }
+    
+    // 2. Extract room_id
+    RoomIDPayload data;
+    memcpy(&data, payload, sizeof(data));
+    uint32_t room_id = ntohl(data.room_id);
+    
+    // 3. Query DB
+    char resp_buf[4096];
+    int rc = room_repo_get_state(room_id, resp_buf, sizeof(resp_buf));
+    
+    if (rc != 0) {
+        send_error(client_fd, req, ERR_SERVER_ERROR, "Failed to get room state");
+        return;
+    }
+    
+    // 4. Send response
+    forward_response(client_fd, req, RES_ROOM_STATE, resp_buf, strlen(resp_buf));
+}
+
+//==============================================================================
 // LEAVE ROOM (Any member)
 //==============================================================================
 void handle_leave_room(int client_fd, MessageHeader *req, const char *payload) {

@@ -226,7 +226,42 @@ registerHandler(OPCODE.RES_GAME_STARTED, (payload) => {
 });
 
 //==============================================================================
-// 6. LEAVE ROOM (Member)
+// 6. GET ROOM STATE (Pull snapshot from DB)
+//==============================================================================
+
+/**
+ * RoomIDPayload struct (4 bytes):
+ * - uint32_t room_id
+ */
+export function getRoomState(roomId) {
+    const buffer = new ArrayBuffer(4);
+    const view = new DataView(buffer);
+
+    view.setUint32(0, roomId, false);
+
+    console.log('[Host] Getting room state:', roomId);
+    sendPacket(OPCODE.CMD_GET_ROOM_STATE, buffer);
+}
+
+registerHandler(OPCODE.RES_ROOM_STATE, (payload) => {
+    try {
+        const response = JSON.parse(new TextDecoder().decode(payload));
+        console.log('[Host] Room state received:', response);
+
+        // Dispatch separate events for rules and players
+        if (response.rules) {
+            window.dispatchEvent(new CustomEvent('rules-changed', { detail: response.rules }));
+        }
+        if (response.players) {
+            window.dispatchEvent(new CustomEvent('player-list', { detail: response.players }));
+        }
+    } catch (e) {
+        console.error('[Host] Parse error:', e);
+    }
+});
+
+//==============================================================================
+// 7. LEAVE ROOM (Member)
 //==============================================================================
 
 /**

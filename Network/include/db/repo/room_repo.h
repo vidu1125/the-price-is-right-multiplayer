@@ -37,3 +37,9 @@ int room_repo_leave(
     char *out_buf,
     size_t out_size
 );
+
+int room_repo_get_state(
+    uint32_t room_id,
+    char *out_buf,
+    size_t out_size
+);

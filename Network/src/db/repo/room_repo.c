@@ -250,6 +250,38 @@ int room_repo_leave(
     return 0;
 }
 
+//==============================================================================
+// GET ROOM STATE (Query DB for rules + members)
+//==============================================================================
+int room_repo_get_state(
+    uint32_t room_id,
+    char *out_buf,
+    size_t out_size
+) {
+    // Use RPC to get room state
+    cJSON *payload = cJSON_CreateObject();
+    cJSON_AddNumberToObject(payload, "p_room_id", room_id);
+    
+    cJSON *response = NULL;
+    db_error_t rc = db_rpc("get_room_state", payload, &response);
+    
+    cJSON_Delete(payload);
+    
+    if (rc != DB_OK || !response) {
+        return -1;
+    }
+    
+    // Convert response to string
+    char *json_str = cJSON_PrintUnformatted(response);
+    if (json_str) {
+        snprintf(out_buf, out_size, "%s", json_str);
+        free(json_str);
+    }
+    
+    cJSON_Delete(response);
+    return 0;
+}
+
 int room_repo_get_by_code(const char *code, room_t *out_room) {
     if (!code || !out_room) return -1;
 

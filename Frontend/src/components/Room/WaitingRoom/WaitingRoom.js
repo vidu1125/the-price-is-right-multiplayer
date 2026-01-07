@@ -7,7 +7,8 @@ import MemberListPanel from "./MemberListPanel";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 // Import to register notification handlers AND access cached snapshots
-import { getLatestRulesSnapshot, getLatestPlayersSnapshot, clearSnapshots } from "../../../services/hostService";
+import { getLatestRulesSnapshot, getLatestPlayersSnapshot, clearSnapshots, getRoomState } from "../../../services/hostService";
+import { isConnected } from "../../../network/socketClient";
 
 export default function WaitingRoom() {
   const location = useLocation();
@@ -71,6 +72,20 @@ export default function WaitingRoom() {
     
     // Clear snapshots after loading
     clearSnapshots();
+    
+    // Wait for socket connection before pulling snapshot
+    const handleSocketConnected = () => {
+      console.log('[WaitingRoom] Socket connected, pulling room state');
+      getRoomState(parseInt(storedRoomId));
+    };
+    
+    // If already connected, call immediately
+    if (isConnected()) {
+      getRoomState(parseInt(storedRoomId));
+    } else {
+      // Otherwise wait for connection event
+      window.addEventListener('socket-connected', handleSocketConnected, { once: true });
+    }
     
     setLoading(false);
     
