@@ -55,6 +55,7 @@ export default function Register() {
         name: form.name.trim() || undefined,
         email: cleanEmail,
         password: form.password,
+        confirm: form.confirm,
       });
 
       if (response?.success) {

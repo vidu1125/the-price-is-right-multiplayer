@@ -106,6 +106,15 @@ void handle_login(
         return;
     }
 
+    // Validate Gmail domain
+    const char *at_sign = strchr(email, '@');
+    if (!at_sign || strcasecmp(at_sign, "@gmail.com") != 0) {
+        printf("[AUTH] Email is not Gmail: %s\n", email);
+        cJSON_Delete(json);
+        send_error(client_fd, header, ERR_BAD_REQUEST, "Email must be a valid Gmail address (@gmail.com)");
+        return;
+    }
+
     // Find account by email
     account_t *account = NULL;
     db_error_t err = account_find_by_email(email, &account);
@@ -191,6 +200,9 @@ void handle_register(
     printf("[AUTH] Processing registration request\n");
     (void)header;
 
+    const size_t MIN_PASSWORD = 6;
+    const size_t MAX_PASSWORD = 72; // bcrypt practical limit
+
     // Parse JSON payload
     cJSON *json = cJSON_Parse(payload);
     if (!json) {
@@ -200,8 +212,11 @@ void handle_register(
 
     cJSON *email_json = cJSON_GetObjectItem(json, "email");
     cJSON *password_json = cJSON_GetObjectItem(json, "password");
+    cJSON *confirm_json = cJSON_GetObjectItem(json, "confirm");
+    if (!confirm_json) {
+        confirm_json = cJSON_GetObjectItem(json, "confirm_password");
+    }
     cJSON *name_json = cJSON_GetObjectItem(json, "name");
-    (void)name_json;
 
     if (!email_json || !cJSON_IsString(email_json) ||
         !password_json || !cJSON_IsString(password_json)) {
@@ -212,9 +227,7 @@ void handle_register(
 
     const char *email = email_json->valuestring;
     const char *password = password_json->valuestring;
-    (void)name_json; // Use name_json if needed for profile creation
-    // const char *name = name_json && cJSON_IsString(name_json) ? 
-    //                    name_json->valuestring : "Player";
+    const char *confirm = (confirm_json && cJSON_IsString(confirm_json)) ? confirm_json->valuestring : NULL;
 
     // Validate email format
     if (!crypto_validate_email(email)) {
@@ -223,10 +236,29 @@ void handle_register(
         return;
     }
 
-    // Validate password length
-    if (strlen(password) < 6) {
+    // Validate Gmail domain
+    const char *at_sign = strchr(email, '@');
+    if (!at_sign || strcasecmp(at_sign, "@gmail.com") != 0) {
+        cJSON_Delete(json);
+        send_error(client_fd, header, ERR_BAD_REQUEST, "Email must be a valid Gmail address (@gmail.com)");
+        return;
+    }
+
+    // Validate password strength & match
+    size_t pwd_len = strlen(password);
+    if (pwd_len < MIN_PASSWORD) {
         cJSON_Delete(json);
         send_error(client_fd, header, ERR_BAD_REQUEST, "Password must be at least 6 characters");
+        return;
+    }
+    if (pwd_len > MAX_PASSWORD) {
+        cJSON_Delete(json);
+        send_error(client_fd, header, ERR_BAD_REQUEST, "Password is too long");
+        return;
+    }
+    if (confirm && strcmp(password, confirm) != 0) {
+        cJSON_Delete(json);
+        send_error(client_fd, header, ERR_BAD_REQUEST, "Passwords do not match");
         return;
     }
 
@@ -243,14 +275,39 @@ void handle_register(
     db_error_t err = account_create(email, password_hash, "user", &account);
     
     if (err == DB_ERR_CONFLICT) {
+        printf("[AUTH] Email conflict: %s\n", email);
         cJSON_Delete(json);
         send_error(client_fd, header, ERR_INVALID_USERNAME, "Email already registered");
         return;
     }
 
-    if (err != DB_SUCCESS || !account) {
+    if (err != DB_SUCCESS) {
+        printf("[AUTH] Failed to create account: err=%d\n", err);
         cJSON_Delete(json);
-        send_error(client_fd, header, ERR_SERVER_ERROR, "Failed to create account");
+        
+        switch(err) {
+            case DB_ERROR_INVALID_PARAM:
+                send_error(client_fd, header, ERR_BAD_REQUEST, "Invalid account parameters");
+                break;
+            case DB_ERR_HTTP:
+            case DB_ERR_TIMEOUT:
+                send_error(client_fd, header, ERR_SERVER_ERROR, "Database connection failed");
+                break;
+            case DB_ERROR_PARSE:
+                send_error(client_fd, header, ERR_SERVER_ERROR, "Invalid database response");
+                break;
+            default:
+                printf("[AUTH] Account creation error code: %d\n", err);
+                send_error(client_fd, header, ERR_SERVER_ERROR, "Failed to create account");
+                break;
+        }
+        return;
+    }
+    
+    if (!account) {
+        printf("[AUTH] Account creation returned NULL\n");
+        cJSON_Delete(json);
+        send_error(client_fd, header, ERR_SERVER_ERROR, "Account creation failed");
         return;
     }
 
