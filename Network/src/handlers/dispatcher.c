@@ -63,6 +63,9 @@ void dispatch_command(
     case CMD_KICK:
         handle_kick_member(client_fd, header, payload);
         break;
+    case CMD_GET_ROOM_STATE:
+        handle_get_room_state(client_fd, header, payload);
+        break;
 
     // Match Management
     case CMD_START_GAME:

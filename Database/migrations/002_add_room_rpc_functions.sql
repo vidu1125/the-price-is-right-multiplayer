@@ -9,7 +9,6 @@ CREATE OR REPLACE FUNCTION update_room_rules(
     p_room_id INT,
     p_mode VARCHAR(20),
     p_max_players INT,
-    p_round_time INT,
     p_wager_mode BOOLEAN
 ) RETURNS VOID AS $$
 BEGIN
@@ -17,7 +16,6 @@ BEGIN
     SET 
         mode = p_mode,
         max_players = p_max_players,
-        round_time = p_round_time,
         wager_mode = p_wager_mode,
         updated_at = NOW()
     WHERE id = p_room_id

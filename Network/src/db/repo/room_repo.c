@@ -100,9 +100,12 @@ int room_repo_create(
     }
     
     // 6. Build success response
+    cJSON *name_item = cJSON_GetObjectItem(first, "name");
+    const char *room_name = name_item ? name_item->valuestring : "Room";
+    
     snprintf(out_buf, out_size, 
-        "{\"success\":true,\"room_id\":%d,\"room_code\":\"%s\"}",
-        *room_id, code_item->valuestring);
+        "{\"success\":true,\"room_id\":%d,\"room_code\":\"%s\",\"room_name\":\"%s\"}",
+        *room_id, code_item->valuestring, room_name);
     
     cJSON_Delete(response);
     return 0;
@@ -143,6 +146,7 @@ int room_repo_set_rules(
     uint8_t mode,
     uint8_t max_players,
     uint8_t wager_enabled,
+    uint8_t visibility,
     char *out_buf,
     size_t out_size
 ) {
@@ -166,6 +170,7 @@ int room_repo_set_rules(
     cJSON_AddStringToObject(rpc_payload, "p_mode", mode ? "elimination" : "scoring");
     cJSON_AddNumberToObject(rpc_payload, "p_max_players", max_players);
     cJSON_AddBoolToObject(rpc_payload, "p_wager_mode", wager_enabled);
+    cJSON_AddStringToObject(rpc_payload, "p_visibility", visibility ? "private" : "public");
     
     cJSON *response = NULL;
     db_error_t rc = db_rpc("update_room_rules", rpc_payload, &response);
@@ -242,6 +247,38 @@ int room_repo_leave(
     
     snprintf(out_buf, out_size, "{\"success\":true}");
     if (response) cJSON_Delete(response);
+    return 0;
+}
+
+//==============================================================================
+// GET ROOM STATE (Query DB for rules + members)
+//==============================================================================
+int room_repo_get_state(
+    uint32_t room_id,
+    char *out_buf,
+    size_t out_size
+) {
+    // Use RPC to get room state
+    cJSON *payload = cJSON_CreateObject();
+    cJSON_AddNumberToObject(payload, "p_room_id", room_id);
+    
+    cJSON *response = NULL;
+    db_error_t rc = db_rpc("get_room_state", payload, &response);
+    
+    cJSON_Delete(payload);
+    
+    if (rc != DB_OK || !response) {
+        return -1;
+    }
+    
+    // Convert response to string
+    char *json_str = cJSON_PrintUnformatted(response);
+    if (json_str) {
+        snprintf(out_buf, out_size, "%s", json_str);
+        free(json_str);
+    }
+    
+    cJSON_Delete(response);
     return 0;
 }
 
