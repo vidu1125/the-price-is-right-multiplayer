@@ -5,9 +5,19 @@ import AppTitle from "./AppTitle";
 import RoomPanel from "./RoomPanel";
 import { viewHistory } from "../../services/historyService";
 import { useNavigate } from "react-router-dom";
+import { logoutAccount } from "../../services/authService";
 
 export default function Lobby() {
   const navigate = useNavigate(); 
+
+  const handleLogout = async () => {
+    try {
+      await logoutAccount();
+    } catch (err) {
+      console.error("[Lobby] logout failed", err);
+    }
+    navigate("/login");
+  };
   return (
     <div className="lobby">
       {/* 1. USER CARD (Định vị tuyệt đối ở góc trên bên trái) */}
@@ -30,7 +40,7 @@ export default function Lobby() {
             <button>VIEW TUTORIAL</button>
 
             <button>SETTING</button>
-            <button className="logout">LOG OUT</button>
+            <button className="logout" onClick={handleLogout}>LOG OUT</button>
           </div>
         </div>
 
