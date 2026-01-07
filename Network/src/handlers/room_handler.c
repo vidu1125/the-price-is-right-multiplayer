@@ -110,8 +110,8 @@ void handle_create_room(int client_fd, MessageHeader *req, const char *payload) 
         return;
     }
 
-    // 5. Track host as room member
-    room_add_member((int)room_id, client_fd);
+    // 5. Track host as room member (account_id=1 hardcoded for now, is_host=true)
+    room_add_member((int)room_id, client_fd, 1, true);
 
     // 6. Prepare response
     uint32_t result_len = strlen(result_payload);
@@ -353,7 +353,33 @@ void handle_get_room_state(int client_fd, MessageHeader *req, const char *payloa
         return;
     }
     
-    // 4. Send response
+    // 4. Parse JSON to sync players to memory (FIX: sync DB → memory)
+    cJSON *root = cJSON_Parse(resp_buf);
+    if (root) {
+        cJSON *players = cJSON_GetObjectItem(root, "players");
+        if (cJSON_IsArray(players)) {
+            cJSON *player = NULL;
+            cJSON_ArrayForEach(player, players) {
+                cJSON *account_id_obj = cJSON_GetObjectItem(player, "account_id");
+                cJSON *is_host_obj = cJSON_GetObjectItem(player, "is_host");
+                
+                if (cJSON_IsNumber(account_id_obj)) {
+                    uint32_t acc_id = (uint32_t)account_id_obj->valueint;
+                    bool is_host = cJSON_IsTrue(is_host_obj);
+                    
+                    // Use unique fake FD for each DB member (negative to distinguish from real FDs)
+                    // This ensures no duplicate detection issues
+                    int fake_fd = -(int)acc_id - 1000;
+                    room_add_member(room_id, fake_fd, acc_id, is_host);
+                }
+            }
+        }
+        cJSON_Delete(root);
+    }
+    
+    printf("[ROOM] Synced DB state to memory for room=%u\n", room_id);
+    
+    // 5. Send response
     forward_response(client_fd, req, RES_ROOM_STATE, resp_buf, strlen(resp_buf));
 }
 

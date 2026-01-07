@@ -213,18 +213,43 @@ export function startGame(roomId) {
     sendPacket(OPCODE.CMD_START_GAME, buffer);
 }
 
+// Error handler (backup for legacy error codes)
+registerHandler(OPCODE.ERR_BAD_REQUEST, (payload) => {
+    try {
+        const response = JSON.parse(new TextDecoder().decode(payload));
+        
+        console.error('[Host] Start game error:', response);
+        
+        // Dispatch error event
+        window.dispatchEvent(new CustomEvent('game-start-error', { 
+            detail: { message: response.error || 'Unknown error' }
+        }));
+    } catch (e) {
+        console.error('[Host] Parse error:', e);
+        window.dispatchEvent(new CustomEvent('game-start-error', { 
+            detail: { message: 'Failed to start game' }
+        }));
+    }
+});
+
 registerHandler(OPCODE.RES_GAME_STARTED, (payload) => {
     try {
         const response = JSON.parse(new TextDecoder().decode(payload));
 
         if (response.success) {
-            console.log('[Host] Game started, match_id:', response.match_id);
-            localStorage.setItem('current_match_id', response.match_id);
-
-            // Wait for NTF_GAME_START and NTF_ROUND_START
-            alert('Game starting... Get ready!');
+            console.log('[Host] Game started successfully');
+            
+            // Dispatch event to show modal
+            window.dispatchEvent(new CustomEvent('game-starting', { 
+                detail: response 
+            }));
         } else {
-            alert('Failed to start game: ' + response.error);
+            console.error('[Host] Start game failed:', response.error);
+            
+            // Dispatch error event
+            window.dispatchEvent(new CustomEvent('game-start-error', { 
+                detail: { message: response.error }
+            }));
         }
     } catch (e) {
         console.error('[Host] Parse error:', e);
