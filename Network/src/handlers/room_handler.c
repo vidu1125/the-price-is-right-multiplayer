@@ -35,7 +35,7 @@ typedef struct PACKED {
     uint8_t mode;
     uint8_t max_players;
     uint8_t wager_enabled;
-    uint8_t reserved;
+    uint8_t visibility;
 } SetRulesPayload;
 
 typedef struct PACKED {
@@ -224,6 +224,7 @@ void handle_set_rules(int client_fd, MessageHeader *req, const char *payload) {
         data.mode,
         data.max_players,
         data.wager_enabled,
+        data.visibility,
         resp_buf,
         sizeof(resp_buf)
     );
@@ -240,7 +241,7 @@ void handle_set_rules(int client_fd, MessageHeader *req, const char *payload) {
         data.mode ? "elimination" : "scoring",
         data.max_players,
         data.wager_enabled ? "true" : "false",
-        "public" // TODO: get from DB or track in memory
+        data.visibility ? "private" : "public"
     );
     
     // Broadcast rules to all members (INCLUDING host)

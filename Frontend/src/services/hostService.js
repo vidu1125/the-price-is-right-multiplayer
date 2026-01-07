@@ -122,7 +122,7 @@ registerHandler(OPCODE.RES_ROOM_CLOSED, (payload) => {
  * - uint8_t mode
  * - uint8_t max_players
  * - uint8_t wager_enabled
- * - uint8_t reserved
+ * - uint8_t visibility
  */
 export function setRules(roomId, rules) {
     const buffer = new ArrayBuffer(8);
@@ -131,8 +131,8 @@ export function setRules(roomId, rules) {
     view.setUint32(0, roomId, false); // Network byte order
     view.setUint8(4, rules.mode === 'elimination' ? 1 : 0);
     view.setUint8(5, rules.maxPlayers || 6);
-    view.setUint8(6, rules.wagerMode ? 1 : 0);  // ⚠️ Fix: wagerMode not wagerEnabled
-    // view.setUint8(7, 0); // reserved
+    view.setUint8(6, rules.wagerMode ? 1 : 0);
+    view.setUint8(7, rules.visibility === 'private' ? 1 : 0);
 
     console.log('[Host] Setting rules:', rules);
     sendPacket(OPCODE.CMD_SET_RULE, buffer);

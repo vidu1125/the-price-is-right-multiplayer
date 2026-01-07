@@ -146,6 +146,7 @@ int room_repo_set_rules(
     uint8_t mode,
     uint8_t max_players,
     uint8_t wager_enabled,
+    uint8_t visibility,
     char *out_buf,
     size_t out_size
 ) {
@@ -169,6 +170,7 @@ int room_repo_set_rules(
     cJSON_AddStringToObject(rpc_payload, "p_mode", mode ? "elimination" : "scoring");
     cJSON_AddNumberToObject(rpc_payload, "p_max_players", max_players);
     cJSON_AddBoolToObject(rpc_payload, "p_wager_mode", wager_enabled);
+    cJSON_AddStringToObject(rpc_payload, "p_visibility", visibility ? "private" : "public");
     
     cJSON *response = NULL;
     db_error_t rc = db_rpc("update_room_rules", rpc_payload, &response);
