@@ -173,6 +173,7 @@ export function loginAccount({ email, password }) {
 export function reconnectSession({ sessionId } = {}) {
   return new Promise((resolve, reject) => {
     const sid = sessionId || localStorage.getItem("session_id");
+    const storedAccountId = localStorage.getItem("account_id");
     if (!sid) {
       reject({ success: false, error: "Missing session" });
       return;
@@ -196,7 +197,12 @@ export function reconnectSession({ sessionId } = {}) {
       finishAuth({ success: false, error: "Reconnect timed out" }, true);
     }, AUTH_TIMEOUT);
 
-    const payload = encoder.encode(JSON.stringify({ session_id: sid }));
+    const payloadData = { session_id: sid };
+    if (storedAccountId) {
+      payloadData.account_id = Number(storedAccountId);
+    }
+
+    const payload = encoder.encode(JSON.stringify(payloadData));
     sendPacket(OPCODE.CMD_RECONNECT, payload);
   });
 }
