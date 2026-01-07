@@ -4,7 +4,7 @@ import AppTitle from "../Lobby/AppTitle";
 import PageTransition from "../PageTransition";
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import historyService from "../../services/historyService";
+import { viewHistory } from "../../services/historyService";
 
 
 
@@ -21,7 +21,18 @@ const mockHistoryList = [
 
 export default function HistoryPage() {
   const navigate = useNavigate();
-  
+
+  useEffect(() => {
+    console.log("HistoryPage mounted, fetching history...");
+    viewHistory({ limit: 10, offset: 0 })
+      .then(data => {
+        console.log("History received from server:", data);
+        // Note: Not updating state yet, just logging as requested
+      })
+      .catch(err => {
+        console.error("Failed to fetch history:", err);
+      });
+  }, []);
 
   const MAX_MATCHES = 10;
   const displayedMatches = mockHistoryList.slice(0, MAX_MATCHES);
@@ -33,60 +44,60 @@ export default function HistoryPage() {
 
   return (
     <PageTransition>
-    <div className="history-page">
-      {/* Giữ nguyên Style của Lobby */}
-      <UserCard />
-      <div className="history-title-wrapper"><AppTitle title="HISTORY" /></div>
+      <div className="history-page">
+        {/* Giữ nguyên Style của Lobby */}
+        <UserCard />
+        <div className="history-title-wrapper"><AppTitle title="HISTORY" /></div>
 
-      {/* <AppTitle title="HISTORY" /> */}
-      {/* <h2 className="table-inner-title">HISTORY</h2> */}
-      
-      <div className="history-content">
-        <div className="history-container">
-          
-          {/* PHẦN THỐNG KÊ OVERALL */}
-          <div className="overall-stats">
-            <div className="stat-box">
-              <span className="stat-label">MATCHES</span>
-              <span className="stat-value">{totalMatches}</span>
-            </div>
-            <div className="stat-box">
-              <span className="stat-label">TOP 1</span>
-              <span className="stat-value highlight">{top1Wins}</span>
-            </div>
-            <div className="stat-box">
-              <span className="stat-label">Total SCORE</span>
-              <span className={`stat-value ${totalScore >= 0 ? 'win-text' : 'lose-text'}`}>
-                {totalScore > 0 ? `+${totalScore}` : totalScore}
-              </span>
-            </div>
-          </div>
+        {/* <AppTitle title="HISTORY" /> */}
+        {/* <h2 className="table-inner-title">HISTORY</h2> */}
 
-          <div className="history-header">
-            <span>ID</span>
-            <span>MODE</span>
-            <span>FINAL SCORE</span>
-            <span>RANKING</span>
-            <span>ACTION</span>
-          </div>
+        <div className="history-content">
+          <div className="history-container">
 
-          <div className="history-list-fixed">
-            {displayedMatches.map((match) => (
-              <HistoryItem key={match.matchId} match={match} />
-            ))}
-            
-            <div className="no-more-matches">
-              no more matches available
+            {/* PHẦN THỐNG KÊ OVERALL */}
+            <div className="overall-stats">
+              <div className="stat-box">
+                <span className="stat-label">MATCHES</span>
+                <span className="stat-value">{totalMatches}</span>
+              </div>
+              <div className="stat-box">
+                <span className="stat-label">TOP 1</span>
+                <span className="stat-value highlight">{top1Wins}</span>
+              </div>
+              <div className="stat-box">
+                <span className="stat-label">Total SCORE</span>
+                <span className={`stat-value ${totalScore >= 0 ? 'win-text' : 'lose-text'}`}>
+                  {totalScore > 0 ? `+${totalScore}` : totalScore}
+                </span>
+              </div>
             </div>
-          </div>
-          <div className="detail-footer">
+
+            <div className="history-header">
+              <span>ID</span>
+              <span>MODE</span>
+              <span>FINAL SCORE</span>
+              <span>RANKING</span>
+              <span>ACTION</span>
+            </div>
+
+            <div className="history-list-fixed">
+              {displayedMatches.map((match) => (
+                <HistoryItem key={match.matchId} match={match} />
+              ))}
+
+              <div className="no-more-matches">
+                no more matches available
+              </div>
+            </div>
+            <div className="detail-footer">
               <button className="view-btn back-btn" onClick={() => navigate("/history")}>
                 BACK TO LOBBY
               </button>
             </div>
+          </div>
         </div>
       </div>
-    </div>
     </PageTransition>
   );
 }

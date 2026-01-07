@@ -9,18 +9,14 @@ typedef struct PACKED {
     uint8_t reserved; 
 } HistRequestPayload;
 
-typedef struct PACKED {
-    uint32_t match_id;      
-    uint8_t  player_count;  
-    uint8_t  is_winner;      
-    int32_t  final_score;    
-    uint64_t ended_at;      
-} HistoryListItem;
 
 typedef struct {
-    int match_id;
-    int score;
-    int ranking;
+    uint32_t match_id;      
+    uint8_t  mode;          
+    uint8_t  is_winner;      
+    int32_t  final_score;
+    char     ranking[8];
+    uint64_t ended_at;    
 } HistoryRecord;
 
 typedef struct PACKED {
@@ -30,7 +26,7 @@ typedef struct PACKED {
 } HistResponsePayload;
 
 typedef struct PACKED {
-    uint32_t match_id;   // trận cần xem chi tiết
+    uint32_t match_id;  
 } MatchDetailRequestPayload;
 
 typedef struct PACKED {
@@ -43,7 +39,7 @@ typedef struct PACKED {
 } MatchDetailHeader;
 
 typedef struct PACKED {
-    uint32_t player_id;    // match_players.id
+    uint32_t player_id;  
     int32_t  score;
     uint8_t  eliminated;
     uint8_t  forfeited;
