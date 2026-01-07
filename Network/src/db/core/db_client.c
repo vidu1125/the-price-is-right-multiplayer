@@ -125,13 +125,6 @@ static db_error_t http_request(
     if (http_code == 409) return DB_ERR_CONFLICT;
     if (http_code >= 400) return DB_ERR_HTTP;
 
-    // HTTP 204 No Content = success with empty body
-    if (http_code == 204) {
-        *out_json = NULL;
-        free(buf.data);
-        return DB_OK;
-    }
-
     if (!buf.data) return DB_ERR_EMPTY;
 
     *out_json = cJSON_Parse(buf.data);
