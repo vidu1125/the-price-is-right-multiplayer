@@ -178,9 +178,15 @@ registerHandler(OPCODE.RES_MEMBER_KICKED, (payload) => {
         const response = JSON.parse(new TextDecoder().decode(payload));
 
         if (response.success) {
-            console.log('[Host] Member kicked');
+            console.log('[Host] Member kicked successfully, refreshing room state');
+            
+            // Pull fresh snapshot from DB to update UI
+            const roomId = parseInt(localStorage.getItem('room_id'));
+            if (roomId) {
+                getRoomState(roomId);
+            }
+            
             alert('Member kicked successfully');
-            // TODO: Refresh member list
         } else {
             alert('Failed to kick member: ' + response.error);
         }
