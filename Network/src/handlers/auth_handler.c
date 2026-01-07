@@ -397,11 +397,9 @@ void handle_logout(
         return;
     }
 
-    const char *session_id = session_id_json->valuestring;
-
     // Find session
     session_t *session = NULL;
-    db_error_t err = session_find_by_id(session_id, &session);
+    db_error_t err = session_find_by_id(session_id_json->valuestring, &session);
     
     if (err != DB_SUCCESS || !session) {
         cJSON_Delete(json);
@@ -459,6 +457,10 @@ void handle_reconnect(
     }
 
     cJSON *session_id_json = cJSON_GetObjectItem(json, "session_id");
+    cJSON *account_id_json = cJSON_GetObjectItem(json, "account_id");
+    int32_t account_id_hint = (account_id_json && cJSON_IsNumber(account_id_json))
+        ? account_id_json->valueint
+        : 0;
 
     if (!session_id_json || !cJSON_IsString(session_id_json)) {
         cJSON_Delete(json);
@@ -471,6 +473,29 @@ void handle_reconnect(
     // Find session
     session_t *session = NULL;
     db_error_t err = session_find_by_id(session_id, &session);
+
+    // If the DB lost session records (e.g., restart), allow re-issuing a session using
+    // the provided account_id hint instead of failing the reconnect outright.
+    if (err == DB_ERROR_NOT_FOUND && account_id_hint > 0) {
+        printf("[AUTH] Session not found; attempting reissue for account_id=%d\n", account_id_hint);
+        account_t *hint_account = NULL;
+        db_error_t acc_err = account_find_by_id(account_id_hint, &hint_account);
+        if (acc_err == DB_SUCCESS && hint_account) {
+            session_t *reissued = NULL;
+            db_error_t create_err = session_create(account_id_hint, &reissued);
+            if (create_err == DB_SUCCESS && reissued) {
+                session_free(session);
+                session = reissued;
+                err = DB_SUCCESS;
+                printf("[AUTH] Reissued new session_id=%s for account_id=%d\n", session->session_id, account_id_hint);
+            } else {
+                printf("[AUTH] Failed to reissue session for account_id=%d err=%d\n", account_id_hint, create_err);
+            }
+        } else {
+            printf("[AUTH] account_id hint lookup failed id=%d err=%d\n", account_id_hint, acc_err);
+        }
+        if (hint_account) account_free(hint_account);
+    }
     
     if (err != DB_SUCCESS || !session) {
         cJSON_Delete(json);
@@ -490,10 +515,10 @@ void handle_reconnect(
     }
 
     // Update session as connected
-    session_reconnect(session_id);
+    session_reconnect(session->session_id);
 
     // Bind per session rule (reconnect from DISCONNECTED)
-    UserSession *bound = session_bind_after_login(client_fd, account->id, session_id, header);
+    UserSession *bound = session_bind_after_login(client_fd, account->id, session->session_id, header);
     if (!bound) {
         // if blocked, return
         cJSON_Delete(json);
@@ -503,7 +528,7 @@ void handle_reconnect(
     }
 
     // Legacy mapping for other handlers
-    set_client_session(client_fd, session_id, account->id);
+    set_client_session(client_fd, session->session_id, account->id);
 
     // Fetch profile (best effort)
     profile_t *profile = NULL;
