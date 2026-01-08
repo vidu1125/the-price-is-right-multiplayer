@@ -15,6 +15,7 @@ import HistoryPage from "./components/History/historyPage";
 import TutorialPage from "./components/Tutorial/TutorialPage";
 import Login from "./components/Auth/Login";
 import Register from "./components/Auth/Register";
+import PlayerSettings from "./components/Profile/PlayerSettings";
 
 import LobbyLayout from "./layout/layout1";
 import WaitingRoomLayout from "./layout/layout2";
@@ -75,6 +76,7 @@ function AnimatedRoutes() {
           <Route path="/history" element={<HistoryPage />} />
           <Route path="/tutorial" element={<TutorialPage />} />
           <Route path="/match/:id" element={<MatchDetailPage />} />
+          <Route path="/settings" element={<PlayerSettings />} />
         </Route>
 
         {/* ===== WAITING ROOM (PRIVATE) ===== */}

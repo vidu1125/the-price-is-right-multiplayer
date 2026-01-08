@@ -122,3 +122,43 @@ void profile_free(profile_t *profile) {
 	free(profile->badges);
 	free(profile);
 }
+
+// Update profile fields by account_id, return updated representation
+db_error_t profile_update_by_account(
+	int32_t account_id,
+	const char *name,
+	const char *avatar,
+	const char *bio,
+	profile_t **out_profile
+) {
+	if (account_id <= 0 || !out_profile) {
+		return DB_ERROR_INVALID_PARAM;
+	}
+
+	cJSON *payload = cJSON_CreateObject();
+	if (name) cJSON_AddStringToObject(payload, "name", name);
+	if (avatar) cJSON_AddStringToObject(payload, "avatar", avatar);
+	if (bio) cJSON_AddStringToObject(payload, "bio", bio);
+
+	char filter[128];
+	snprintf(filter, sizeof(filter), "account_id=eq.%d", account_id);
+
+	cJSON *response = NULL;
+	db_error_t err = db_patch("profiles", filter, payload, &response);
+	cJSON_Delete(payload);
+
+	if (err != DB_SUCCESS) {
+		if (response) cJSON_Delete(response);
+		return err;
+	}
+
+	if (cJSON_IsArray(response) && cJSON_GetArraySize(response) > 0) {
+		cJSON *item = cJSON_GetArrayItem(response, 0);
+		*out_profile = parse_profile_from_json(item);
+		cJSON_Delete(response);
+		return *out_profile ? DB_SUCCESS : DB_ERROR_PARSE;
+	}
+
+	cJSON_Delete(response);
+	return DB_ERROR_PARSE;
+}
