@@ -21,6 +21,7 @@ import WaitingRoomLayout from "./layout/layout2";
 import GameLayout from "./layout/layout3";
 
 import { initSocket } from "./network/socketClient";
+import MatchDetailPage from "./components/History/MatchDetailPage";
 import {
   isAuthenticated,
   RequireAuth,
@@ -73,6 +74,7 @@ function AnimatedRoutes() {
           <Route path="/lobby" element={<Lobby />} />
           <Route path="/history" element={<HistoryPage />} />
           <Route path="/tutorial" element={<TutorialPage />} />
+          <Route path="/match/:id" element={<MatchDetailPage />} />
         </Route>
 
         {/* ===== WAITING ROOM (PRIVATE) ===== */}
