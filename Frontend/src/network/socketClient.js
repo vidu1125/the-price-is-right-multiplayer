@@ -10,8 +10,6 @@ export function initSocket(url = "ws://localhost:8080") {
 
   socket.onopen = () => {
     console.log("Connected to gateway");
-    // Dispatch event for components waiting on connection
-    window.dispatchEvent(new CustomEvent('socket-connected'));
   };
 
   socket.onmessage = (event) => {

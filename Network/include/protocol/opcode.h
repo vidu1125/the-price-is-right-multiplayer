@@ -17,7 +17,6 @@
 #define CMD_INVITE_FRIEND   0x0205
 #define CMD_SET_RULE        0x0206
 #define CMD_CLOSE_ROOM      0x0207  // Host closes room
-#define CMD_GET_ROOM_STATE  0x0208
 
 // Gameplay
 #define CMD_START_GAME      0x0300
@@ -52,7 +51,6 @@
 #define RES_ROOM_CLOSED     223
 #define RES_RULES_UPDATED   224
 #define RES_MEMBER_KICKED   225
-#define RES_ROOM_STATE      226
 #define RES_GAME_STARTED    301
 
 // Error

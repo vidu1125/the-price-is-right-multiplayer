@@ -20,15 +20,23 @@ void dispatch_command(
     MessageHeader *header,
     const char *payload
 ) {
-    int32_t account_id = 1;   
+    int32_t account_id = 0;   
     uint16_t cmd = header->command;
 
-    printf("[DISPATCH] cmd=0x%04x len=%u\n", cmd, header->length);
-
-    // Require authenticated session for non-auth commands
+    printf("[DISPATCH] Receiving: cmd=0x%04x len=%u\n", cmd, header->length);
     bool is_auth_cmd = (cmd == CMD_LOGIN_REQ || cmd == CMD_REGISTER_REQ || cmd == CMD_RECONNECT || cmd == CMD_LOGOUT_REQ);
+    
     if (!is_auth_cmd) {
         if (!require_auth(client_fd, header)) return;
+        
+        account_id = get_client_account(client_fd);
+        if (account_id == 0) {
+            printf("[DISPATCH] Error: Authenticated query but account_id is 0\n");
+            return;
+        }
+        else {
+            printf("[DISPATCH] Authenticated query, account_id: %d\n", account_id);
+        }
     }
 
     switch (cmd) {
@@ -63,9 +71,6 @@ void dispatch_command(
     case CMD_KICK:
         handle_kick_member(client_fd, header, payload);
         break;
-    case CMD_GET_ROOM_STATE:
-        handle_get_room_state(client_fd, header, payload);
-        break;
 
     // Match Management
     case CMD_START_GAME:
@@ -74,12 +79,18 @@ void dispatch_command(
 
     // History
     case CMD_HIST:
+        printf("[DISPATCH] Parsing to historyHandler\n");        
         handle_history(
             client_fd,
             header,
             payload,
-            account_id    // 🔹 truyền từ dispatcher
+            account_id
         );        
+        break;
+    
+    case CMD_REPLAY:
+        printf("[DISPATCH] Parsing to replayHandler\n");       
+        handle_replay(client_fd, header, payload, account_id);
         break;
 
     default:
