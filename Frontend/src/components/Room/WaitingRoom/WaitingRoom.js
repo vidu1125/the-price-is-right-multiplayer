@@ -95,6 +95,7 @@ export default function WaitingRoom() {
     
     // Listen for server notifications
     const handleRulesChanged = (event) => {
+      console.log('[WaitingRoom] Rules changed event received:', event.detail);
       setGameRules(event.detail);
     };
     
@@ -149,7 +150,7 @@ export default function WaitingRoom() {
       window.removeEventListener('game-starting', handleGameStarting);
       window.removeEventListener('game-start-error', handleStartError);
     };
-  }, [navigate]);
+  }, []); // ✅ FIX: Empty dependency - only run once on mount
 
   // No handleRulesChange - rules are ONLY updated by NTF_RULES_CHANGED
   

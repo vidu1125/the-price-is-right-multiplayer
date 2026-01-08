@@ -353,31 +353,23 @@ void handle_get_room_state(int client_fd, MessageHeader *req, const char *payloa
         return;
     }
     
-    // 4. Parse JSON to sync players to memory (FIX: sync DB → memory)
+    // 4. Parse JSON to sync players to memory (FIX: ONLY update calling client's FD)
     cJSON *root = cJSON_Parse(resp_buf);
     if (root) {
         cJSON *players = cJSON_GetObjectItem(root, "players");
         if (cJSON_IsArray(players)) {
-            cJSON *player = NULL;
-            cJSON_ArrayForEach(player, players) {
-                cJSON *account_id_obj = cJSON_GetObjectItem(player, "account_id");
-                cJSON *is_host_obj = cJSON_GetObjectItem(player, "is_host");
-                
-                if (cJSON_IsNumber(account_id_obj)) {
-                    uint32_t acc_id = (uint32_t)account_id_obj->valueint;
-                    bool is_host = cJSON_IsTrue(is_host_obj);
-                    
-                    // Use unique fake FD for each DB member (negative to distinguish from real FDs)
-                    // This ensures no duplicate detection issues
-                    int fake_fd = -(int)acc_id - 1000;
-                    room_add_member(room_id, fake_fd, acc_id, is_host);
-                }
-            }
+            // Find calling client's account_id from session
+            // For now, we DON'T auto-sync all players with fake FDs
+            // because that breaks room_broadcast()
+            
+            // Just log that we have room state
+            int player_count = cJSON_GetArraySize(players);
+            printf("[ROOM] Room %u has %d players in DB\n", room_id, player_count);
         }
         cJSON_Delete(root);
     }
     
-    printf("[ROOM] Synced DB state to memory for room=%u\n", room_id);
+    printf("[ROOM] Room state retrieved for room=%u\n", room_id);
     
     // 5. Send response
     forward_response(client_fd, req, RES_ROOM_STATE, resp_buf, strlen(resp_buf));

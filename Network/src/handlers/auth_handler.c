@@ -397,9 +397,11 @@ void handle_logout(
         return;
     }
 
+    const char *session_id = session_id_json->valuestring;
+
     // Find session
     session_t *session = NULL;
-    db_error_t err = session_find_by_id(session_id_json->valuestring, &session);
+    db_error_t err = session_find_by_id(session_id, &session);
     
     if (err != DB_SUCCESS || !session) {
         cJSON_Delete(json);
@@ -420,8 +422,8 @@ void handle_logout(
     }
 
     // Clear binding and session state
-    clear_client_session(client_fd);
     UserSession *us = session_get_by_socket(client_fd);
+    clear_client_session(client_fd);
     if (us) {
         session_destroy(us);
     }

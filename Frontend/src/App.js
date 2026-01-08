@@ -27,6 +27,9 @@ import {
 } from "./services/authGuard";
 import { useAuthBootstrap } from "./services/authBootstrap";
 
+// ✅ Import để đăng ký room handlers (NTF_RULES_CHANGED, NTF_PLAYER_LIST, etc.)
+import "./services/hostService";
+
 import "./App.css";
 
 function AnimatedRoutes() {
