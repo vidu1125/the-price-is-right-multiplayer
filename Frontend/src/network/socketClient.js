@@ -40,3 +40,28 @@ export function sendRaw(buffer) {
 export function isConnected() {
   return socket && socket.readyState === WebSocket.OPEN;
 }
+
+export function waitForConnection(timeout = 5000) {
+  return new Promise((resolve, reject) => {
+    if (isConnected()) {
+      resolve();
+      return;
+    }
+
+    const interval = 100;
+    let elapsed = 0;
+
+    const check = setInterval(() => {
+      if (isConnected()) {
+        clearInterval(check);
+        resolve();
+      } else {
+        elapsed += interval;
+        if (elapsed >= timeout) {
+          clearInterval(check);
+          reject(new Error("Connection timeout"));
+        }
+      }
+    }, interval);
+  });
+}

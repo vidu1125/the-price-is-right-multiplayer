@@ -1,6 +1,7 @@
 import { sendPacket } from "../network/dispatcher";
 import { registerHandler } from "../network/receiver";
 import { OPCODE } from "../network/opcode";
+import { waitForConnection } from "../network/socketClient";
 
 const decoder = new TextDecoder();
 let historyPending = null;
@@ -64,7 +65,15 @@ export function viewHistory({ limit = 10, offset = 0, forceUpdate = false } = {}
     view.setUint8(0, limit);
     view.setUint8(1, offset);
 
-    sendPacket(OPCODE.CMD_HIST, buffer);
+    waitForConnection().then(() => {
+      sendPacket(OPCODE.CMD_HIST, buffer);
+    }).catch(err => {
+      console.error("[SERVICE] <viewHistory> connection failed", err);
+      if (historyPending) {
+        historyPending.reject(err);
+        historyPending = null;
+      }
+    });
   });
 }
 
