@@ -84,7 +84,6 @@ Table matches {
   mode varchar(20)
   max_players int
   advanced jsonb
-  round_time int
   started_at timestamp
   ended_at timestamp
 }
