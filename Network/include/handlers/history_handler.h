@@ -72,6 +72,13 @@ void handle_history(
     int32_t account_id
 );
 
+void handle_replay(
+    int client_fd,
+    MessageHeader *req_header,
+    const char *payload,
+    int32_t account_id
+);
+
 
 // New Payloads for CMD_HIST
 typedef struct PACKED {

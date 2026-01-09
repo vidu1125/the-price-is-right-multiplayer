@@ -203,13 +203,11 @@ MCQ:
 }
 	WHEEL
 {
-  "segments": [
-        { "value": 0,   "weight": 40 },
-        { "value": 50,  "weight": 30 },
-        { "value": 100, "weight": 20 },
-        { "value": 200, "weight": 10 }
-  ]
+  "type": "wheel",
+  "segments": [0, 10, 20, 30, 40, 50, -20, 100],
+  "label": "classic_wheel"
 }
+
 	BONUS
 {
   "question": "...",

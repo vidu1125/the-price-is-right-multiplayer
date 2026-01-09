@@ -32,3 +32,8 @@ int match_repo_start(
     char *out_buf,
     size_t out_size
 );
+
+db_error_t db_match_get_detail(
+    uint32_t match_id,
+    cJSON **out_json
+);

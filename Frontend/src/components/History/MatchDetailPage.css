@@ -393,3 +393,34 @@
 .mode-text {
   color: #3498db !important;
 }
+
+/* Badge trạng thái */
+.status-badge {
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-family: 'Luckiest Guy', cursive;
+  letter-spacing: 0.5px;
+}
+
+.status-badge.eliminated {
+  background: rgba(231, 76, 60, 0.2);
+  color: #e74c3c;
+  border: 1px solid #e74c3c;
+}
+
+.status-badge.forfeit {
+  background: rgba(149, 165, 166, 0.2);
+  color: #bdc3c7;
+  border: 1px solid #bdc3c7;
+}
+
+/* Làm mờ dòng của người chơi không còn tham gia */
+.player-row.has-status {
+  opacity: 0.7;
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.player-row.has-status .p-name {
+  text-decoration: line-through;
+}

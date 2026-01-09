@@ -10,9 +10,6 @@
 #include "protocol/opcode.h"
 #include "protocol/protocol.h"
 
-#include "handlers/session_context.h"
-#include "handlers/auth_guard.h"
-
 #include <string.h>
 
 void dispatch_command(

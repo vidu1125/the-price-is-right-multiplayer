@@ -133,7 +133,7 @@ function HistoryItem({ match }) {
       <div className="action-col">
         <button
           className="view-btn"
-          onClick={() => navigate(`/match/${match.matchId}`)}
+          onClick={() => navigate(`/match/${match.matchId}`, { state: { match } })}
         >
           VIEW
         </button>

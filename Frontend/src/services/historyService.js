@@ -187,10 +187,13 @@ registerHandler(OPCODE.CMD_REPLAY, (payload) => {
     clearTimeout(pendingMatchDetail.timeoutId);
     try {
       // TODO: Parse actual binary detail data here
-      // For now, logging and resolving empty object with raw payload
-      console.log("[SERVICE] <viewMatchDetails> Received data");
+      const jsonString = decoder.decode(payload);
+      // Backend might send null terminator, trim it
+      const cleanJson = jsonString.replace(/\0/g, '');
+      console.log("[SERVICE] <viewMatchDetails> JSON:", cleanJson);
 
-      pendingMatchDetail.resolve({ matchId: 0, rawData: payload });
+      const matchDetails = JSON.parse(cleanJson);
+      pendingMatchDetail.resolve(matchDetails);
 
     } catch (e) {
       console.error("[SERVICE] <viewMatchDetails> Parse error", e);
