@@ -8,8 +8,6 @@
 #include "db/repo/session_repo.h"
 #include "db/repo/profile_repo.h"
 #include "handlers/session_context.h"
-#include "transport/room_manager.h"
-#include "handlers/session_manager.h"
 #include "protocol/protocol.h"
 #include "protocol/opcode.h"
 #include "utils/crypto.h"
@@ -171,20 +169,6 @@ void handle_login(
     // TODO: Fetch profile data
     // For now, send basic response
 
-    // Enforce session exclusivity and bind mapping per session rule
-    UserSession *bound = session_bind_after_login(client_fd, account->id, session->session_id, header);
-    if (!bound) {
-        // Blocked by session rule (playing and connected); close new login
-        cJSON_Delete(json);
-        account_free(account);
-        session_free(session);
-        profile_free(profile);
-        return;
-    }
-
-    // Bind legacy mapping for handlers that rely on it
-    set_client_session(client_fd, session->session_id, account->id);
-
     // Build success response
     cJSON *response = cJSON_CreateObject();
     cJSON_AddBoolToObject(response, "success", true);
@@ -193,6 +177,9 @@ void handle_login(
     add_profile_to_response(response, profile, account);
 
     send_response(client_fd, header, RES_LOGIN_OK, response);
+
+    // Bind session to this connection for downstream commands
+    set_client_session(client_fd, session->session_id, account->id);
 
     printf("[AUTH] Login successful: account_id=%d, session_id=%s\n", 
            account->id, session->session_id);
@@ -410,23 +397,12 @@ void handle_logout(
     }
 
     // TODO: Remove player from any active rooms
-    room_remove_member_all(client_fd);
 
-    // Mark session disconnected in DB and keep record
-    printf("[AUTH] Marking session disconnected: %s\n", session_id);
-    db_error_t update_err = session_update_connected(session_id, false);
-    if (update_err != DB_SUCCESS) {
-        printf("[AUTH] Failed to update session connected status: err=%d\n", update_err);
-    } else {
-        printf("[AUTH] Session marked disconnected successfully\n");
-    }
+    // Delete session
+    session_delete(session_id);
 
-    // Clear binding and session state
+    // Clear binding
     clear_client_session(client_fd);
-    UserSession *us = session_get_by_socket(client_fd);
-    if (us) {
-        session_destroy(us);
-    }
 
     // Build success response
     cJSON *response = cJSON_CreateObject();
@@ -459,10 +435,6 @@ void handle_reconnect(
     }
 
     cJSON *session_id_json = cJSON_GetObjectItem(json, "session_id");
-    cJSON *account_id_json = cJSON_GetObjectItem(json, "account_id");
-    int32_t account_id_hint = (account_id_json && cJSON_IsNumber(account_id_json))
-        ? account_id_json->valueint
-        : 0;
 
     if (!session_id_json || !cJSON_IsString(session_id_json)) {
         cJSON_Delete(json);
@@ -475,29 +447,6 @@ void handle_reconnect(
     // Find session
     session_t *session = NULL;
     db_error_t err = session_find_by_id(session_id, &session);
-
-    // If the DB lost session records (e.g., restart), allow re-issuing a session using
-    // the provided account_id hint instead of failing the reconnect outright.
-    if (err == DB_ERROR_NOT_FOUND && account_id_hint > 0) {
-        printf("[AUTH] Session not found; attempting reissue for account_id=%d\n", account_id_hint);
-        account_t *hint_account = NULL;
-        db_error_t acc_err = account_find_by_id(account_id_hint, &hint_account);
-        if (acc_err == DB_SUCCESS && hint_account) {
-            session_t *reissued = NULL;
-            db_error_t create_err = session_create(account_id_hint, &reissued);
-            if (create_err == DB_SUCCESS && reissued) {
-                session_free(session);
-                session = reissued;
-                err = DB_SUCCESS;
-                printf("[AUTH] Reissued new session_id=%s for account_id=%d\n", session->session_id, account_id_hint);
-            } else {
-                printf("[AUTH] Failed to reissue session for account_id=%d err=%d\n", account_id_hint, create_err);
-            }
-        } else {
-            printf("[AUTH] account_id hint lookup failed id=%d err=%d\n", account_id_hint, acc_err);
-        }
-        if (hint_account) account_free(hint_account);
-    }
     
     if (err != DB_SUCCESS || !session) {
         cJSON_Delete(json);
@@ -517,20 +466,10 @@ void handle_reconnect(
     }
 
     // Update session as connected
-    session_reconnect(session->session_id);
+    session_reconnect(session_id);
 
-    // Bind per session rule (reconnect from DISCONNECTED)
-    UserSession *bound = session_bind_after_login(client_fd, account->id, session->session_id, header);
-    if (!bound) {
-        // if blocked, return
-        cJSON_Delete(json);
-        account_free(account);
-        session_free(session);
-        return;
-    }
-
-    // Legacy mapping for other handlers
-    set_client_session(client_fd, session->session_id, account->id);
+    // Bind session to this connection
+    set_client_session(client_fd, session_id, account->id);
 
     // Fetch profile (best effort)
     profile_t *profile = NULL;

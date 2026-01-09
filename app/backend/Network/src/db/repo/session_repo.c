@@ -163,8 +163,6 @@ db_error_t session_update_connected(
         return DB_ERROR_INVALID_PARAM;
     }
 
-    printf("[SESSION_REPO] Updating session %s connected=%d\n", session_id, connected);
-
     // Build filter: session_id=eq.{session_id}
     char filter[128];
     snprintf(filter, sizeof(filter), "session_id=eq.%s", session_id);
@@ -175,8 +173,6 @@ db_error_t session_update_connected(
 
     cJSON *response = NULL;
     db_error_t err = db_patch("sessions", filter, payload, &response);
-    
-    printf("[SESSION_REPO] PATCH result: err=%d\n", err);
     
     cJSON_Delete(payload);
     if (response) cJSON_Delete(response);
