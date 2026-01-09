@@ -1,8 +1,6 @@
 #include <string.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <arpa/inet.h>
-#include <cjson/cJSON.h>
 #include "handlers/room_handler.h"
 #include "handlers/session_manager.h"
 #include "protocol/opcode.h"
@@ -26,8 +24,9 @@ typedef struct PACKED {
     uint8_t visibility;
     uint8_t mode;
     uint8_t max_players;
+    uint8_t round_time;
     uint8_t wager_enabled;
-    uint8_t reserved[4];
+    uint8_t reserved[3];
 } CreateRoomPayload;
 
 typedef struct PACKED {
@@ -38,8 +37,8 @@ typedef struct PACKED {
     uint32_t room_id;
     uint8_t mode;
     uint8_t max_players;
+    uint8_t round_time;
     uint8_t wager_enabled;
-    uint8_t visibility;
 } SetRulesPayload;
 
 typedef struct PACKED {
@@ -268,7 +267,6 @@ void handle_set_rules(int client_fd, MessageHeader *req, const char *payload) {
         data.mode,
         data.max_players,
         data.wager_enabled,
-        data.visibility,
         resp_buf,
         sizeof(resp_buf)
     );
@@ -278,19 +276,9 @@ void handle_set_rules(int client_fd, MessageHeader *req, const char *payload) {
         return;
     }
 
-    // 6. Build rules notification payload
-    char rules_json[256];
-    snprintf(rules_json, sizeof(rules_json),
-        "{\"mode\":\"%s\",\"max_players\":%u,\"wager_mode\":%s,\"visibility\":\"%s\"}",
-        data.mode ? "elimination" : "scoring",
-        data.max_players,
-        data.wager_enabled ? "true" : "false",
-        data.visibility ? "private" : "public"
-    );
-    
-    // Broadcast rules to all members (INCLUDING host)
+    // 6. Broadcast success to all members (except host)
     room_broadcast(room_id, NTF_RULES_CHANGED,
-              rules_json, strlen(rules_json), -1);
+              resp_buf, strlen(resp_buf), client_fd);
 
     // 7. Forward response to host
     forward_response(client_fd, req, RES_RULES_UPDATED,
@@ -341,31 +329,11 @@ void handle_kick_member(int client_fd, MessageHeader *req, const char *payload) 
         return;
     }
 
-    // 5. Notify kicked player (send account_id so client knows if it's them)
-    char kick_notif[64];
-    snprintf(kick_notif, sizeof(kick_notif), "{\"account_id\":%u}", target_id);
-    room_broadcast(room_id, NTF_MEMBER_KICKED, kick_notif, strlen(kick_notif), -1);
+    // 5. Broadcast success to all members
+    room_broadcast(room_id, NTF_MEMBER_KICKED,
+              resp_buf, strlen(resp_buf), -1);
 
-    // 6. Query updated player list and broadcast
-    char state_buf[4096];
-    rc = room_repo_get_state(room_id, state_buf, sizeof(state_buf));
-    if (rc == 0) {
-        // Parse JSON to extract players array
-        cJSON *root = cJSON_Parse(state_buf);
-        if (root) {
-            cJSON *players = cJSON_GetObjectItem(root, "players");
-            if (players) {
-                char *players_str = cJSON_PrintUnformatted(players);
-                if (players_str) {
-                    room_broadcast(room_id, NTF_PLAYER_LIST, players_str, strlen(players_str), -1);
-                    free(players_str);
-                }
-            }
-            cJSON_Delete(root);
-        }
-    }
-
-    // 7. Forward response to host
+    // 6. Forward response to host
     forward_response(client_fd, req, RES_MEMBER_KICKED,
                     resp_buf, strlen(resp_buf));
 

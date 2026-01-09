@@ -7,9 +7,12 @@ const VERSION = 1;
 let seqNum = 1;
 
 export function sendPacket(command, payload = null) {
-  if (!isConnected()) {
-    console.warn("⚠️ Socket not connected");
-    return;
+  const connected = isConnected();
+  console.log("[DISPATCH] isConnected:", connected);
+  
+  if (!connected) {
+    console.warn("⚠️ Socket not connected, cannot send command 0x" + command.toString(16));
+    return false;
   }
 
   const payloadLen = payload ? payload.byteLength : 0;
@@ -32,10 +35,12 @@ export function sendPacket(command, payload = null) {
     new Uint8Array(buffer, HEADER_SIZE).set(new Uint8Array(payload));
   }
 
-  console.log("[DISPATCH] send", {
-    command: command.toString(16),
+  console.log("[DISPATCH] ✅ sending", {
+    command: "0x" + command.toString(16),
     payloadLen,
+    buffer: new Uint8Array(buffer)
   });
 
   sendRaw(buffer);
+  return true;
 }

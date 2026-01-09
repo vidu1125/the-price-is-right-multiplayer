@@ -12,14 +12,17 @@ import Lobby from "./components/Lobby/Lobby";
 import WaitingRoom from "./components/Room/WaitingRoom/WaitingRoom";
 import GameContainer from "./components/Game/GameContainer";
 import HistoryPage from "./components/History/historyPage";
+import TutorialPage from "./components/Tutorial/TutorialPage";
 import Login from "./components/Auth/Login";
 import Register from "./components/Auth/Register";
+import PlayerSettings from "./components/Profile/PlayerSettings";
 
 import LobbyLayout from "./layout/layout1";
 import WaitingRoomLayout from "./layout/layout2";
 import GameLayout from "./layout/layout3";
 
 import { initSocket } from "./network/socketClient";
+import MatchDetailPage from "./components/History/MatchDetailPage";
 import {
   isAuthenticated,
   RequireAuth,
@@ -74,6 +77,9 @@ function AnimatedRoutes() {
         >
           <Route path="/lobby" element={<Lobby />} />
           <Route path="/history" element={<HistoryPage />} />
+          <Route path="/tutorial" element={<TutorialPage />} />
+          <Route path="/match/:id" element={<MatchDetailPage />} />
+          <Route path="/settings" element={<PlayerSettings />} />
         </Route>
 
         {/* ===== WAITING ROOM (PRIVATE) ===== */}

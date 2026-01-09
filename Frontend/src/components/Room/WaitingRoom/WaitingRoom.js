@@ -6,9 +6,6 @@ import GameRulesPanel from "./GameRulesPanel";
 import MemberListPanel from "./MemberListPanel";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
-// Import to register notification handlers AND access cached snapshots
-import { getLatestRulesSnapshot, getLatestPlayersSnapshot, clearSnapshots, getRoomState, startGame } from "../../../services/hostService";
-import { isConnected } from "../../../network/socketClient";
 
 export default function WaitingRoom() {
   const location = useLocation();
@@ -17,12 +14,12 @@ export default function WaitingRoom() {
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   
-  // Game rules state - ONLY updated by server notifications
+  // Game rules state
   const [gameRules, setGameRules] = useState({
     maxPlayers: 5,
-    mode: "scoring",
-    wagerMode: false,
-    visibility: "public"
+    mode: "eliminate",
+    wagerMode: true,
+    roundTime: "normal"
   });
 
   // Get room info from sessionStorage (ONLY roomId, roomCode, isHost)
@@ -36,15 +33,8 @@ export default function WaitingRoom() {
   const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
-    // Load ONLY roomId, roomCode, isHost from localStorage
-    const storedRoomId = localStorage.getItem('room_id');
-    const storedRoomCode = localStorage.getItem('room_code');
-    const storedIsHost = localStorage.getItem('is_host') === 'true';
-    const storedRoomName = localStorage.getItem('room_name') || 'Room';
-    
-    if (!storedRoomId) {
-      console.error("No room ID found");
-      alert("Please create or join a room first.");
+    if (!roomId) {
+      console.error("No room ID provided");
       navigate('/lobby');
       return;
     }
@@ -165,11 +155,34 @@ export default function WaitingRoom() {
     };
   }, []); // ✅ FIX: Empty dependency - only run once on mount
 
-  // No handleRulesChange - rules are ONLY updated by NTF_RULES_CHANGED
-  
-  const handleStartGame = () => {
-    if (roomId) {
-      startGame(roomId);
+  const fetchRoomData = async (id) => {
+    try {
+      const response = await fetch(`http://localhost:5000/api/room/${id}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        setRoomData(data.room);
+        setMembers(data.room.members || []);
+        
+        // Load game rules from room data
+        setGameRules({
+          maxPlayers: data.room.max_players || 5,
+          visibility: data.room.visibility || "public",
+          mode: data.room.mode || "scoring",
+          wagerMode: data.room.wager_mode ?? false,
+          roundTime: data.room.round_time || "normal"
+        });
+      } else {
+        console.error("Failed to fetch room:", data.error);
+        alert("Failed to load room: " + data.error);
+        navigate('/lobby');
+      }
+    } catch (error) {
+      console.error("Error fetching room:", error);
+      alert("Error loading room");
+      navigate('/lobby');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -181,7 +194,12 @@ export default function WaitingRoom() {
     return null;
   }
 
-  // No longer need roomInfo object
+  const roomInfo = {
+    id: roomId,
+    name: roomData.name || "Room",
+    code: roomCode || roomData.code || "N/A",
+    isHost: isHost || false,
+  };
 
   return (
     <div 
@@ -204,9 +222,10 @@ export default function WaitingRoom() {
         {/* CỘT 1: GAME RULES (BÊN TRÁI) */}
         <div className="wr-left">
           <GameRulesPanel 
-            isHost={isHost}
-            roomId={roomId}
+            isHost={roomInfo.isHost}
+            roomId={roomInfo.id}
             gameRules={gameRules}
+            onRulesChange={setGameRules}
           />
         </div>
 
@@ -220,122 +239,20 @@ export default function WaitingRoom() {
             roomCode={roomCode}
             maxPlayers={gameRules.maxPlayers}
             members={members}
-            onRefresh={() => console.log('[TODO] Refresh members')}
+            onRefresh={() => fetchRoomData(roomId)}
           />
         </div>
 
         {/* CỘT 3: CÁC NÚT HÀNH ĐỘNG (BÊN PHẢI) */}
         <div className="wr-right-actions">
-          {isHost && (
-            <button className="start-game-btn" onClick={handleStartGame}>
-              START GAME
-            </button>
+          {roomInfo.isHost && (
+            <button className="start-game-btn">START GAME</button>
           )}
           <button className="invite-btn">INVITE FRIENDS</button>
           <button className="leave-btn">LEAVE ROOM</button>
         </div>
 
       </div>
-      
-      {/* Error Modal */}
-      {errorMessage && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0, 0, 0, 0.85)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 9999
-        }}>
-          <div style={{
-            background: '#1a1a2e',
-            border: '3px solid #ff6b6b',
-            borderRadius: '20px',
-            padding: '50px',
-            textAlign: 'center',
-            minWidth: '450px',
-            boxShadow: '0 20px 60px rgba(255, 107, 107, 0.3)'
-          }}>
-            <h2 style={{ 
-              color: '#ff6b6b', 
-              fontSize: '2.5em',
-              marginBottom: '20px',
-              fontWeight: 'bold'
-            }}>
-              ❌ Cannot Start Game
-            </h2>
-            <p style={{ 
-              fontSize: '1.3em',
-              color: '#fff',
-              marginBottom: '30px',
-              lineHeight: '1.6'
-            }}>
-              {errorMessage}
-            </p>
-            <button 
-              onClick={() => setErrorMessage('')}
-              style={{
-                padding: '12px 40px',
-                fontSize: '1.1em',
-                background: '#ff6b6b',
-                border: 'none',
-                borderRadius: '10px',
-                color: 'white',
-                cursor: 'pointer',
-                fontWeight: 'bold'
-              }}
-            >
-              OK
-            </button>
-          </div>
-        </div>
-      )}
-      
-      {/* Success Modal */}
-      {showStartModal && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0, 0, 0, 0.9)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 9999
-        }}>
-          <div style={{
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            border: '3px solid #4ecdc4',
-            borderRadius: '20px',
-            padding: '60px',
-            textAlign: 'center',
-            minWidth: '500px',
-            animation: 'pulse 1s infinite'
-          }}>
-            <h1 style={{ 
-              color: '#fff', 
-              fontSize: '4em',
-              marginBottom: '20px',
-              textShadow: '0 0 20px rgba(255,255,255,0.5)'
-            }}>
-              🎮 Game Starting!
-            </h1>
-            <p style={{ 
-              fontSize: '1.5em',
-              color: '#4ecdc4',
-              fontWeight: 'bold'
-            }}>
-              Get Ready...
-            </p>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

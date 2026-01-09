@@ -53,14 +53,4 @@ void handle_leave_room(
     const char *payload
 );
 
-/**
- * Handle CMD_GET_ROOM_STATE (0x0208)
- * Pull room snapshot from DB (rules + members)
- */
-void handle_get_room_state(
-    int client_fd,
-    MessageHeader *req,
-    const char *payload
-);
-
 #endif // ROOM_HANDLER_H
