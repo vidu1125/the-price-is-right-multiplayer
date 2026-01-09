@@ -5,10 +5,11 @@
 #include <stdio.h>
 #include <unistd.h>
 #include "db/repo/session_repo.h"
+#include "handlers/session_context.h"
 
 #define MAX_SESSIONS 1024
 #define HEARTBEAT_TIMEOUT_SEC 15
-#define RECONNECT_GRACE_SEC 45
+#define RECONNECT_GRACE_SEC 300
 
 static UserSession g_sessions[MAX_SESSIONS];
 
@@ -68,11 +69,15 @@ UserSession* session_bind_after_login(int socket_fd, int32_t account_id, const c
     switch (existing->state) {
         case SESSION_LOBBY:
         case SESSION_UNAUTHENTICATED: {
-            // Force logout old
+            // Soft logout old (do not close app/socket)
             send_msg(existing->socket_fd, req, ERR_NOT_LOGGED_IN, "Forced logout (new login)");
-            close(existing->socket_fd);
             // Remove old socket from any rooms just in case
             room_remove_member_all(existing->socket_fd);
+            // Clear old socket auth context and mark session disconnected in DB (best effort)
+            if (strlen(existing->session_id) > 0) {
+                session_update_connected(existing->session_id, false);
+            }
+            clear_client_session(existing->socket_fd);
             // Rebind to new socket
             existing->socket_fd = socket_fd;
             strncpy(existing->session_id, session_id, sizeof(existing->session_id) - 1);
