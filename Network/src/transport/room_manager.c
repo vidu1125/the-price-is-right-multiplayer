@@ -1,5 +1,6 @@
 #include "transport/room_manager.h"
 #include "protocol/protocol.h"
+#include "protocol/opcode.h"
 #include <string.h>
 #include <stdio.h>
 #include <sys/socket.h>
@@ -103,7 +104,23 @@ void room_remove_member(int room_id, int client_fd) {
 void room_remove_member_all(int client_fd) {
     // Remove from all rooms (when client disconnects)
     for (int i = 0; i < g_room_count; i++) {
-        room_remove_member(g_rooms[i].room_id, client_fd);
+        RoomState *room = &g_rooms[i];
+        // Check membership first
+        int was_member = 0;
+        for (int j = 0; j < room->member_count; j++) {
+            if (room->member_fds[j] == client_fd) {
+                was_member = 1;
+                break;
+            }
+        }
+        if (!was_member) continue;
+
+        // Remove member
+        room_remove_member(room->room_id, client_fd);
+
+        // Broadcast that player left
+        const char *msg = "Player left the room";
+        room_broadcast(room->room_id, NTF_PLAYER_LEFT, msg, (uint32_t)strlen(msg), -1);
     }
 }
 

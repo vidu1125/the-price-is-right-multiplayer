@@ -8,11 +8,11 @@ import { waitForConnection } from '../../../network/socketClient';
 const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
     // Game phase: 'connecting' -> 'playing' -> 'waiting' -> 'summary'
     const [gamePhase, setGamePhase] = useState('connecting');
-    
+
     // Connection state
     const [connectedPlayers, setConnectedPlayers] = useState([]);
     const [connectionCountdown, setConnectionCountdown] = useState(5);
-    
+
     // Question state
     const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
     const [questionData, setQuestionData] = useState(null);
@@ -21,17 +21,17 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
     const [score, setScore] = useState(0);
     const [isAnswered, setIsAnswered] = useState(false);
     const [correctIndex, setCorrectIndex] = useState(null);
-    
+
     // Waiting state
     const [finishedCount, setFinishedCount] = useState(0);
     const [playerCount, setPlayerCount] = useState(0);
-    
+
     // Summary screen state
     const [summaryData, setSummaryData] = useState(null);
     const [summaryCountdown, setSummaryCountdown] = useState(10);
     const [activePlayers, setActivePlayers] = useState([]); // Track connected players
     const [disconnectedPlayers, setDisconnectedPlayers] = useState([]); // Track who disconnected
-    
+
     const startTime = useRef(null);
     const timerRef = useRef(null);
     const summaryTimerRef = useRef(null);
@@ -46,21 +46,21 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
     //==========================================================================
     useEffect(() => {
         console.log('[Round1] Auto-connecting player ' + playerId + ' to match ' + matchId);
-        
+
         let isMounted = true;
         let retryInterval = null;
-        
+
         const connectAndReady = async () => {
             try {
                 console.log('[Round1] Waiting for socket connection...');
                 await waitForConnection(5000);
                 console.log('[Round1] Socket connected! Sending playerReady...');
-                
+
                 if (!isMounted) return;
-                
+
                 // Gửi playerReady
                 playerReady(matchId, playerId);
-                
+
                 // Retry mỗi 1s cho đến khi game start
                 retryInterval = setInterval(() => {
                     if (!gameStartedRef.current && isMounted) {
@@ -70,14 +70,14 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
                         clearInterval(retryInterval);
                     }
                 }, 1000);
-                
+
             } catch (err) {
                 console.error('[Round1] Failed to connect:', err);
             }
         };
-        
+
         connectAndReady();
-        
+
         // Countdown để hiển thị trạng thái kết nối (tăng lên 10s)
         setConnectionCountdown(10);
         connectionTimerRef.current = setInterval(() => {
@@ -89,7 +89,7 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
                 return prev - 1;
             });
         }, 1000);
-        
+
         return () => {
             isMounted = false;
             if (connectionTimerRef.current) clearInterval(connectionTimerRef.current);
@@ -119,14 +119,14 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
         const handleAllReady = (e) => {
             const data = e.detail;
             console.log('[Round1] All connected, starting game!', data);
-            
+
             if (gameStartedRef.current) return;
             gameStartedRef.current = true;
-            
+
             if (connectionTimerRef.current) clearInterval(connectionTimerRef.current);
             setGamePhase('playing');
             setPlayerCount(data.player_count || 4);
-            
+
             // Start loading first question
             setTimeout(() => {
                 questionReceivedRef.current = false;
@@ -155,32 +155,32 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
         const handleQuestion = (e) => {
             const data = e.detail;
             console.log('[Round1] Question received:', data);
-            
+
             if (!data.success) {
                 console.error('[Round1] Failed to get question:', data.error);
                 return;
             }
-            
+
             questionReceivedRef.current = true;
-            
+
             setQuestionData(data);
             setSelectedAnswer(null);
             setIsAnswered(false);
             setTimeLeft(15);
             setCorrectIndex(null);
             startTime.current = Date.now();
-            
+
             // Dispatch initial timer
             window.dispatchEvent(new CustomEvent('timerUpdate', { detail: { timeLeft: 15 } }));
-            
+
             if (timerRef.current) clearInterval(timerRef.current);
             timerRef.current = setInterval(() => {
                 setTimeLeft(prev => {
                     const newTime = prev <= 1 ? 0 : prev - 1;
-                    
+
                     // Dispatch timer update to GameContainer
                     window.dispatchEvent(new CustomEvent('timerUpdate', { detail: { timeLeft: newTime } }));
-                    
+
                     if (newTime <= 0) {
                         clearInterval(timerRef.current);
                         handleTimeout();
@@ -201,27 +201,27 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
         const handleResult = (e) => {
             const data = e.detail;
             console.log('[Round1] Answer result:', data);
-            
+
             clearInterval(timerRef.current);
             setIsAnswered(true);
             setCorrectIndex(data.correct_index);
-            
+
             // Add score
             const addedScore = data.score || 0;
             scoreRef.current += addedScore;
             setScore(scoreRef.current);
-            
+
             console.log('[Round1] Score: +' + addedScore + ', Total: ' + scoreRef.current);
-            
+
             // Dispatch score update
-            window.dispatchEvent(new CustomEvent('round1ScoreUpdate', { 
-                detail: { score: addedScore, totalScore: scoreRef.current } 
+            window.dispatchEvent(new CustomEvent('round1ScoreUpdate', {
+                detail: { score: addedScore, totalScore: scoreRef.current }
             }));
-            
+
             // Wait 2s then load next question
             setTimeout(() => {
                 const nextIdx = currentIdxRef.current + 1;
-                
+
                 if (nextIdx < 10) {
                     currentIdxRef.current = nextIdx;
                     setCurrentQuestionIdx(nextIdx);
@@ -248,7 +248,7 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
             console.log('[Round1] ⏳ WAITING status received:', data);
             setFinishedCount(data.finished_count || 0);
             setPlayerCount(data.player_count || 0);
-            
+
             // Check if this is a reconnection response
             if (data.reconnected) {
                 console.log('[Round1] 🔄🔄🔄 RECONNECTED! Showing waiting screen...');
@@ -276,21 +276,21 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
             const data = e.detail;
             console.log('[Round1] 🏆🏆🏆 ALL_FINISHED received! Current phase:', gamePhase);
             console.log('[Round1] Scoreboard data:', data);
-            
+
             setSummaryData(data);
-            
+
             // Separate connected and disconnected players from server response
             const allPlayers = data.players || [];
             const connected = allPlayers.filter(p => p.connected !== false);
             const disconnected = allPlayers.filter(p => p.connected === false);
-            
+
             setActivePlayers(connected);
             setDisconnectedPlayers(disconnected);
             setGamePhase('summary');
             setSummaryCountdown(10);
-            
+
             console.log('[Round1] Active players:', connected.length, 'Disconnected:', disconnected.length);
-            
+
             if (summaryTimerRef.current) clearInterval(summaryTimerRef.current);
             summaryTimerRef.current = setInterval(() => {
                 setSummaryCountdown(prev => {
@@ -319,22 +319,22 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
             // Convert to number for comparison (server sends number, but could be string)
             const dcId = Number(disconnectedId);
             console.log('[Round1] 🔴 PLAYER DISCONNECT EVENT! ID:', dcId, 'Name:', playerName);
-            
+
             // Find and move player from active to disconnected
             setActivePlayers(prev => {
                 console.log('[Round1] Before disconnect - activePlayers:', prev.map(p => `${p.id}:${p.name}`));
                 const disconnectedPlayer = prev.find(p => Number(p.id) === dcId);
-                
+
                 if (disconnectedPlayer) {
                     console.log('[Round1] ✅ Found player to disconnect:', disconnectedPlayer.name);
-                    
+
                     // Create player info for disconnected list
-                    const dcPlayerInfo = { 
-                        ...disconnectedPlayer, 
+                    const dcPlayerInfo = {
+                        ...disconnectedPlayer,
                         connected: false,
                         name: playerName || disconnectedPlayer.name || `Player${dcId}`
                     };
-                    
+
                     // Update disconnected list
                     setDisconnectedPlayers(prevDisc => {
                         const alreadyInList = prevDisc.some(p => Number(p.id) === dcId);
@@ -344,7 +344,7 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
                         }
                         return prevDisc;
                     });
-                    
+
                     // Remove from active list
                     const newActive = prev.filter(p => Number(p.id) !== dcId);
                     console.log('[Round1] After disconnect - activePlayers count:', newActive.length);
@@ -358,7 +358,7 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
 
         window.addEventListener('playerDisconnected', handlePlayerDisconnected);
         console.log('[Round1] 👂 Registered playerDisconnected listener');
-        
+
         return () => {
             window.removeEventListener('playerDisconnected', handlePlayerDisconnected);
             console.log('[Round1] 🔇 Unregistered playerDisconnected listener');
@@ -373,27 +373,27 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
             const { playerId: reconnectedId, playerName } = e.detail;
             const rcId = Number(reconnectedId);
             console.log('[Round1] 🔄 Player RECONNECTED! ID:', rcId, 'Name:', playerName);
-            
+
             // Move player from disconnected back to active
             setDisconnectedPlayers(prev => {
                 const reconnectedPlayer = prev.find(p => Number(p.id) === rcId);
-                
+
                 if (reconnectedPlayer) {
                     console.log('[Round1] Moving player from disconnected to active:', reconnectedPlayer.name);
-                    
+
                     // Add back to active players
                     setActivePlayers(prevActive => {
                         const alreadyActive = prevActive.some(p => Number(p.id) === rcId);
                         if (!alreadyActive) {
-                            return [...prevActive, { 
-                                ...reconnectedPlayer, 
+                            return [...prevActive, {
+                                ...reconnectedPlayer,
                                 connected: true,
                                 name: playerName || reconnectedPlayer.name
                             }];
                         }
                         return prevActive;
                     });
-                    
+
                     // Remove from disconnected
                     return prev.filter(p => Number(p.id) !== rcId);
                 }
@@ -412,16 +412,16 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
         if (gamePhase === 'summary' && summaryCountdown === 0) {
             const activeCount = activePlayers.length;
             console.log('[Round1] Summary countdown ended. Active players:', activeCount);
-            
+
             if (activeCount < 2) {
                 console.log('[Round1] Not enough players! Only ' + activeCount + ' player(s)');
                 window.dispatchEvent(new CustomEvent('notEnoughPlayers', {
                     detail: { playerCount: activeCount, required: 2 }
                 }));
             }
-            
+
             if (onRoundComplete) {
-                onRoundComplete(2, { 
+                onRoundComplete(2, {
                     score: scoreRef.current,
                     playerCount: activeCount,
                     disconnectedPlayers: disconnectedPlayers
@@ -445,10 +445,10 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
     //==========================================================================
     const handleAnswerClick = (index) => {
         if (isAnswered) return;
-        
+
         const timeTaken = Date.now() - startTime.current;
         setSelectedAnswer(index);
-        
+
         submitAnswer(matchId, currentIdxRef.current, index, timeTaken);
     };
 
@@ -471,7 +471,7 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
                 <div className="ready-content">
                     <h1 className="ready-title">🎮 ROUND 1 - QUIZ 🎮</h1>
                     <p className="ready-subtitle">Connecting to game...</p>
-                    
+
                     <div className="player-status-list">
                         <h3>Players Connected ({connectedPlayers.filter(p => p.is_ready).length}/{connectedPlayers.length || 4})</h3>
                         {connectedPlayers.length > 0 ? (
@@ -492,7 +492,7 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
                             </div>
                         )}
                     </div>
-                    
+
                     <div className="connecting-status">
                         <div className="connecting-spinner">🔄</div>
                         <p>Auto-starting when all players connect...</p>
@@ -500,7 +500,7 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
                             <p className="connection-countdown">Timeout in {connectionCountdown}s</p>
                         )}
                     </div>
-                    
+
                     <div className="ready-info">
                         <p>Match ID: {matchId} | Player: {playerId}</p>
                     </div>
@@ -518,19 +518,19 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
                 <div className="waiting-content">
                     <h1 className="waiting-title">⏳ COMPLETED! ⏳</h1>
                     <p className="waiting-subtitle">Your Score: {score} pts</p>
-                    
+
                     <div className="waiting-progress">
                         <div className="progress-text">
                             Waiting for other players... ({finishedCount}/{playerCount})
                         </div>
                         <div className="progress-bar">
-                            <div 
-                                className="progress-fill" 
+                            <div
+                                className="progress-fill"
                                 style={{ width: (playerCount > 0 ? (finishedCount / playerCount) * 100 : 0) + '%' }}
                             />
                         </div>
                     </div>
-                    
+
                     <div className="waiting-spinner">🔄</div>
                 </div>
             </div>
@@ -546,32 +546,32 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
                 <div className="reconnect-waiting-content">
                     <h1 className="reconnect-title">🔄 WELCOME BACK! 🔄</h1>
                     <p className="reconnect-subtitle">You've reconnected to the game</p>
-                    
+
                     <div className="reconnect-info-box">
                         <div className="reconnect-icon">🎮</div>
                         <h2>Round 1 is in progress</h2>
                         <p>Other players are still answering questions.</p>
                         <p>Please wait for them to finish...</p>
                     </div>
-                    
+
                     <div className="reconnect-progress">
                         <div className="progress-text">
                             Players finished: {finishedCount}/{playerCount}
                         </div>
                         <div className="progress-bar">
-                            <div 
-                                className="progress-fill reconnect-fill" 
+                            <div
+                                className="progress-fill reconnect-fill"
                                 style={{ width: (playerCount > 0 ? (finishedCount / playerCount) * 100 : 0) + '%' }}
                             />
                         </div>
                     </div>
-                    
+
                     {score > 0 && (
                         <div className="reconnect-score">
                             Your saved score: <strong>{score} pts</strong>
                         </div>
                     )}
-                    
+
                     <div className="reconnect-status">
                         <div className="connecting-spinner">⏳</div>
                         <p>You'll automatically continue to Round 2 when everyone finishes!</p>
@@ -587,7 +587,7 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
     if (gamePhase === 'summary') {
         // Use activePlayers (real-time) instead of static summaryData
         let playerList = [...activePlayers];
-        
+
         // Update YOUR score from local state
         playerList = playerList.map(p => {
             if (p.id === playerId) {
@@ -595,14 +595,14 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
             }
             return p;
         });
-        
+
         // Sort by score
         playerList = playerList.sort((a, b) => b.score - a.score);
-        
+
         const activePlayerCount = activePlayers.length;
         const hasEnoughPlayers = activePlayerCount >= 2;
         const hasDisconnected = disconnectedPlayers.length > 0;
-        
+
         return (
             <div className="round1-wrapper-quiz">
                 <div className="summary-content">
@@ -612,7 +612,7 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
                             Next round in: <span className="countdown-number">{summaryCountdown}s</span>
                         </div>
                     </div>
-                    
+
                     {/* Hiển thị số người chơi còn kết nối */}
                     <div className="player-count-info" style={{
                         textAlign: 'center',
@@ -622,7 +622,7 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
                         borderRadius: '10px'
                     }}>
                         <span style={{ fontSize: '1.1rem' }}>
-                            {hasEnoughPlayers 
+                            {hasEnoughPlayers
                                 ? `✅ ${activePlayerCount} players connected - Ready for Round 2!`
                                 : `⚠️ Only ${activePlayerCount} player(s) - Need at least 2 to continue`
                             }
@@ -633,7 +633,7 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
                             </div>
                         )}
                     </div>
-                    
+
                     <div className="summary-scoreboard">
                         <h2 className="scoreboard-title">FINAL SCOREBOARD</h2>
                         <div className="player-list">
@@ -641,8 +641,8 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
                                 const isMe = player.id === playerId;
                                 const isDisconnected = disconnectedPlayers.some(p => p.id === player.id);
                                 return (
-                                    <div 
-                                        key={player.id || index} 
+                                    <div
+                                        key={player.id || index}
                                         className={'player-row ' + (index === 0 ? 'winner ' : '') + (isMe ? 'is-you ' : '') + (isDisconnected ? 'disconnected' : '')}
                                         style={isDisconnected ? { opacity: 0.5, textDecoration: 'line-through' } : {}}
                                     >
@@ -657,11 +657,11 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
                                     </div>
                                 );
                             })}
-                            
+
                             {/* Show disconnected players at the bottom */}
                             {disconnectedPlayers.filter(dp => !playerList.some(p => p.id === dp.id)).map((player, index) => (
-                                <div 
-                                    key={'dc-' + player.id} 
+                                <div
+                                    key={'dc-' + player.id}
                                     className="player-row disconnected"
                                     style={{ opacity: 0.5, background: '#ffcccc' }}
                                 >

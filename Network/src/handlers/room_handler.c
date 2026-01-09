@@ -74,6 +74,22 @@ void handle_create_room(int client_fd, MessageHeader *req, const char *payload) 
     memcpy(room_name, data.name, 64);
     room_name[64] = '\0';
     
+    // 4. Validate business rules
+    if (data.max_players < 2 || data.max_players > 8) {
+        send_error(client_fd, req, ERR_BAD_REQUEST, "max_players must be 2-8");
+        return;
+    }
+    
+    if (data.round_time < 10 || data.round_time > 60) {
+        send_error(client_fd, req, ERR_BAD_REQUEST, "round_time must be 10-60s");
+        return;
+    }
+    
+    if (strlen(room_name) == 0) {
+        send_error(client_fd, req, ERR_BAD_REQUEST, "Room name required");
+        return;
+    }
+    
     // // 4. Escape JSON string
     // const char *safe_name = json_escape_string(room_name);
     
@@ -121,7 +137,6 @@ void handle_create_room(int client_fd, MessageHeader *req, const char *payload) 
         data.visibility,
         data.mode,
         data.max_players,
-        data.round_time,
         data.wager_enabled,
         result_payload,
         sizeof(result_payload),
@@ -136,16 +151,8 @@ void handle_create_room(int client_fd, MessageHeader *req, const char *payload) 
     // 5. Track host as room member
     room_add_member((int)room_id, client_fd);
 
-
-
-
-    // 8. Forward response (body only)
-    // forward_response(client_fd, req, RES_ROOM_CREATED, 
-    //                 http_resp.body, http_resp.body_length);
+    // 6. Prepare response
     uint32_t result_len = strlen(result_payload);
-
-    // track host
-    room_add_member((int)room_id, client_fd);
 
     // forward response
     forward_response(
@@ -204,18 +211,11 @@ void handle_close_room(int client_fd, MessageHeader *req, const char *payload) {
         return;
     }
 
-    
-    // 5. Broadcast NTF_ROOM_CLOSED to all members
-    // room_broadcast(room_id, NTF_ROOM_CLOSED, http_resp.body, 
-    //               http_resp.body_length, -1);
-    
-    // // 6. Forward response to host
-    // forward_response(client_fd, req, RES_ROOM_CLOSED, 
-    //                 http_resp.body, http_resp.body_length);
-
+    // 5. Broadcast success to all members
     room_broadcast(room_id, NTF_ROOM_CLOSED,
               resp_buf, strlen(resp_buf), -1);
 
+    // 6. Forward response to host
     forward_response(client_fd, req, RES_ROOM_CLOSED,
                     resp_buf, strlen(resp_buf));
 
@@ -244,7 +244,6 @@ void handle_set_rules(int client_fd, MessageHeader *req, const char *payload) {
         room_id,
         data.mode,
         data.max_players,
-        data.round_time,
         data.wager_enabled,
         resp_buf,
         sizeof(resp_buf)
@@ -255,20 +254,11 @@ void handle_set_rules(int client_fd, MessageHeader *req, const char *payload) {
         return;
     }
 
-
-
-    
-    // 6. Broadcast NTF_RULES_CHANGED to all members (except host)
-    // room_broadcast(room_id, NTF_RULES_CHANGED, http_resp.body,
-    //               http_resp.body_length, client_fd);
-    
-    // // 7. Forward response to host
-    // forward_response(client_fd, req, RES_RULES_UPDATED,
-    //                 http_resp.body, http_resp.body_length);
-
+    // 6. Broadcast success to all members (except host)
     room_broadcast(room_id, NTF_RULES_CHANGED,
               resp_buf, strlen(resp_buf), client_fd);
 
+    // 7. Forward response to host
     forward_response(client_fd, req, RES_RULES_UPDATED,
                     resp_buf, strlen(resp_buf));
 
@@ -317,25 +307,11 @@ void handle_kick_member(int client_fd, MessageHeader *req, const char *payload) 
         return;
     }
 
-
-
-
-    // // 5. Broadcast NTF_MEMBER_KICKED to all members
-    // room_broadcast(room_id, NTF_MEMBER_KICKED, http_resp.body,
-    //               http_resp.body_length, -1);
-    
-    // // 6. Remove kicked member from room tracking
-    // // Note: We don't have target_fd here, would need session tracking
-    // // For now, rely on kicked client to handle NTF and disconnect
-    
-    // // 7. Forward response to host
-    // forward_response(client_fd, req, RES_MEMBER_KICKED,
-    //                 http_resp.body, http_resp.body_length);
-
-
+    // 5. Broadcast success to all members
     room_broadcast(room_id, NTF_MEMBER_KICKED,
               resp_buf, strlen(resp_buf), -1);
 
+    // 6. Forward response to host
     forward_response(client_fd, req, RES_MEMBER_KICKED,
                     resp_buf, strlen(resp_buf));
 

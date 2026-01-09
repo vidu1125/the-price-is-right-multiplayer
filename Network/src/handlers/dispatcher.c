@@ -4,21 +4,60 @@
 #include "handlers/dispatcher.h"
 #include "handlers/history_handler.h"
 #include "handlers/room_handler.h"
+#include "handlers/profile_handler.h"
 #include "handlers/match_handler.h"
 #include "handlers/round1_handler.h"
+#include "handlers/session_context.h"
+#include "handlers/auth_guard.h"
 #include "protocol/opcode.h"
+#include "protocol/protocol.h"
+
+#include <string.h>
 
 void dispatch_command(
     int client_fd,
     MessageHeader *header,
     const char *payload
 ) {
-    int32_t account_id = 1;   
+    int32_t account_id = 0;   
     uint16_t cmd = header->command;
 
-    printf("[DISPATCH] cmd=0x%04x len=%u\n", cmd, header->length);
+    printf("[DISPATCH] Receiving: cmd=0x%04x len=%u\n", cmd, header->length);
+    bool is_auth_cmd = (cmd == CMD_LOGIN_REQ || cmd == CMD_REGISTER_REQ || cmd == CMD_RECONNECT || cmd == CMD_LOGOUT_REQ);
+    
+    if (!is_auth_cmd) {
+        if (!require_auth(client_fd, header)) return;
+        
+        account_id = get_client_account(client_fd);
+        if (account_id == 0) {
+            printf("[DISPATCH] Error: Authenticated query but account_id is 0\n");
+            return;
+        }
+        else {
+            printf("[DISPATCH] Authenticated query, account_id: %d\n", account_id);
+        }
+    }
 
     switch (cmd) {
+
+    // Auth
+    case CMD_LOGIN_REQ:
+        handle_login(client_fd, header, payload);
+        break;
+    case CMD_REGISTER_REQ:
+        handle_register(client_fd, header, payload);
+        break;
+    case CMD_LOGOUT_REQ:
+        handle_logout(client_fd, header, payload);
+        break;
+    case CMD_RECONNECT:
+        handle_reconnect(client_fd, header, payload);
+        break;
+
+    // Profile / Player
+    case CMD_UPDATE_PROFILE:
+        handle_update_profile(client_fd, header, payload);
+        break;
 
     // Room Management
     case CMD_CREATE_ROOM:
@@ -44,11 +83,12 @@ void dispatch_command(
 
     // History
     case CMD_HIST:
+        printf("[DISPATCH] Parsing to historyHandler\n");        
         handle_history(
             client_fd,
             header,
             payload,
-            account_id    // 🔹 truyền từ dispatcher
+            account_id
         );        
         break;
     case OP_C2S_ROUND1_READY:
@@ -58,6 +98,11 @@ void dispatch_command(
     case OP_C2S_ROUND1_PLAYER_READY:
     case OP_C2S_ROUND1_FINISHED:
         handle_round1(client_fd, header, payload);
+        break;
+
+    case CMD_REPLAY:
+        printf("[DISPATCH] Parsing to replayHandler\n");       
+        handle_replay(client_fd, header, payload, account_id);
         break;
 
     default:

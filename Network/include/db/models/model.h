@@ -76,7 +76,6 @@ typedef struct {
     // Game settings
     char *mode;            // scoring | survival
     int32_t max_players;
-    int32_t round_time;
     bool wager_mode;
 
     time_t created_at;
@@ -103,7 +102,6 @@ typedef struct {
 
     char *mode;
     int32_t max_players;
-    int32_t round_time;
 
     char *advanced;        // jsonb
 

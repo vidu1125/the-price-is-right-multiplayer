@@ -85,15 +85,32 @@ static db_error_t http_request(
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &buf);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, DB_HTTP_TIMEOUT_SEC);
 
+    printf("[DB_CLIENT] %s %s\n", method, url);
+    if (body) {
+        printf("[DB_CLIENT] Body: %s\n", body);
+    }
+
     if (strcmp(method, "POST") == 0) {
         curl_easy_setopt(curl, CURLOPT_POST, 1L);
         curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body);
+    } else if (strcmp(method, "PATCH") == 0) {
+        curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "PATCH");
+        if (body) {
+            curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body);
+        }
+    } else if (strcmp(method, "DELETE") == 0) {
+        curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "DELETE");
     }
 
     CURLcode res = curl_easy_perform(curl);
 
     long http_code = 0;
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+    
+    printf("[DB_CLIENT] HTTP %ld, curl_res=%d, buf.size=%zu\n", http_code, res, buf.size);
+    if (buf.data) {
+        printf("[DB_CLIENT] Response: %.200s\n", buf.data);
+    }
 
     curl_slist_free_all(headers);
     curl_easy_cleanup(curl);
@@ -105,6 +122,7 @@ static db_error_t http_request(
 
     if (http_code == 401) return DB_ERR_UNAUTHORIZED;
     if (http_code == 403) return DB_ERR_FORBIDDEN;
+    if (http_code == 409) return DB_ERR_CONFLICT;
     if (http_code >= 400) return DB_ERR_HTTP;
 
     if (!buf.data) return DB_ERR_EMPTY;
@@ -123,6 +141,32 @@ db_error_t db_get(const char *table, const char *query, cJSON **out_json) {
     snprintf(url, sizeof(url), "%s%s/%s?%s",
              g_supabase_url, SUPABASE_REST_PATH, table, query);
     return http_request("GET", url, NULL, out_json);
+}
+
+db_error_t db_post(const char *table, cJSON *payload, cJSON **out_json) {
+    char url[DB_HTTP_MAX_URL];
+    snprintf(url, sizeof(url), "%s%s/%s",
+             g_supabase_url, SUPABASE_REST_PATH, table);
+    
+    char *body = cJSON_PrintUnformatted(payload);
+    if (!body) return DB_ERR_INVALID_ARG;
+    
+    db_error_t rc = http_request("POST", url, body, out_json);
+    free(body);
+    return rc;
+}
+
+db_error_t db_rpc(const char *function, cJSON *payload, cJSON **out_json) {
+    char url[DB_HTTP_MAX_URL];
+    snprintf(url, sizeof(url), "%s%s/rpc/%s",
+             g_supabase_url, SUPABASE_REST_PATH, function);
+    
+    char *body = cJSON_PrintUnformatted(payload);
+    if (!body) return DB_ERR_INVALID_ARG;
+    
+    db_error_t rc = http_request("POST", url, body, out_json);
+    free(body);
+    return rc;
 }
 
 // int db_ping(void) {
@@ -147,6 +191,34 @@ db_error_t db_get(const char *table, const char *query, cJSON **out_json) {
 //     return -1;
 // }
 
+db_error_t db_patch(const char *table, const char *filter, cJSON *payload, cJSON **out_json) {
+    if (!table || !filter || !payload) {
+        return DB_ERR_INVALID_ARG;
+    }
+    
+    char url[DB_HTTP_MAX_URL];
+    snprintf(url, sizeof(url), "%s%s/%s?%s",
+             g_supabase_url, SUPABASE_REST_PATH, table, filter);
+    
+    char *body = cJSON_PrintUnformatted(payload);
+    if (!body) return DB_ERR_PARSE;
+    
+    db_error_t err = http_request("PATCH", url, body, out_json);
+    free(body);
+    return err;
+}
+
+db_error_t db_delete(const char *table, const char *filter, cJSON **out_json) {
+    if (!table || !filter) {
+        return DB_ERR_INVALID_ARG;
+    }
+    
+    char url[DB_HTTP_MAX_URL];
+    snprintf(url, sizeof(url), "%s%s/%s?%s",
+             g_supabase_url, SUPABASE_REST_PATH, table, filter);
+    
+    return http_request("DELETE", url, NULL, out_json);
+}
 int db_ping(void) {
     cJSON *json = NULL;
 

@@ -8,7 +8,7 @@ export function initSocket(url = "ws://localhost:8080") {
     console.log("[Socket] Already connected");
     return Promise.resolve(socket);
   }
-  
+
   if (connectionPromise) {
     console.log("[Socket] Connection in progress...");
     return connectionPromise;
@@ -16,11 +16,11 @@ export function initSocket(url = "ws://localhost:8080") {
 
   console.log("[Socket] Creating new connection to", url);
   socket = new WebSocket(url);
-  socket.binaryType = "arraybuffer"; // 🔥 BẮT BUỘC (RAW BINARY)
+  socket.binaryType = "arraybuffer";
 
   connectionPromise = new Promise((resolve, reject) => {
     socket.onopen = () => {
-      console.log("✅ [Socket] Connected to gateway");
+      console.log("[Socket] Connected to gateway");
       connectionPromise = null;
       resolve(socket);
     };
@@ -62,29 +62,34 @@ export function sendRaw(buffer) {
 
 export function isConnected() {
   const connected = socket && socket.readyState === WebSocket.OPEN;
-  console.log("[Socket] isConnected check: socket=" + (socket ? "exists" : "null") + 
-              ", readyState=" + (socket ? socket.readyState : "N/A") + 
-              ", OPEN=" + WebSocket.OPEN + ", result=" + connected);
+  console.log("[Socket] isConnected check: socket=" + (socket ? "exists" : "null") +
+    ", readyState=" + (socket ? socket.readyState : "N/A") +
+    ", OPEN=" + WebSocket.OPEN + ", result=" + connected);
   return connected;
 }
 
-// Wait for connection to be ready
+
 export function waitForConnection(timeout = 5000) {
   return new Promise((resolve, reject) => {
     if (isConnected()) {
-      resolve(socket);
+      resolve();
       return;
     }
-    
-    const startTime = Date.now();
-    const checkInterval = setInterval(() => {
+
+    const interval = 100;
+    let elapsed = 0;
+
+    const check = setInterval(() => {
       if (isConnected()) {
-        clearInterval(checkInterval);
-        resolve(socket);
-      } else if (Date.now() - startTime > timeout) {
-        clearInterval(checkInterval);
-        reject(new Error("Connection timeout"));
+        clearInterval(check);
+        resolve();
+      } else {
+        elapsed += interval;
+        if (elapsed >= timeout) {
+          clearInterval(check);
+          reject(new Error("Connection timeout"));
+        }
       }
-    }, 100);
+    }, interval);
   });
 }

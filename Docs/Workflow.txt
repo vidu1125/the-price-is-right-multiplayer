@@ -166,3 +166,11 @@ WS TCP buffer 43 07 e1 05 02 00 00 00 00 00 01 00 00 1b 68 69 73 74 6f 72 79 20 
 WS FRAME { cmd: 0x502, seqNum: 1, length: 27 }
 
 tpr-ws-bridge exited with code 137
+
+
+
+- Terminal command convention:
++ Network: [HANDLER] <usecase> infor
+vd: [HANDLER] <viewHistory> this is command
++ Frontend: [SERVICE] <usecase> infor
+vd: [SERVICE] <viewHistory> this is service

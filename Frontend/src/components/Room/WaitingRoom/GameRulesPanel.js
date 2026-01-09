@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 
 export default function GameRulesPanel({ isHost, roomId, gameRules, onRulesChange }) {
   const [editMode, setEditMode] = useState(false);
-  
+
   // Hàm xử lý thay đổi rule chung
   const handleRuleChange = async (ruleKey, value) => {
     let newRules = { ...gameRules, [ruleKey]: value };
@@ -24,7 +24,7 @@ export default function GameRulesPanel({ isHost, roomId, gameRules, onRulesChang
     }
 
     onRulesChange(newRules);
-    
+
     // Send to server if host
     if (isHost) {
       try {
@@ -41,14 +41,14 @@ export default function GameRulesPanel({ isHost, roomId, gameRules, onRulesChang
     const currentMode = gameRules?.mode || "scoring";
     const currentMax = gameRules?.maxPlayers || 5;
     const newMax = currentMax + delta;
-    
+
     let min = 4;
     let max = 6;
 
     // Nếu là Eliminate, không cho chỉnh (hoặc logic khác nếu bạn muốn)
     // Theo yêu cầu "mặc định là 4", mình sẽ khóa cứng ở 4 cho chế độ này
     if (currentMode === "eliminate") {
-       return; 
+      return;
     }
 
     if (currentMode === "scoring") {
@@ -60,13 +60,13 @@ export default function GameRulesPanel({ isHost, roomId, gameRules, onRulesChang
       handleRuleChange("maxPlayers", newMax);
     }
   };
-  
+
   return (
     <div className="wr-panel game-rules-panel">
       <div className="panel-header-with-action">
         <h3>GAME RULES</h3>
         {isHost && (
-          <button 
+          <button
             className="settings-icon-btn"
             onClick={() => setEditMode(!editMode)}
           >
@@ -74,38 +74,38 @@ export default function GameRulesPanel({ isHost, roomId, gameRules, onRulesChang
           </button>
         )}
       </div>
-      
+
       {/* 1. MAX PLAYER */}
       <div className="rule-group rule-group-row">
         <label>Max Players:</label>
         {isHost && editMode ? (
           <div className="number-control" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             {/* Nút Giảm */}
-            <button 
+            <button
               className="control-btn"
               onClick={() => handleMaxPlayersChange(-1)}
               disabled={gameRules?.mode === "eliminate" || (gameRules?.maxPlayers <= 4)}
-              style={{ 
+              style={{
                 width: '28px', height: '28px', cursor: 'pointer',
-                opacity: (gameRules?.mode === "eliminate" || gameRules?.maxPlayers <= 4) ? 0.3 : 1 
+                opacity: (gameRules?.mode === "eliminate" || gameRules?.maxPlayers <= 4) ? 0.3 : 1
               }}
             >
               -
             </button>
-            
+
             {/* Số hiển thị - Dùng lại class rule-value-static để giữ nguyên font */}
             <span className="rule-value-static">
               {gameRules?.maxPlayers || 5}
             </span>
-            
+
             {/* Nút Tăng */}
-            <button 
+            <button
               className="control-btn"
               onClick={() => handleMaxPlayersChange(1)}
               disabled={gameRules?.mode === "eliminate" || (gameRules?.maxPlayers >= 6)}
-              style={{ 
+              style={{
                 width: '28px', height: '28px', cursor: 'pointer',
-                opacity: (gameRules?.mode === "eliminate" || gameRules?.maxPlayers >= 6) ? 0.3 : 1 
+                opacity: (gameRules?.mode === "eliminate" || gameRules?.maxPlayers >= 6) ? 0.3 : 1
               }}
             >
               +
@@ -120,14 +120,14 @@ export default function GameRulesPanel({ isHost, roomId, gameRules, onRulesChang
       <div className="rule-group">
         <label>Visibility:</label>
         <div className="mode-options">
-          <button 
+          <button
             className={gameRules?.visibility === "public" ? "active" : ""}
             onClick={() => isHost && editMode && handleRuleChange("visibility", "public")}
             disabled={!isHost || !editMode}
           >
             Public
           </button>
-          <button 
+          <button
             className={gameRules?.visibility === "private" ? "active" : ""}
             onClick={() => isHost && editMode && handleRuleChange("visibility", "private")}
             disabled={!isHost || !editMode}
@@ -141,14 +141,14 @@ export default function GameRulesPanel({ isHost, roomId, gameRules, onRulesChang
       <div className="rule-group">
         <label>Mode:</label>
         <div className="mode-options">
-          <button 
+          <button
             className={gameRules?.mode === "eliminate" ? "active" : ""}
             onClick={() => isHost && editMode && handleRuleChange("mode", "eliminate")}
             disabled={!isHost || !editMode}
           >
             Eliminate
           </button>
-          <button 
+          <button
             className={gameRules?.mode === "scoring" ? "active" : ""}
             onClick={() => isHost && editMode && handleRuleChange("mode", "scoring")}
             disabled={!isHost || !editMode}
@@ -157,12 +157,12 @@ export default function GameRulesPanel({ isHost, roomId, gameRules, onRulesChang
           </button>
         </div>
       </div>
-      
+
       {/* 3. WAGER MODE */}
       <div className="rule-group rule-group-row">
         <label>Wager Mode:</label>
         <div className="status-badges-container">
-          <button 
+          <button
             className={`status-badge on ${gameRules?.wagerMode ? "active-badge" : ""}`}
             onClick={() => handleRuleChange("wagerMode", true)}
             disabled={!isHost || !editMode}
@@ -170,7 +170,7 @@ export default function GameRulesPanel({ isHost, roomId, gameRules, onRulesChang
           >
             ON
           </button>
-          <button 
+          <button
             className={`status-badge off ${!gameRules?.wagerMode ? "active-badge" : ""}`}
             onClick={() => handleRuleChange("wagerMode", false)}
             disabled={!isHost || !editMode}
@@ -181,33 +181,7 @@ export default function GameRulesPanel({ isHost, roomId, gameRules, onRulesChang
         </div>
       </div>
 
-      {/* 4. ROUND TIME */}
-      <div className="rule-group">
-        <label>Round Time:</label>
-        <div className="time-options">
-          <button 
-            className={gameRules?.roundTime === "slow" ? "active" : ""}
-            onClick={() => isHost && editMode && handleRuleChange("roundTime", "slow")}
-            disabled={!isHost || !editMode}
-          >
-            Slow
-          </button>
-          <button 
-            className={gameRules?.roundTime === "normal" ? "active" : ""}
-            onClick={() => isHost && editMode && handleRuleChange("roundTime", "normal")}
-            disabled={!isHost || !editMode}
-          >
-            Normal
-          </button>
-          <button 
-            className={gameRules?.roundTime === "fast" ? "active" : ""}
-            onClick={() => isHost && editMode && handleRuleChange("roundTime", "fast")}
-            disabled={!isHost || !editMode}
-          >
-            Fast
-          </button>
-        </div>
-      </div>
+
     </div>
   );
 }

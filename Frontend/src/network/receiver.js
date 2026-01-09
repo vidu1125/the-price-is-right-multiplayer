@@ -1,5 +1,6 @@
 // src/network/receiver.js
-const handlers = new Map();
+const handlers = new Map(); // Map<number, Array<fn>>
+const defaultHandlers = []; // Array<(opcode, payload) => boolean | void>
 
 /**
  * Đăng ký handler cho opcode response
@@ -7,7 +8,23 @@ const handlers = new Map();
  * @param {(payload: ArrayBuffer) => void} handler
  */
 export function registerHandler(opcode, handler) {
-  handlers.set(opcode, handler);
+  if (opcode === undefined || opcode === null) {
+    console.warn("[Receiver] Ignore registering handler for undefined opcode");
+    return;
+  }
+  const list = handlers.get(opcode) || [];
+  list.push(handler);
+  handlers.set(opcode, list);
+
+  console.log("[Receiver] registerHandler opcode", opcode, "count", list.length);
+}
+
+
+
+// Đăng ký handler mặc định (gọi khi không có handler cụ thể cho opcode)
+export function registerDefaultHandler(handler) {
+  defaultHandlers.push(handler);
+  console.log("[Receiver] default handler registered, count:", defaultHandlers.length);
 }
 
 /**
@@ -45,20 +62,44 @@ export function handleIncoming(buffer) {
 
   const payload = buffer.slice(16, 16 + payloadLen);
 
-  console.log(
-    "[Receiver]",
-    "command=0x" + command.toString(16),
-    "seqNum=" + seqNum,
-    "payloadLen=" + payloadLen
-  );
+  const list = handlers.get(command);
 
-  const handler = handlers.get(command);
-  if (!handler) {
+  if (!list || list.length === 0) {
     console.warn("[Receiver] no handler for opcode", "0x" + command.toString(16), "(decimal:", command, ")");
     // Log available handlers for debugging
-    console.log("[Receiver] Available handlers:", Array.from(handlers.keys()).map(k => `0x${k.toString(16)}(${k})`));
+    console.log("[Receiver] Available handlers:", Array.from(handlers.keys()).map(k => {
+      try { return typeof k === 'number' ? `0x${k.toString(16)}(${k})` : `${k}`; } catch (e) { return 'ERR'; }
+    }));
+
+    let handled = false;
+    console.log("[Receiver] no specific handler, trying", defaultHandlers.length, "default handlers");
+    for (const handler of defaultHandlers) {
+      try {
+        console.log("[Receiver] invoking default handler for opcode", "0x" + command.toString(16));
+        handler(command, payload);
+        handled = true; // treat any default handler call as handled
+      } catch (err) {
+        console.error("[Receiver] default handler error", err);
+      }
+    }
+    if (!handled) {
+      console.warn("[Receiver] no handler for opcode", "0x" + command.toString(16), "seq", seqNum, "len", payloadLen);
+    }
     return;
   }
 
-  handler(payload);
+  console.log("[Receiver] dispatch", {
+    opcode: "0x" + command.toString(16),
+    seqNum,
+    payloadLen,
+    handlerCount: list.length,
+  });
+
+  for (const handler of list) {
+    try {
+      handler(payload);
+    } catch (err) {
+      console.error("[Receiver] handler error for opcode", "0x" + command.toString(16), err);
+    }
+  }
 }
