@@ -8,6 +8,7 @@ int room_repo_create(
     uint8_t mode,
     uint8_t max_players,
     uint8_t wager_enabled,
+    int32_t host_account_id,
     char *out_buf,
     size_t out_size,
     uint32_t *room_id
@@ -34,6 +35,7 @@ int room_repo_kick_member(
 
 int room_repo_leave(
     uint32_t room_id,
+    int32_t account_id,
     char *out_buf,
     size_t out_size
 );

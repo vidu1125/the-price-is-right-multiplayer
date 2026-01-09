@@ -4,10 +4,12 @@
 #include <arpa/inet.h>
 #include <cjson/cJSON.h>
 #include "handlers/room_handler.h"
+#include "handlers/session_manager.h"
 #include "protocol/opcode.h"
 #include "protocol/protocol.h"
 #include "transport/room_manager.h"
 #include "db/repo/room_repo.h"
+#include "db/repo/profile_repo.h"
 //==============================================================================
 // PAYLOAD DEFINITIONS (Room Handler)
 //==============================================================================
@@ -57,6 +59,37 @@ static void send_error(int client_fd, MessageHeader *req, uint16_t error_code, c
 }
 
 //==============================================================================
+// HELPER: Get account_id from session
+//==============================================================================
+static int32_t get_account_id(int client_fd) {
+    UserSession *session = session_get_by_socket(client_fd);
+    if (!session || session->account_id <= 0) {
+        return -1; // Not authenticated
+    }
+    return session->account_id;
+}
+
+//==============================================================================
+// HELPER: Get username from profile
+//==============================================================================
+static int get_username(int32_t account_id, char *out_username, size_t max_len) {
+    profile_t *profile = NULL;
+    db_error_t err = profile_find_by_account(account_id, &profile);
+    
+    if (err != DB_SUCCESS || !profile || !profile->name) {
+        // Fallback to "User{id}"
+        snprintf(out_username, max_len, "User%d", account_id);
+        if (profile) profile_free(profile);
+        return -1;
+    }
+    
+    strncpy(out_username, profile->name, max_len - 1);
+    out_username[max_len - 1] = '\0';
+    profile_free(profile);
+    return 0;
+}
+
+//==============================================================================
 // CREATE ROOM
 //==============================================================================
 void handle_create_room(int client_fd, MessageHeader *req, const char *payload) {
@@ -66,31 +99,34 @@ void handle_create_room(int client_fd, MessageHeader *req, const char *payload) 
         return;
     }
     
-    // 2. Copy to local struct (NOT cast!)
+    // 2. Get account_id from session
+    int32_t account_id = get_account_id(client_fd);
+    if (account_id < 0) {
+        send_error(client_fd, req, ERR_NOT_LOGGED_IN, "Not authenticated");
+        return;
+    }
+    
+    // 3. Copy to local struct (NOT cast!)
     CreateRoomPayload data;
     memcpy(&data, payload, sizeof(data));
     
-    // 3. Null-terminate string (safety)
+    // 4. Null-terminate string (safety)
     char room_name[65];
     memcpy(room_name, data.name, 64);
     room_name[64] = '\0';
     
-    // 4. Validate business rules
+    // 5. Validate business rules
     if (data.max_players < 2 || data.max_players > 8) {
         send_error(client_fd, req, ERR_BAD_REQUEST, "max_players must be 2-8");
         return;
     }
-    
-
     
     if (strlen(room_name) == 0) {
         send_error(client_fd, req, ERR_BAD_REQUEST, "Room name required");
         return;
     }
     
-
-    
-    // 4. Call room_repo instead of backend
+    // 6. Call room_repo with real account_id
     char result_payload[2048];
     uint32_t room_id = 0;
 
@@ -100,6 +136,7 @@ void handle_create_room(int client_fd, MessageHeader *req, const char *payload) 
         data.mode,
         data.max_players,
         data.wager_enabled,
+        account_id,
         result_payload,
         sizeof(result_payload),
         &room_id
@@ -110,8 +147,8 @@ void handle_create_room(int client_fd, MessageHeader *req, const char *payload) 
         return;
     }
 
-    // 5. Track host as room member (account_id=1 hardcoded for now, is_host=true)
-    room_add_member((int)room_id, client_fd, 1, true);
+    // 7. Track host as room member (is_host=true)
+    room_add_member((int)room_id, client_fd, account_id, true);
 
     // 6. Prepare response
     uint32_t result_len = strlen(result_payload);
@@ -125,7 +162,7 @@ void handle_create_room(int client_fd, MessageHeader *req, const char *payload) 
         result_len
     );
 
-    // 7. Push snapshot to client (server-driven architecture)
+    // 8. Push snapshot to client (server-driven architecture)
     // Build rules payload
     char rules_json[256];
     snprintf(rules_json, sizeof(rules_json),
@@ -138,9 +175,14 @@ void handle_create_room(int client_fd, MessageHeader *req, const char *payload) 
     room_broadcast((int)room_id, NTF_RULES_CHANGED, rules_json, strlen(rules_json), -1);
 
     // Build player list payload (host only at this point)
+    // Get host's username
+    char username[64];
+    get_username(account_id, username, sizeof(username));
+    
     char player_json[512];
     snprintf(player_json, sizeof(player_json),
-        "{\"players\":[{\"account_id\":1,\"username\":\"Host\",\"is_host\":true,\"is_ready\":false}]}"
+        "{\"players\":[{\"account_id\":%d,\"username\":\"%s\",\"is_host\":true,\"is_ready\":true}]}",
+        account_id, username
     );
     room_broadcast((int)room_id, NTF_PLAYER_LIST, player_json, strlen(player_json), -1);
 
@@ -385,34 +427,23 @@ void handle_leave_room(int client_fd, MessageHeader *req, const char *payload) {
         return;
     }
     
-    // 2. Copy & extract
+    // 2. Get account_id from session
+    int32_t account_id = get_account_id(client_fd);
+    if (account_id < 0) {
+        send_error(client_fd, req, ERR_NOT_LOGGED_IN, "Not authenticated");
+        return;
+    }
+    
+    // 3. Copy & extract
     RoomIDPayload data;
     memcpy(&data, payload, sizeof(data));
     uint32_t room_id = ntohl(data.room_id);
-    
-    // // 3. Build path
-    // char path[256];
-    // snprintf(path, sizeof(path), "/api/room/%u/leave", room_id);
-    
-    // // 4. HTTP POST (parsed)
-    // char resp_buf[1024];
-    // HttpResponse http_resp = http_post_parse("backend", 5000, path, "{}",
-    //                                         resp_buf, sizeof(resp_buf));
-    
-    // if (http_resp.status_code < 0) {
-    //     send_error(client_fd, req, ERR_SERVER_ERROR, "Backend unreachable");
-    //     return;
-    // }
-    
-    // if (http_resp.status_code >= 400) {
-    //     send_error(client_fd, req, ERR_BAD_REQUEST, http_resp.body);
-    //     return;
-    // }
 
     char resp_buf[1024];
 
     int rc = room_repo_leave(
         room_id,
+        account_id,
         resp_buf,
         sizeof(resp_buf)
     );

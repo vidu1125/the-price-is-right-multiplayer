@@ -28,6 +28,7 @@ int room_repo_create(
     uint8_t mode,
     uint8_t max_players,
     uint8_t wager_enabled,
+    int32_t host_account_id,
     char *out_buf,
     size_t out_size,
     uint32_t *room_id
@@ -41,13 +42,13 @@ int room_repo_create(
     cJSON_AddStringToObject(payload, "name", name);
     cJSON_AddStringToObject(payload, "code", code);
     cJSON_AddStringToObject(payload, "visibility", visibility ? "private" : "public");
-    cJSON_AddNumberToObject(payload, "host_id", 1); //TODO: Get from session
+    cJSON_AddNumberToObject(payload, "host_id", host_account_id);
     cJSON_AddStringToObject(payload, "status", "waiting");
     cJSON_AddStringToObject(payload, "mode", mode ? "elimination" : "scoring");
     cJSON_AddNumberToObject(payload, "max_players", max_players);
     cJSON_AddBoolToObject(payload, "wager_mode", wager_enabled);
     
-    printf("[ROOM_REPO] Creating room: name='%s', code='%s'\n", name, code);
+    printf("[ROOM_REPO] Creating room: name='%s', code='%s', host_id=%d\n", name, code, host_account_id);
     
     // 3. POST to Supabase
     cJSON *response = NULL;
@@ -85,8 +86,7 @@ int room_repo_create(
     // 5. Insert host into room_members table
     cJSON *member_payload = cJSON_CreateObject();
     cJSON_AddNumberToObject(member_payload, "room_id", *room_id);
-    cJSON_AddNumberToObject(member_payload, "account_id", 1); // TODO: Get from session
-    // cJSON_AddBoolToObject(member_payload, "ready", false);
+    cJSON_AddNumberToObject(member_payload, "account_id", host_account_id);
     
     cJSON *member_resp = NULL;
     db_error_t member_rc = db_post("room_members", member_payload, &member_resp);
@@ -223,12 +223,10 @@ int room_repo_kick_member(
 //==============================================================================
 int room_repo_leave(
     uint32_t room_id,
+    int32_t account_id,
     char *out_buf,
     size_t out_size
 ) {
-    // TODO: Get account_id from session
-    uint32_t account_id = 1; // Hardcoded for now
-    
     // Use RPC to leave
     cJSON *payload = cJSON_CreateObject();
     cJSON_AddNumberToObject(payload, "p_room_id", room_id);
