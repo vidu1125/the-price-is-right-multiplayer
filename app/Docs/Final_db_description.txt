@@ -1,0 +1,217 @@
+﻿1️⃣ ACCOUNTS
+Mục đích: Lưu thông tin xác thực và phân quyền người dùng.
+Field
+	Mô tả
+	email
+	Email đăng nhập, duy nhất
+	password
+	Mật khẩu đã hash (null nếu OAuth)
+	role
+	Quyền hệ thống: user, admin
+	________________
+
+
+2️⃣ SESSIONS
+Mục đích: Quản lý trạng thái kết nối realtime (WebSocket / TCP).
+Field
+	Mô tả
+	account_id
+	Tài khoản đang kết nối
+	session_id
+	Định danh phiên kết nối
+	connected
+	Người dùng đang online hay không
+	________________
+
+
+3️⃣ PROFILES
+Mục đích: Hồ sơ game & thống kê người chơi.
+Field
+	Mô tả
+	account_id
+	Liên kết tới tài khoản
+	name
+	Tên hiển thị trong game
+	avatar
+	URL ảnh đại diện
+	bio
+	Mô tả ngắn
+	matches
+	Tổng số trận đã chơi
+	wins
+	Số trận thắng
+	points
+	Tổng điểm tích lũy
+	badges
+	Danh hiệu / huy hiệu (JSON)
+	________________
+
+
+4️⃣ FRIENDS
+Mục đích: Quan hệ bạn bè giữa các tài khoản.
+Field
+	Mô tả
+	requester_id
+	Người gửi lời mời
+	addressee_id
+	Người nhận
+	status
+	Pending/ accepted/ blocked
+	📌 Ràng buộc:
+* Một cặp bạn bè chỉ tồn tại 1 lần
+________________
+
+
+5️⃣ ROOMS
+Mục đích: Phòng chờ trước khi bắt đầu trận đấu.
+Field
+	Mô tả
+	name
+	Tên phòng
+	code
+	Mã tham gia nhanh
+	visibility
+	Public/private
+	host_id
+	Chủ phòng
+	status
+	waiting, playing, closed
+	________________
+
+
+6️⃣ ROOM_MEMBERS
+Mục đích: Danh sách người chơi trong phòng.
+Field
+	Mô tả
+	room_id
+	Phòng
+	account_id
+	Người chơi
+	ready
+	Trạng thái sẵn sàng
+	joined_at
+	Thời điểm vào phòng
+	📌 Khóa chính kép: (room_id, account_id)
+________________
+
+
+7️⃣ MATCHES
+Mục đích: Một trận game hoàn chỉnh.
+Field
+	Mô tả
+	room_id
+	Phòng tạo ra trận
+	mode
+	Chế độ chơi (elimination, score, …)
+	max_players
+	Số người tối đa
+	advanced
+	Cấu hình nâng cao (JSON)
+	round_time
+	Thời gian mỗi round (giây)
+	started_at
+	Thời điểm bắt đầu
+	ended_at
+	Thời điểm kết thúc
+	Note: Advanced là 1 số setting đặc biệt
+{
+  "wager”: true,
+}
+	8️⃣ MATCH_PLAYERS
+Mục đích: Thông tin người chơi trong một trận cụ thể.
+Field
+	Mô tả
+	match_id
+	Trận đấu
+	account_id
+	Người chơi
+	score
+	Tổng điểm
+	eliminated
+	Đã bị loại hay chưa
+	forfeited
+	Bỏ cuộc
+	winner
+	Người thắng
+	joined_at
+	Tham gia trận
+	________________
+
+
+9️⃣ MATCH_QUESTION
+Mục đích: Snapshot câu hỏi theo từng round (quan trọng để replay & audit).
+Field
+	Mô tả
+	match_id
+	Trận đấu
+	round_no
+	Số round (1–4)
+	round_type
+	MCQ, FILL, WHEEL, BONUS
+	question_idx
+	Thứ tự câu trong round
+	question
+	Dữ liệu câu hỏi (JSON)
+	📌 Unique: (match_id, round_no, question_idx)
+________________
+
+
+🔟 MATCH_ANSWER
+Mục đích: Lưu hành động trả lời / quay của người chơi.
+Field
+	Mô tả
+	question_id
+	Câu hỏi
+	player_id
+	Người chơi
+	answer
+	Câu trả lời / giá trị quay
+	score_delta
+	Điểm cộng / trừ
+	action_idx
+	Lượt (quay nhiều lần, trả lời nhanh)
+	________________
+
+
+1️⃣1️⃣ QUESTIONS
+Mục đích: Ngân hàng câu hỏi dùng để sinh match.
+Field
+	Mô tả
+	type
+	MCQ, BID, WHEEL, BONUS
+	data
+	Nội dung câu hỏi
+	active
+	Có được phép dùng không
+	Ví dụ
+MCQ:
+{
+  "question": "Giá của iPhone 15 Pro tại Việt Nam là bao nhiêu?",
+  "choices": [
+        "25.990.000",
+        "27.990.000",
+        "29.990.000",
+        "31.990.000"
+  ],
+  "image": "URL"
+}
+	BID
+{
+  "question": "Giá gốc của PS5 Digital Edition (USD)?",
+  "correct_answer": 399,
+  "image": "URL"
+}
+	WHEEL
+{
+  "type": "wheel",
+  "segments": [0, 10, 20, 30, 40, 50, -20, 100],
+  "label": "classic_wheel"
+}
+
+	BONUS
+{
+  "question": "...",
+  "display_price": 27990000,
+  "correct_answer": "up",
+  "image": "URL"
+}

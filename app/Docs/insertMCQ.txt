@@ -1,0 +1,121 @@
+INSERT INTO questions (type, data) VALUES
+('mcq', '{
+  "question": "What is the retail price of the iPhone 15 Pro in Vietnam?",
+  "choices": ["25,990,000 VND", "27,990,000 VND", "29,990,000 VND", "31,990,000 VND"],
+  "image": "https://<PROJECT_ID>.supabase.co/storage/v1/object/public/images/library/mcq/1.webp"
+}'),
+('mcq', '{
+  "question": "Approximately how much does the MacBook Air M2 cost in Vietnam?",
+  "choices": ["24,990,000 VND", "27,990,000 VND", "29,990,000 VND", "32,990,000 VND"],
+  "image": "https://<PROJECT_ID>.supabase.co/storage/v1/object/publicimages/library/mcq/2.webp"
+}'),
+('mcq', '{
+  "question": "What is the approximate price of the Samsung Galaxy S23 in Vietnam?",
+  "choices": ["19,990,000 VND", "21,990,000 VND", "23,990,000 VND", "25,990,000 VND"],
+  "image": "https://<PROJECT_ID>.supabase.co/storage/v1/object/public/images/library/mcq/3.webp"
+}'),
+('mcq', '{
+  "question": "What is the retail price of the PlayStation 5 in Vietnam?",
+  "choices": ["10,990,000 VND", "12,990,000 VND", "14,990,000 VND", "16,990,000 VND"],
+  "image": "https://<PROJECT_ID>.supabase.co/storage/v1/object/public/images/library/mcq/4.webp"
+}'),
+('mcq', '{
+  "question": "Approximately how much does the Nintendo Switch OLED cost in Vietnam?",
+  "choices": ["6,990,000 VND", "7,990,000 VND", "8,990,000 VND", "9,990,000 VND"],
+  "image": "https://<PROJECT_ID>.supabase.co/storage/v1/object/public/images/library/mcq/5.webp"
+}'),
+('mcq', '{
+  "question": "What is the approximate price of AirPods Pro (2nd generation)?",
+  "choices": ["4,990,000 VND", "5,490,000 VND", "6,190,000 VND", "6,990,000 VND"],
+  "image": "https://<PROJECT_ID>.supabase.co/storage/v1/object/public/images/library/mcq/6.webp"
+}'),
+('mcq', '{
+  "question": "What is the starting price of the Apple Watch Series 9 in Vietnam?",
+  "choices": ["9,990,000 VND", "10,990,000 VND", "11,990,000 VND", "12,990,000 VND"],
+  "image": "https://<PROJECT_ID>.supabase.co/storage/v1/object/public/images/library/mcq/7.webp"
+}'),
+('mcq', '{
+  "question": "Approximately how much does the 11-inch iPad Pro (M2) cost?",
+  "choices": ["18,990,000 VND", "20,990,000 VND", "22,990,000 VND", "24,990,000 VND"],
+  "image": "https://<PROJECT_ID>.supabase.co/storage/v1/object/public/images/library/mcq/8.webp"
+}'),
+('mcq', '{
+  "question": "What is the approximate price of the Dell XPS 13?",
+  "choices": ["29,990,000 VND", "32,990,000 VND", "35,990,000 VND", "38,990,000 VND"],
+  "image": "https://<PROJECT_ID>.supabase.co/storage/v1/object/public/images/library/mcq/9.webp"
+}'),
+('mcq', '{
+  "question": "How much does the Sony WH-1000XM5 typically cost?",
+  "choices": ["7,990,000 VND", "8,990,000 VND", "9,990,000 VND", "10,990,000 VND"],
+  "image": "https://<PROJECT_ID>.supabase.co/storage/v1/object/public/images/library/mcq/10.webp"
+}'),
+('mcq', '{
+  "question": "What is the approximate price of the Canon EOS R50 camera?",
+  "choices": ["15,990,000 VND", "17,990,000 VND", "19,990,000 VND", "21,990,000 VND"],
+  "image": "https://<PROJECT_ID>.supabase.co/storage/v1/object/public/images/library/mcq/11.webp"
+}'),
+('mcq', '{
+  "question": "Approximately how much does the GoPro Hero 12 cost?",
+  "choices": ["9,990,000 VND", "10,990,000 VND", "11,990,000 VND", "12,990,000 VND"],
+  "image": "https://<PROJECT_ID>.supabase.co/storage/v1/object/public/images/library/mcq/12.webp"
+}'),
+('mcq', '{
+  "question": "What is the approximate price of a 55-inch LG OLED TV?",
+  "choices": ["29,990,000 VND", "34,990,000 VND", "39,990,000 VND", "44,990,000 VND"],
+  "image": "https://<PROJECT_ID>.supabase.co/storage/v1/object/public/images/library/mcq/13.webp"
+}'),
+('mcq', '{
+  "question": "How much does the Dyson V15 vacuum cleaner cost?",
+  "choices": ["15,990,000 VND", "17,990,000 VND", "19,990,000 VND", "21,990,000 VND"],
+  "image": "https://<PROJECT_ID>.supabase.co/storage/v1/object/public/images/library/mcq/14.webp"
+}'),
+('mcq', '{
+  "question": "What is the approximate price of the JBL Charge 5 speaker?",
+  "choices": ["3,990,000 VND", "4,490,000 VND", "4,990,000 VND", "5,490,000 VND"],
+  "image": "https://<PROJECT_ID>.supabase.co/storage/v1/object/public/images/library/mcq/15.webp"
+}'),
+('mcq', '{
+  "question": "Approximately how much does the Bose SoundLink speaker cost?",
+  "choices": ["5,990,000 VND", "6,990,000 VND", "7,990,000 VND", "8,990,000 VND"],
+  "image": "https://<PROJECT_ID>.supabase.co/storage/v1/object/public/images/library/mcq/16.webp"
+}'),
+('mcq', '{
+  "question": "What is the approximate price of the ASUS ROG gaming phone?",
+  "choices": ["19,990,000 VND", "22,990,000 VND", "25,990,000 VND", "28,990,000 VND"],
+  "image": "https://<PROJECT_ID>.supabase.co/storage/v1/object/public/images/library/mcq/17.webp"
+}'),
+('mcq', '{
+  "question": "Approximately how much does the Surface Pro 9 cost?",
+  "choices": ["23,990,000 VND", "26,990,000 VND", "29,990,000 VND", "32,990,000 VND"],
+  "image": "https://<PROJECT_ID>.supabase.co/storage/v1/object/public/images/library/mcq/18.webp"
+}'),
+('mcq', '{
+  "question": "What is the approximate price of the Xiaomi 13 Pro?",
+  "choices": ["19,990,000 VND", "21,990,000 VND", "23,990,000 VND", "25,990,000 VND"],
+  "image": "https://<PROJECT_ID>.supabase.co/storage/v1/object/public/images/library/mcq/19.webp"
+}'),
+('mcq', '{
+  "question": "Approximately how much does the Meta Quest 3 cost?",
+  "choices": ["11,990,000 VND", "12,990,000 VND", "13,990,000 VND", "14,990,000 VND"],
+  "image": "https://<PROJECT_ID>.supabase.co/storage/v1/object/public/images/library/mcq/20.webp"
+}');
+
+INSERT INTO questions (type, data) VALUES
+('bid', '{"question":"What is the original retail price of the Kindle Paperwhite (USD)?","correct_answer":139,"image":"https://<PROJECT_ID>.supabase.co/storage/v1/object/public/images/library/bid/1.webp"}'),
+('bid', '{"question":"What is the original retail price of the Logitech MX Master 3S mouse (USD)?","correct_answer":99,"image":"https://<PROJECT_ID>.supabase.co/storage/v1/object/public/images/library/bid/2.webp"}'),
+('bid', '{"question":"What is the original retail price of the Samsung T7 1TB SSD (USD)?","correct_answer":99,"image":"https://<PROJECT_ID>.supabase.co/storage/v1/object/public/images/library/bid/3.webp"}'),
+('bid', '{"question":"What is the original retail price of the Philips Hue Starter Kit (USD)?","correct_answer":199,"image":"https://<PROJECT_ID>.supabase.co/storage/v1/object/public/images/library/bid/4.webp"}'),
+('bid', '{"question":"What is the original retail price of the Anker PowerCore 20000mAh power bank (USD)?","correct_answer":59,"image":"https://<PROJECT_ID>.supabase.co/storage/v1/object/public/images/library/bid/5.webp"}'),
+('bid', '{"question":"What is the original retail price of the Amazon Echo Dot (5th Gen) (USD)?","correct_answer":49,"image":"https://<PROJECT_ID>.supabase.co/storage/v1/object/public/images/library/bid/6.webp"}'),
+('bid', '{"question":"What is the original retail price of the Xiaomi Smart Air Fryer (USD)?","correct_answer":129,"image":"https://<PROJECT_ID>.supabase.co/storage/v1/object/public/images/library/bid/7.webp"}'),
+('bid', '{"question":"What is the original retail price of the Logitech C920 webcam (USD)?","correct_answer":79,"image":"https://<PROJECT_ID>.supabase.co/storage/v1/object/public/images/library/bid/8.webp"}'),
+('bid', '{"question":"What is the original retail price of the Razer BlackWidow mechanical keyboard (USD)?","correct_answer":139,"image":"https://<PROJECT_ID>.supabase.co/storage/v1/object/public/images/library/bid/9.webp"}'),
+('bid', '{"question":"What is the original retail price of the DJI Osmo Mobile 6 (USD)?","correct_answer":159,"image":"https://<PROJECT_ID>.supabase.co/storage/v1/object/public/images/library/bid/10.webp"}');
+
+
+INSERT INTO questions (type, data) VALUES
+('bonus', '{"question":"Is the average monthly rent of a studio apartment in Ho Chi Minh City higher or lower than 10,000,000 VND?","display_price":10000000,"correct_answer":"up"}'),
+('bonus', '{"question":"Does a typical mid-range electric scooter cost more or less than 20,000,000 VND?","display_price":20000000,"correct_answer":"down"}'),
+('bonus', '{"question":"Is the average price of a pair of premium running shoes higher or lower than 5,000,000 VND?","display_price":5000000,"correct_answer":"down"}'),
+('bonus', '{"question":"Is the average cost of a round-trip domestic flight in Vietnam higher or lower than 3,000,000 VND?","display_price":3000000,"correct_answer":"down"}'),
+('bonus', '{"question":"Is the annual subscription fee for most online streaming services higher or lower than 2,000,000 VND?","display_price":2000000,"correct_answer":"down"}');

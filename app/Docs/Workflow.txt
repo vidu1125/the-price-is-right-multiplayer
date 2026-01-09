@@ -1,0 +1,176 @@
+
+**Workflow**
+Với mỗi usecase cần:
+-	Payload
+-	Define state machine (nếu cần)
+-	Luồng thành công (gửi response gì)
+-	Error handling 
+o	Báo lỗi chung
+o	Define lỗi riêng
+
+
+**NETWORK worktree**
+Network/
+├── include/
+│   ├── protocol/                 🔒 CHUNG - API & CONTRACT
+│   │   ├── protocol.h
+│   │   └── opcode.h
+│   │
+│   ├── transport/                🔒 CHUNG - Socket interface
+│   │   └── socket_server.h
+│   │
+│   ├── handlers/
+│   │   ├── dispatcher.h          🔒 CHUNG - opcode → handler
+│   │   └── room_handler.h        🟢 RIÊNG - Dev A
+│   │
+│   └── db/
+│       ├── core/                 🔒 CHUNG - DB core
+│       │   └── db_client.h
+│       │
+│       ├── models/               🔒 CHUNG - READ ONLY
+│       │   └── room_model.h      # ví dụ 1 model
+│       │
+│       └── repo/                 🟢 RIÊNG - domain repo
+│           └── room_repo.h       # ví dụ 1 repo
+│
+├── src/
+│   ├── protocol/
+│   │   └── message.c             🔒 CHUNG - encode/decode
+│   │
+│   ├── transport/
+│   │   └── socket_server.c       🔒 CHUNG - socket core
+│   │
+│   ├── handlers/
+│   │   ├── dispatcher.c          🔒 CHUNG - KHÔNG business
+│   │   └── room_handler.c        🟢 RIÊNG - Dev A
+│   │
+│   └── db/
+│       ├── core/
+│       │   └── db_client.c       🔒 CHUNG
+│       │
+│       └── repo/
+│           └── room_repo.c       🟢 RIÊNG
+│
+├── main.c                        🔒 CHUNG - entry point
+├── Dockerfile                   🔒 CHUNG
+
+Note:
+-	Chỉ thêm code vào handlers
+-	Name convention:
+Tên file: <domain>_handler.c và <domain>_handler.h
+Tên hàm xử lý: handle_<domain>(int client_fd, MessageHeader *req, const char *payload)
+-	Import opcode từ protocols/opcode.h, không tự define lại opcode (Nếu cần thêm opcode  cần thông báo với mọi người (tránh conflit mã opcode))
+-	Import protocol.h để define header
+-	Mọi thay đổi của các hàm, logic chung  cần thông báo
+-	Sửa query database ở db/repo
+<usecase>_repo.c (Nên check với các usecase tương tự tránh lặp code)
+•	Gọi db_get / db_post
+•	Parse cJSON → room_t
+•	Validate logic DB-level
+•	Không xử lý game logic
+-	Model.h là dùng để chuẩn hóa dữ liệu  không tự typdef dữ liệu mới trong repo
+
+
+**FRONTEND worktree**
+Frontend/
+├── public/                       🔒 CHUNG - static assets
+│
+├── src/
+│   ├── components/               🟢 RIÊNG - UI theo domain
+│   │   ├── Lobby/                # Dev A - màn hình lobby
+│   │   ├── Room/                 # Dev A - phòng chơi
+│   │   ├── Game/                 # Dev B - gameplay
+│   │   └── RoomOld/              # legacy / refactor (nếu còn dùng)
+│   │
+│   ├── network/                  🔒 CHUNG - socket core (KHÔNG business)
+│   │   ├── socketClient.js       # WS connect / send / recv raw bytes
+│   │   ├── receiver.js           # decode frame → emit event
+│   │   └── dispatcher.js         # opcode → service handler
+│   │
+│   ├── services/                 🟢 RIÊNG - business logic theo domain
+│   │   ├── historyService.js     # Dev D - history
+│   │   ├── roomService.js        # Dev A - room/lobby
+│   │   └── socketServices.js     # (nếu có) wrapper tiện ích
+│   │
+│   ├── App.js                    🔒 CHUNG - root component
+│   ├── App.css
+│   ├── index.js                  🔒 CHUNG - entry point
+│   └── index.css
+│
+├── .env                          🔒 CHUNG - env config
+├── Dockerfile                    🔒 CHUNG - build frontend
+├── package.json                  🔒 CHUNG - deps & scripts
+└── README.md                     🔒 CHUNG - docs frontend
+
+Note:
+-	Chir thêm code service vào thư mục services đề define action, không thêm function vào components (components chỉ gọi đến hoạt động ở service)
+-	Name convention:
+services/<domain>Service.js
+  
+
+**Định nghĩa 1 communicaton giữa client và server**
+CSS (Communication Stack / Conceptual Stack)
+
+5. Use case / Semantics     ← "User muốn làm gì?"
+4. Payload / Data           ← "Gửi cái gì?"
+3. Protocol                 ← "Gửi theo format nào?"
+2. Transport                ← "Gửi bằng cách nào?"
+1. Connection               ← "Ai đang nói chuyện?"
+
+
+
+**Testing connection**
+-	Frontend: kiểm tra console log
+Connected to gateway
+[Service][History] viewHistory() called
+[DISPATCH] send {
+  command: '502',
+  payloadLen: 0
+}
+
+[Socket] recv
+Uint8Array(43) [
+  67, 71, 1, 0, 5, 2, 0, 0, 0, 0, 1, 0, 0, 27,
+  104, 105, 115, 116, 111, 114, 121, 32, 110, 111, 116, 32, 102, 111,
+  108, 108, 111, 119, 101, 100, 32, 121, 101, 116
+]
+byteLength: 43
+byteOffset: 0
+length: 43
+Symbol(Symbol.toStringTag): "Uint8Array"
+
+
+-	Network: docker compose logs -f network
+ NETWORK SOCKET SERVER START
+===========================
+
+Press Ctrl+C to stop
+
+Socket server started on port 5500
+Socket server started on port 5500
+[DISPATCH] cmd=0x502 len=0
+[HIST] handle history request
+[HIST] response sent
+
+Received shutdown signal, stopping server...
+Socket server shutdown
+Server stopped gracefully
+
+tpr-network exited with code 0
+
+-	Ws-bridge: docker compose logs -f ws-bridge
+WS Bridge listening on :8080
+WS client connected
+Connected to C server network:5500
+WS TCP buffer 43 07 e1 05 02 00 00 00 00 00 01 00 00 1b 68 69 73 74 6f 72 79 20 6e 6f 74 20 66 6f 6c 6c 6f 77 65 64 20 79 65 74
+WS FRAME { cmd: 0x502, seqNum: 1, length: 27 }
+
+tpr-ws-bridge exited with code 137
+
+
+
+- Terminal command convention:
++ Network: [HANDLER] <usecase> infor
+vd: [HANDLER] <viewHistory> this is command
++ Frontend: [SERVICE] <usecase> infor
+vd: [SERVICE] <viewHistory> this is service

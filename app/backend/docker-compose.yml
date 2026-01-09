@@ -1,0 +1,15 @@
+services:
+  network:
+    build:
+      context: ./Network
+      dockerfile: Dockerfile
+    container_name: tpir-network
+    ports:
+      - "5500:5500"
+    networks:
+      - tpir-net
+    restart: unless-stopped
+
+networks:
+  tpir-net:
+    driver: bridge
