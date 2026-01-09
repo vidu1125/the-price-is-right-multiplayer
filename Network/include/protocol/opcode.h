@@ -9,6 +9,7 @@
 #define CMD_RECONNECT       0x0103
 // Profile / Player Settings
 #define CMD_UPDATE_PROFILE   0x0104
+#define CMD_GET_PROFILE      0x0105
 
 // Lobby (Room Management)
 #define CMD_CREATE_ROOM     0x0200
@@ -56,6 +57,7 @@
 #define RES_GAME_STARTED    301
 // Profile
 #define RES_PROFILE_UPDATED  226
+#define RES_PROFILE_FOUND    227
 
 // Error
 #define ERR_BAD_REQUEST     400

@@ -10,4 +10,10 @@ void handle_update_profile(
     const char *payload
 );
 
+void handle_get_profile(
+    int client_fd,
+    MessageHeader *header,
+    const char *payload
+);
+
 #endif // PROFILE_HANDLER_H
