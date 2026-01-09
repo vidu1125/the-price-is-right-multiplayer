@@ -8,6 +8,8 @@ class MatchRecord {
   final int score;
   final String ranking;
   final DateTime endedAt;
+  final bool isForfeit;
+  final bool isEliminated;
 
   MatchRecord({
     required this.matchId,
@@ -16,6 +18,8 @@ class MatchRecord {
     required this.score,
     required this.ranking,
     required this.endedAt,
+    this.isForfeit = false,
+    this.isEliminated = false,
   });
 
   factory MatchRecord.fromBytes(Uint8List bytes, int offset) {

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/service_locator.dart';
 import '../../models/match_record.dart';
-import '../theme/lobby_theme.dart';
+import '../theme/history_theme.dart'; // Corrected import path
 import 'match_detail_screen.dart';
 
 class HistoryScreen extends StatefulWidget {
@@ -23,55 +23,75 @@ class _HistoryScreenState extends State<HistoryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: LobbyTheme.backgroundNavy,
-      appBar: AppBar(
-        title: Text("MATCH HISTORY", style: LobbyTheme.gameFont(fontSize: 22)),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        centerTitle: true,
-      ),
-      extendBodyBehindAppBar: true,
       body: Stack(
         children: [
-          // Background Image
+          // Background giống bản web
           Positioned.fill(
             child: Image.asset("assets/images/lobby-bg.png", fit: BoxFit.cover),
           ),
-          Positioned.fill(child: Container(color: Colors.black.withOpacity(0.6))),
-
+          Positioned.fill(child: Container(color: Colors.black.withOpacity(0.4))), // Overlay for readability
+          
           SafeArea(
-            child: FutureBuilder<List<MatchRecord>>(
-              future: _historyFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator(color: LobbyTheme.yellowGame));
-                }
-                
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Text("Error: ${snapshot.error}", 
-                      style: const TextStyle(color: Colors.white70))
-                  );
-                }
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+                child: Column(
+                  children: [
+                    Text("THE PRICE IS RIGHT", style: HistoryTheme.titleStyle),
+                    const SizedBox(height: 30),
+                    
+                    // Thẻ chứa bảng (Table Container) - Tương ứng .settings-card trong CSS
+                    Container(
+                      constraints: const BoxConstraints(maxWidth: 1000),
+                      padding: const EdgeInsets.all(32),
+                      decoration: HistoryTheme.glassCardDecoration,
+                      child: Column(
+                        children: [
+                          _buildSummaryHeader(),
+                          const SizedBox(height: 24),
+                          const Divider(color: Colors.white24),
+                          _buildTableHeaders(),
+                          const SizedBox(height: 12),
+                          
+                          FutureBuilder<List<MatchRecord>>(
+                            future: _historyFuture,
+                            builder: (context, snapshot) {
+                              if (snapshot.connectionState == ConnectionState.waiting) {
+                                return const Padding(
+                                  padding: EdgeInsets.all(40),
+                                  child: CircularProgressIndicator(color: HistoryTheme.primaryBlue),
+                                );
+                              }
+                              
+                              if (snapshot.hasError) {
+                                return Padding(
+                                  padding: const EdgeInsets.all(16),
+                                  child: Text("Error: ${snapshot.error}", style: const TextStyle(color: Colors.white70)),
+                                );
+                              }
 
-                final records = snapshot.data ?? [];
-                if (records.isEmpty) {
-                  return Center(
-                    child: Text("No match history found.", 
-                      style: LobbyTheme.gameFont(color: Colors.white54))
-                  );
-                }
+                              final records = snapshot.data ?? [];
+                              if (records.isEmpty) {
+                                return const Padding(
+                                  padding: EdgeInsets.all(16),
+                                  child: Text("No records found.", style: TextStyle(color: Colors.white54)),
+                                );
+                              }
 
-                return ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
-                  itemCount: records.length,
-                  separatorBuilder: (context, index) => const SizedBox(height: 12),
-                  itemBuilder: (context, index) {
-                    final record = records[index];
-                    return _buildHistoryItem(record);
-                  },
-                );
-              },
+                              return Column(
+                                children: records.map((r) => _buildTableRow(r)).toList(),
+                              );
+                            },
+                          ),
+                          
+                          const SizedBox(height: 30),
+                          _buildBackButton(),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
         ],
@@ -79,84 +99,170 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  Widget _buildHistoryItem(MatchRecord record) {
-    return GestureDetector(
-      onTap: () async {
-        // Show loading dialog
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => const Center(child: CircularProgressIndicator(color: LobbyTheme.yellowGame)),
-        );
+  // Header tóm tắt thông số (Matches, Top 1, Total Score)
+  Widget _buildSummaryHeader() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceAround,
+      children: [
+        _buildSummaryItem("MATCHES", "2"),
+        _buildSummaryItem("TOP 1", "0"),
+        _buildSummaryItem("TOTAL SCORE", "+21", color: Colors.greenAccent),
+      ],
+    );
+  }
 
-        try {
-          final details = await ServiceLocator.historyService.viewMatchDetails(record.matchId);
-          if (mounted) {
-            Navigator.pop(context); // Close loading
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => MatchDetailScreen(data: details),
-              ),
-            );
-          }
-        } catch (e) {
-          if (mounted) {
-            Navigator.pop(context); // Close loading
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text("Failed to load details: $e"), backgroundColor: Colors.red),
-            );
-          }
-        }
-      },
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: LobbyTheme.rowBackground.withOpacity(0.3),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: LobbyTheme.primaryDark, width: 2),
-        ),
-        child: Row(
-          children: [
-            // Winner/Loser Icon
-            CircleAvatar(
-              backgroundColor: record.isWinner ? Colors.green : Colors.redAccent,
-              child: Icon(
-                record.isWinner ? Icons.emoji_events : Icons.close,
-                color: Colors.white,
-              ),
-            ),
-            const SizedBox(width: 16),
-            
-            // Info
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text("Match #${record.matchId}", 
-                    style: LobbyTheme.gameFont(fontSize: 16, color: LobbyTheme.yellowGame)),
-                  const SizedBox(height: 4),
-                  Text("${record.mode} • Score: ${record.score}", 
-                    style: LobbyTheme.tableContentFont),
-                ],
-              ),
-            ),
+  Widget _buildSummaryItem(String label, String value, {Color color = Colors.white}) {
+    return Column(
+      children: [
+        Text(label, style: HistoryTheme.columnHeaderStyle),
+        const SizedBox(height: 8),
+        Text(value, style: HistoryTheme.titleStyle.copyWith(fontSize: 24, color: color)),
+      ],
+    );
+  }
 
-            // Date
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(record.ranking, style: LobbyTheme.gameFont(fontSize: 14)),
-                const SizedBox(height: 4),
-                Text(
-                  "${record.endedAt.day}/${record.endedAt.month} ${record.endedAt.hour}:${record.endedAt.minute.toString().padLeft(2, '0')}",
-                  style: const TextStyle(fontSize: 10, color: Colors.white54),
-                ),
-              ],
-            ),
-          ],
-        ),
+  // Tiêu đề các cột trong bảng
+  Widget _buildTableHeaders() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Row(
+        children: [
+          Expanded(flex: 2, child: Center(child: Text("ID", style: HistoryTheme.columnHeaderStyle))),
+          Expanded(flex: 3, child: Center(child: Text("MODE", style: HistoryTheme.columnHeaderStyle))),
+          Expanded(flex: 3, child: Center(child: Text("FINAL SCORE", style: HistoryTheme.columnHeaderStyle))),
+          Expanded(flex: 2, child: Center(child: Text("RANKING", style: HistoryTheme.columnHeaderStyle))),
+          Expanded(flex: 2, child: Center(child: Text("ACTION", style: HistoryTheme.columnHeaderStyle))),
+        ],
       ),
     );
+  }
+
+  // Một dòng dữ liệu trong bảng
+  Widget _buildTableRow(MatchRecord record) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          Expanded(flex: 2, child: Center(child: Text("#${record.matchId}", style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.bold)))),
+          Expanded(flex: 3, child: Center(child: _buildModePill(record.mode))),
+          Expanded(flex: 3, child: Center(child: Text(record.score.toString(), style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)))),
+          
+          // CỘT RANKING / STATUS ĐÃ CẬP NHẬT
+          Expanded(
+            flex: 2, 
+            child: Center(child: _buildRankOrStatus(record))
+          ),
+          
+          Expanded(flex: 2, child: Center(child: _buildViewButton(record))),
+        ],
+      ),
+    );
+  }
+
+  // Widget xử lý hiển thị Thứ hạng hoặc Trạng thái đặc biệt
+  Widget _buildRankOrStatus(MatchRecord record) {
+    if (record.isForfeit == true) {
+      return _buildStatusPill("FORFEIT", HistoryTheme.forfeitRed);
+    } 
+    
+    if (record.isEliminated == true) {
+      return _buildStatusPill("ELIMINATED", HistoryTheme.eliminatedOrange);
+    }
+
+    // Nếu không bị loại/bỏ cuộc thì hiện Rank Circle như cũ
+    return _buildRankCircle(record.ranking);
+  }
+
+  // Widget bổ trợ cho nhãn trạng thái
+  Widget _buildStatusPill(String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color, width: 1),
+      ),
+      child: Text(
+        text, 
+        style: HistoryTheme.statusTextStyle(color),
+      ),
+    );
+  }
+
+  Widget _buildModePill(String mode) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        color: HistoryTheme.primaryBlue,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: HistoryTheme.darkBlue),
+      ),
+      child: Text(mode.toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+    );
+  }
+
+  Widget _buildRankCircle(String rank) {
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.yellowAccent, width: 1),
+      ),
+      child: Text(rank, style: const TextStyle(color: Colors.yellowAccent, fontSize: 12, fontWeight: FontWeight.bold)),
+    );
+  }
+
+  Widget _buildViewButton(MatchRecord record) {
+    return ElevatedButton(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.greenAccent.shade700,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+      onPressed: () => _handleViewDetails(record),
+      child: const Text("VIEW", style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+    );
+  }
+
+  Widget _buildBackButton() {
+    return ElevatedButton(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.orangeAccent,
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: const BorderSide(color: HistoryTheme.darkBlue, width: 2),
+        ),
+      ),
+      onPressed: () => Navigator.pop(context),
+      child: Text("BACK TO LOBBY", style: HistoryTheme.titleStyle.copyWith(fontSize: 16, color: Colors.white)),
+    );
+  }
+
+  Future<void> _handleViewDetails(MatchRecord record) async {
+    // Logic gọi service giữ nguyên không đổi
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator(color: HistoryTheme.primaryBlue)),
+    );
+
+    try {
+      final details = await ServiceLocator.historyService.viewMatchDetails(record.matchId);
+      if (mounted) {
+        Navigator.pop(context);
+        Navigator.push(context, MaterialPageRoute(builder: (context) => MatchDetailScreen(data: details)));
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+      }
+    }
   }
 }

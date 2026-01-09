@@ -46,8 +46,12 @@ class LobbyScreen extends StatelessWidget {
                               _sideButton("VIEW HISTORY", () {
                                 Navigator.pushNamed(context, '/history');
                               }),
-                              _sideButton("VIEW TUTORIAL", () {}),
-                              _sideButton("SETTING", () {}),
+                              _sideButton("VIEW TUTORIAL", () {
+                                Navigator.pushNamed(context, '/tutorial');
+                              }),
+                              _sideButton("SETTING", () {
+                                Navigator.pushNamed(context, '/settings');
+                              }),
                               const SizedBox(height: 40), // Khoảng cách riêng cho nút Logout
                               _sideButton("LOG OUT", () async {
                                 final res = await ServiceLocator.authService.logout();

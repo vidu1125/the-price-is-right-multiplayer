@@ -5,6 +5,8 @@ import 'ui/screens/login_screen.dart';
 import 'ui/screens/lobby_screen.dart';
 import 'ui/screens/history_screen.dart';
 import 'ui/screens/register_screen.dart';
+import 'ui/screens/tutorial_screen.dart';
+import 'ui/screens/settings_screen.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -52,7 +54,8 @@ class MyApp extends StatelessWidget {
         '/register': (context) => const RegisterScreen(),
         '/lobby': (context) => const LobbyScreen(),
         '/history': (context) => const HistoryScreen(),
-        '/tutorial': (context) => Scaffold(appBar: AppBar(title: const Text("Tutorial")), body: const Center(child: Text("Tutorial Screen"))),
+        '/tutorial': (context) => const TutorialPage(),
+        '/settings': (context) => const PlayerSettingsPage(),
       },
     );
   }
