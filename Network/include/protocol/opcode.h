@@ -88,3 +88,21 @@
 #define NTF_RULES_CHANGED   713
 #define NTF_MEMBER_KICKED   714
 #define NTF_ROOM_CLOSED     715
+
+// Round 1 - Quiz (0x0601 - 0x061F)
+#define OP_C2S_ROUND1_READY       0x0601  // Client ready to start
+#define OP_S2C_ROUND1_START       0x0611  // Server: round started
+#define OP_C2S_ROUND1_GET_QUESTION 0x0602 // Request next question
+#define OP_S2C_ROUND1_QUESTION    0x0612  // Server sends question
+#define OP_C2S_ROUND1_ANSWER      0x0604  // Submit answer
+#define OP_S2C_ROUND1_RESULT      0x0614  // Answer result
+#define OP_C2S_ROUND1_END         0x0605  // End round (player finished)
+#define OP_S2C_ROUND1_END         0x0615  // Round ended (all players done)
+
+// Round 1 - Sync opcodes
+#define OP_C2S_ROUND1_PLAYER_READY  0x0606  // Player clicks ready
+#define OP_S2C_ROUND1_READY_STATUS  0x0616  // Broadcast ready status
+#define OP_S2C_ROUND1_ALL_READY     0x0617  // All players ready, game starts
+#define OP_C2S_ROUND1_FINISHED      0x0607  // Player finished all questions
+#define OP_S2C_ROUND1_WAITING       0x0618  // Waiting for other players
+#define OP_S2C_ROUND1_ALL_FINISHED  0x0619  // All players finished, show results
