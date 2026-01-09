@@ -6,3 +6,10 @@ node_modules/
 build/
 .DS_Store
 *.log
+# Flutter / Linux build ephemeral artifacts
+app/client/flutter_app/linux/flutter/ephemeral/
+app/client/flutter_app/linux/flutter/ephemeral/**
+
+# (optional) common Flutter build outputs
+**/build/
+**/.dart_tool/
