@@ -54,7 +54,9 @@ export function handleIncoming(buffer) {
 
   const handler = handlers.get(command);
   if (!handler) {
-    console.warn("[Receiver] no handler for opcode", "0x" + command.toString(16));
+    console.warn("[Receiver] no handler for opcode", "0x" + command.toString(16), "(decimal:", command, ")");
+    // Log available handlers for debugging
+    console.log("[Receiver] Available handlers:", Array.from(handlers.keys()).map(k => `0x${k.toString(16)}(${k})`));
     return;
   }
 

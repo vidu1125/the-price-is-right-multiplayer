@@ -14,6 +14,7 @@
 #include "transport/socket_server.h"
 #include "protocol/protocol.h"
 #include "handlers/dispatcher.h"
+#include "handlers/round1_handler.h"
 
 // REMOVED: business / handler / db
 // #include "../include/handler/client_manager.h"
@@ -122,8 +123,14 @@ void handle_client_data(int client_idx) {
              0);
 
     if (r <= 0) {
-        close(client->sockfd);
-        FD_CLR(client->sockfd, &master_set);
+        int fd = client->sockfd;
+        printf("[Socket] Client disconnected: fd=%d\n", fd);
+        
+        // Notify round1 handler about disconnect
+        handle_round1_disconnect(fd);
+        
+        close(fd);
+        FD_CLR(fd, &master_set);
         client->sockfd = -1;
         client->buffer_len = 0;
         return;
