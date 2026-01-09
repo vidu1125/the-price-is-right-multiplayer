@@ -4,6 +4,7 @@
 #include "handlers/dispatcher.h"
 #include "handlers/history_handler.h"
 #include "handlers/room_handler.h"
+#include "handlers/profile_handler.h"
 #include "handlers/match_handler.h"
 #include "handlers/session_context.h"
 #include "handlers/auth_guard.h"
@@ -50,6 +51,11 @@ void dispatch_command(
         break;
     case CMD_RECONNECT:
         handle_reconnect(client_fd, header, payload);
+        break;
+
+    // Profile / Player
+    case CMD_UPDATE_PROFILE:
+        handle_update_profile(client_fd, header, payload);
         break;
 
     // Room Management

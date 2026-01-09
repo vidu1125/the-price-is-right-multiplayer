@@ -7,6 +7,8 @@
 #define CMD_REGISTER_REQ    0x0101
 #define CMD_LOGOUT_REQ      0x0102
 #define CMD_RECONNECT       0x0103
+// Profile / Player Settings
+#define CMD_UPDATE_PROFILE   0x0104
 
 // Lobby (Room Management)
 #define CMD_CREATE_ROOM     0x0200
@@ -52,6 +54,8 @@
 #define RES_RULES_UPDATED   224
 #define RES_MEMBER_KICKED   225
 #define RES_GAME_STARTED    301
+// Profile
+#define RES_PROFILE_UPDATED  226
 
 // Error
 #define ERR_BAD_REQUEST     400
