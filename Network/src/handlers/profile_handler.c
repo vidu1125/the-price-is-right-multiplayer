@@ -90,3 +90,65 @@ void handle_update_profile(
     cJSON_Delete(json);
     profile_free(updated);
 }
+
+void handle_get_profile(
+    int client_fd,
+    MessageHeader *header,
+    const char *payload
+) {
+    (void)payload; // Not used for GET
+    printf("[PROFILE] Processing get_profile request\n");
+
+    // Require bound session
+    int32_t account_id = get_client_account(client_fd);
+    printf("[PROFILE] Account ID from session: %d\n", account_id);
+    
+    if (account_id <= 0) {
+        cJSON *err = cJSON_CreateObject();
+        cJSON_AddBoolToObject(err, "success", false);
+        cJSON_AddStringToObject(err, "error", "Not logged in");
+        send_response_json(client_fd, header, ERR_NOT_LOGGED_IN, err);
+        cJSON_Delete(err);
+        return;
+    }
+
+    profile_t *profile = NULL;
+    db_error_t db_err = profile_find_by_account(account_id, &profile);
+    
+    // Create default if not found
+    if (db_err == DB_ERROR_NOT_FOUND) {
+        profile_create(account_id, NULL, NULL, NULL, &profile);
+        db_err = (profile != NULL) ? DB_SUCCESS : DB_ERR_UNKNOWN;
+    }
+
+    if (db_err != DB_SUCCESS || !profile) {
+        cJSON *err = cJSON_CreateObject();
+        cJSON_AddBoolToObject(err, "success", false);
+        cJSON_AddStringToObject(err, "error", "Profile not found");
+        send_response_json(client_fd, header, ERR_SERVER_ERROR, err);
+        cJSON_Delete(err);
+        return;
+    }
+
+    // Build success payload
+    cJSON *res = cJSON_CreateObject();
+    cJSON_AddBoolToObject(res, "success", true);
+    cJSON *p = cJSON_CreateObject();
+    cJSON_AddNumberToObject(p, "id", profile->id);
+    cJSON_AddNumberToObject(p, "account_id", profile->account_id);
+    if (profile->name) cJSON_AddStringToObject(p, "name", profile->name);
+    if (profile->avatar) cJSON_AddStringToObject(p, "avatar", profile->avatar);
+    if (profile->bio) cJSON_AddStringToObject(p, "bio", profile->bio);
+    cJSON_AddNumberToObject(p, "matches", profile->matches);
+    cJSON_AddNumberToObject(p, "wins", profile->wins);
+    cJSON_AddNumberToObject(p, "points", profile->points);
+    if (profile->badges) cJSON_AddStringToObject(p, "badges", profile->badges);
+    cJSON_AddItemToObject(res, "profile", p);
+
+    printf("[PROFILE] Sending profile data for: %s\n", profile->name ? profile->name : "Anonymous");
+
+    send_response_json(client_fd, header, RES_PROFILE_FOUND, res);
+
+    cJSON_Delete(res);
+    profile_free(profile);
+}

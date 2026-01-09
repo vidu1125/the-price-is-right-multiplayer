@@ -57,6 +57,9 @@ void dispatch_command(
     case CMD_UPDATE_PROFILE:
         handle_update_profile(client_fd, header, payload);
         break;
+    case CMD_GET_PROFILE:
+        handle_get_profile(client_fd, header, payload);
+        break;
 
     // Room Management
     case CMD_CREATE_ROOM:
