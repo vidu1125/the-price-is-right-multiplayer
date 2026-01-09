@@ -107,7 +107,7 @@ registerHandler(OPCODE.RES_LOGIN_OK, (payload) => {
   finishAuth(data, !data?.success);
 });
 
-[OPCODE.ERR_BAD_REQUEST, OPCODE.ERR_NOT_LOGGED_IN, OPCODE.ERR_INVALID_USERNAME, OPCODE.ERR_SERVER_ERROR, OPCODE.ERR_SERVICE_UNAVAILABLE]
+[OPCODE.ERR_BAD_REQUEST, OPCODE.ERR_INVALID_USERNAME, OPCODE.ERR_SERVER_ERROR, OPCODE.ERR_SERVICE_UNAVAILABLE]
   .forEach((opcode) => {
     registerHandler(opcode, (payload) => {
       const text = new TextDecoder().decode(payload);
@@ -115,6 +115,21 @@ registerHandler(OPCODE.RES_LOGIN_OK, (payload) => {
       handleAuthError(payload);
     });
   });
+
+// Special handler for 401: clear session and redirect to login
+registerHandler(OPCODE.ERR_NOT_LOGGED_IN, (payload) => {
+  const text = new TextDecoder().decode(payload);
+  console.warn("[Auth] 401 ERR_NOT_LOGGED_IN ->", text, "- clearing auth & redirecting");
+  
+  // 1. Clear all auth storage
+  clearAuth();
+  
+  // 2. Notify reconnect loop to stop (will check in authBootstrap)
+  window.__authInvalid = true;
+  
+  // 3. Redirect to login
+  window.location.href = "/login";
+});
 
 export function registerAccount({ email, password, confirm, name }) {
   return new Promise((resolve, reject) => {
@@ -256,10 +271,15 @@ export function getAuthState() {
   };
 }
 
-// Clear auth
+// Clear auth and all related storage
 export function clearAuth() {
   localStorage.removeItem("account_id");
   localStorage.removeItem("session_id");
   localStorage.removeItem("email");
   localStorage.removeItem("profile");
+  // Clear room-related data
+  localStorage.removeItem("room_id");
+  localStorage.removeItem("room_code");
+  localStorage.removeItem("room_name");
+  localStorage.removeItem("is_host");
 }

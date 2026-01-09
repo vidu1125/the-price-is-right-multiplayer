@@ -78,7 +78,8 @@ void room_remove_member(int room_id, int client_fd) {
     
     // Find and remove
     for (int i = 0; i < room->member_count; i++) {
-        if (room->member_fds[i] == client_fd) {
+        if (room->members[i].client_fd == client_fd) {
+            uint32_t account_id = room->members[i].account_id;
             // Shift remaining members
             for (int j = i; j < room->member_count - 1; j++) {
                 room->member_fds[j] = room->member_fds[j + 1];
@@ -86,6 +87,10 @@ void room_remove_member(int room_id, int client_fd) {
             room->member_count--;
             printf("[ROOM] Removed fd=%d from room=%d (%d members left)\n",
                    client_fd, room_id, room->member_count);
+
+            char payload[64];
+            snprintf(payload, sizeof(payload), "{\"account_id\":%u}", account_id);
+            room_broadcast(room_id, NTF_PLAYER_LEFT, payload, (uint32_t)strlen(payload), client_fd);
             
             // Remove room if empty
             if (room->member_count == 0) {
@@ -103,24 +108,9 @@ void room_remove_member(int room_id, int client_fd) {
 
 void room_remove_member_all(int client_fd) {
     // Remove from all rooms (when client disconnects)
-    for (int i = 0; i < g_room_count; i++) {
-        RoomState *room = &g_rooms[i];
-        // Check membership first
-        int was_member = 0;
-        for (int j = 0; j < room->member_count; j++) {
-            if (room->member_fds[j] == client_fd) {
-                was_member = 1;
-                break;
-            }
-        }
-        if (!was_member) continue;
-
-        // Remove member
-        room_remove_member(room->room_id, client_fd);
-
-        // Broadcast that player left
-        const char *msg = "Player left the room";
-        room_broadcast(room->room_id, NTF_PLAYER_LEFT, msg, (uint32_t)strlen(msg), -1);
+    // Iterate backwards to avoid index shift issues when room is deleted
+    for (int i = g_room_count - 1; i >= 0; i--) {
+        room_remove_member(g_rooms[i].room_id, client_fd);
     }
 }
 

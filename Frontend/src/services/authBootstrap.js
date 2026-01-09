@@ -5,31 +5,63 @@ import { reconnectSession } from "./authService";
 // Bootstraps socket connection and attempts a single reconnect using stored session_id
 export function useAuthBootstrap() {
   const reconnectTried = useRef(false);
+  const intervalRef = useRef(null);
 
   useEffect(() => {
     initSocket();
 
-    const interval = setInterval(async () => {
-      if (reconnectTried.current) return;
+    // Only try reconnect ONCE on mount if we have a session
+    intervalRef.current = setInterval(async () => {
+      // Stop if auth was invalidated (401 from server)
+      if (window.__authInvalid) {
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        }
+        return;
+      }
+
+      // Already tried or successfully reconnected
+      if (reconnectTried.current) {
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        }
+        return;
+      }
 
       const sessionId = localStorage.getItem("session_id");
       if (!sessionId) {
         reconnectTried.current = true;
-        clearInterval(interval);
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        }
         return;
       }
 
       if (isConnected()) {
         reconnectTried.current = true;
         try {
-          await reconnectSession({ sessionId });
+          const result = await reconnectSession({ sessionId });
+          console.log("[AuthBootstrap] Reconnect successful, stopping interval");
         } catch (err) {
-          console.warn("Reconnect failed", err);
+          console.warn("[AuthBootstrap] Reconnect failed", err);
         }
-        clearInterval(interval);
+        
+        // CRITICAL: Stop interval after attempting reconnect
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        }
       }
     }, 700);
 
-    return () => clearInterval(interval);
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
   }, []);
 }

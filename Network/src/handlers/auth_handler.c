@@ -4,6 +4,7 @@
 #include <cjson/cJSON.h>
 
 #include "handlers/auth_handler.h"
+#include "db/core/db_client.h"
 #include "db/repo/account_repo.h"
 #include "db/repo/session_repo.h"
 #include "db/repo/profile_repo.h"
@@ -422,8 +423,8 @@ void handle_logout(
     }
 
     // Clear binding and session state
-    clear_client_session(client_fd);
     UserSession *us = session_get_by_socket(client_fd);
+    clear_client_session(client_fd);
     if (us) {
         session_destroy(us);
     }
@@ -539,7 +540,53 @@ void handle_reconnect(
         profile_create(account->id, NULL, NULL, NULL, &profile);
     }
 
-    // TODO: Restore room state if player was in a room
+    // Restore room state if player was in a room
+    printf("[AUTH] Restoring room memberships for account_id=%d\n", account->id);
+    
+    char room_query[256];
+    snprintf(room_query, sizeof(room_query), "select=room_id&account_id=eq.%d", account->id);
+    
+    cJSON *room_array = NULL;
+    db_error_t room_err = db_get("room_members", room_query, &room_array);
+    
+    if (room_err == DB_SUCCESS && room_array && cJSON_IsArray(room_array)) {
+        int room_count = cJSON_GetArraySize(room_array);
+        printf("[AUTH] Found %d room memberships to restore\n", room_count);
+        
+        cJSON *room_item = NULL;
+        cJSON_ArrayForEach(room_item, room_array) {
+            cJSON *room_id_obj = cJSON_GetObjectItem(room_item, "room_id");
+            if (room_id_obj && cJSON_IsNumber(room_id_obj)) {
+                uint32_t room_id = (uint32_t)room_id_obj->valueint;
+                
+                // Check if this is the host by querying rooms table
+                char host_query[128];
+                snprintf(host_query, sizeof(host_query), "select=host_id&id=eq.%u&limit=1", room_id);
+                
+                cJSON *host_array = NULL;
+                db_error_t host_err = db_get("rooms", host_query, &host_array);
+                
+                bool is_host = false;
+                if (host_err == DB_SUCCESS && host_array && cJSON_IsArray(host_array) 
+                    && cJSON_GetArraySize(host_array) > 0) {
+                    cJSON *first = cJSON_GetArrayItem(host_array, 0);
+                    cJSON *host_id_obj = cJSON_GetObjectItem(first, "host_id");
+                    if (host_id_obj && cJSON_IsNumber(host_id_obj)) {
+                        is_host = (host_id_obj->valueint == account->id);
+                    }
+                }
+                if (host_array) cJSON_Delete(host_array);
+                
+                // Restore in-memory state
+                room_add_member(room_id, client_fd, account->id, is_host);
+                printf("[AUTH] Restored room membership: room_id=%u, is_host=%d\n", 
+                       room_id, is_host);
+            }
+        }
+        cJSON_Delete(room_array);
+    } else {
+        printf("[AUTH] No room memberships found or query failed: err=%d\n", room_err);
+    }
 
     // Build success response
     cJSON *response = cJSON_CreateObject();

@@ -22,8 +22,15 @@ export default function WaitingRoom() {
     roundTime: "normal"
   });
 
-  // Get room info from navigation state
-  const { roomId, roomCode, isHost } = location.state || {};
+  // Get room info from sessionStorage (ONLY roomId, roomCode, isHost)
+  const [roomId, setRoomId] = useState(null);
+  const [roomCode, setRoomCode] = useState(null);
+  const [isHost, setIsHost] = useState(false);
+  const [hostId, setHostId] = useState(null);
+  
+  // START GAME modal states
+  const [showStartModal, setShowStartModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
     if (!roomId) {
@@ -32,9 +39,121 @@ export default function WaitingRoom() {
       return;
     }
 
-    // Fetch room details and members
-    fetchRoomData(roomId);
-  }, [roomId, navigate]);
+    setRoomId(parseInt(storedRoomId));
+    setRoomCode(storedRoomCode);
+    setIsHost(storedIsHost);
+    
+    // Get host_id from localStorage (set by room state response)
+    const storedHostId = parseInt(localStorage.getItem('host_id') || '0');
+    setHostId(storedHostId);
+    
+    // Set basic room data
+    setRoomData({
+      id: parseInt(storedRoomId),
+      code: storedRoomCode,
+      name: storedRoomName,
+      host_id: storedHostId
+    });
+    
+    // Load cached snapshots (fix race condition)
+    const cachedRules = getLatestRulesSnapshot();
+    const cachedPlayers = getLatestPlayersSnapshot();
+    
+    if (cachedRules) {
+      console.log('[WaitingRoom] Loading cached rules:', cachedRules);
+      setGameRules(cachedRules);
+    }
+    
+    if (cachedPlayers) {
+      console.log('[WaitingRoom] Loading cached players:', cachedPlayers);
+      setMembers(cachedPlayers);
+    }
+    
+    // Clear snapshots after loading
+    clearSnapshots();
+    
+    // Wait for socket connection before pulling snapshot
+    const handleSocketConnected = () => {
+      console.log('[WaitingRoom] Socket connected, pulling room state');
+      getRoomState(parseInt(storedRoomId));
+    };
+    
+    // If already connected, call immediately
+    if (isConnected()) {
+      getRoomState(parseInt(storedRoomId));
+    } else {
+      // Otherwise wait for connection event
+      window.addEventListener('socket-connected', handleSocketConnected, { once: true });
+    }
+    
+    setLoading(false);
+    
+    // Listen for server notifications
+    const handleRulesChanged = (event) => {
+      console.log('[WaitingRoom] Rules changed event received:', event.detail);
+      setGameRules(event.detail);
+    };
+    
+    const handlePlayerList = (event) => {
+      console.log('[WaitingRoom] Player list event:', event.detail);
+      // Normalize players: remove duplicates by account_id
+      const normalizedPlayers = Object.values(
+        (event.detail || []).reduce((acc, player) => {
+          acc[player.account_id] = player; // Keep last occurrence
+          return acc;
+        }, {})
+      );
+      
+      // Update host_id from player list
+      const hostPlayer = normalizedPlayers.find(p => p.is_host);
+      if (hostPlayer) {
+        setHostId(hostPlayer.account_id);
+        setRoomData(prev => ({ ...prev, host_id: hostPlayer.account_id }));
+      }
+      
+      console.log('[WaitingRoom] Normalized players:', normalizedPlayers);
+      setMembers(normalizedPlayers); // REPLACE state, not append
+    };
+    
+    const handlePlayerLeft = (event) => {
+      console.log('[WaitingRoom] Player left event:', event.detail);
+      // Will be updated via NTF_PLAYER_LIST
+    };
+    
+    // Listen for START GAME events
+    const handleGameStarting = (e) => {
+      console.log('[WaitingRoom] Game starting!', e.detail);
+      setShowStartModal(true);
+      
+      // Navigate to game after 3 seconds
+      setTimeout(() => {
+        window.location.href = '/game';
+      }, 3000);
+    };
+    
+    const handleStartError = (e) => {
+      console.error('[WaitingRoom] Start game error:', e.detail.message);
+      setErrorMessage(e.detail.message);
+      
+      // Auto hide after 5 seconds
+      setTimeout(() => setErrorMessage(''), 5000);
+    };
+    
+    window.addEventListener('rules-changed', handleRulesChanged);
+    window.addEventListener('player-list', handlePlayerList);
+    window.addEventListener('player-left', handlePlayerLeft);
+    window.addEventListener('game-starting', handleGameStarting);
+    window.addEventListener('game-start-error', handleStartError);
+    
+    // Cleanup
+    return () => {
+      window.removeEventListener('rules-changed', handleRulesChanged);
+      window.removeEventListener('player-list', handlePlayerList);
+      window.removeEventListener('player-left', handlePlayerLeft);
+      window.removeEventListener('game-starting', handleGameStarting);
+      window.removeEventListener('game-start-error', handleStartError);
+    };
+  }, []); // ✅ FIX: Empty dependency - only run once on mount
 
   const fetchRoomData = async (id) => {
     try {
@@ -113,11 +232,11 @@ export default function WaitingRoom() {
         {/* CỘT 2: MEMBER LIST (Ở GIỮA) */}
         <div className="wr-center">
           <MemberListPanel 
-            isHost={roomInfo.isHost} 
-            roomId={roomInfo.id}
-            hostId={roomData.host_id}
-            roomName={roomInfo.name} 
-            roomCode={roomInfo.code}
+            isHost={isHost} 
+            roomId={roomId}
+            hostId={hostId}
+            roomName={roomData?.name } 
+            roomCode={roomCode}
             maxPlayers={gameRules.maxPlayers}
             members={members}
             onRefresh={() => fetchRoomData(roomId)}
