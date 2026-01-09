@@ -9,6 +9,8 @@ const DEFAULT_AVATAR = "/bg/default-mushroom.jpg";
 const CROWN_ICON = "/bg/crown.png"; 
 
 export default function MemberListPanel({ isHost, roomId, hostId, roomName, roomCode, maxPlayers = 6, members = [], onRefresh }) {
+  // Backend already sorts: host first (ORDER BY host DESC), then by joined_at ASC
+  // Don't sort here - trust server order from get_room_state RPC
   const emptySlots = Array(Math.max(0, maxPlayers - members.length)).fill(null);
 
   useEffect(() => {
@@ -48,7 +50,8 @@ export default function MemberListPanel({ isHost, roomId, hostId, roomName, room
 
       <div className="player-grid">
         {members.map((member) => {
-          const isHostMember = member.account_id === hostId;
+          // Check both is_host flag (from server) and hostId match (from state)
+          const isHostMember = member.is_host || (hostId && member.account_id === hostId);
           return (
             <div key={member.account_id} className={`player-card ${isHostMember ? 'host-card' : ''}`}>
               {isHostMember ? (

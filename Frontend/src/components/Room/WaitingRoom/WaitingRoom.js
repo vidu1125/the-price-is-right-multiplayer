@@ -29,6 +29,7 @@ export default function WaitingRoom() {
   const [roomId, setRoomId] = useState(null);
   const [roomCode, setRoomCode] = useState(null);
   const [isHost, setIsHost] = useState(false);
+  const [hostId, setHostId] = useState(null);
   
   // START GAME modal states
   const [showStartModal, setShowStartModal] = useState(false);
@@ -52,12 +53,16 @@ export default function WaitingRoom() {
     setRoomCode(storedRoomCode);
     setIsHost(storedIsHost);
     
+    // Get host_id from localStorage (set by room state response)
+    const storedHostId = parseInt(localStorage.getItem('host_id') || '0');
+    setHostId(storedHostId);
+    
     // Set basic room data
     setRoomData({
       id: parseInt(storedRoomId),
       code: storedRoomCode,
       name: storedRoomName,
-      host_id: 1 // TODO: Get from session
+      host_id: storedHostId
     });
     
     // Load cached snapshots (fix race condition)
@@ -108,6 +113,14 @@ export default function WaitingRoom() {
           return acc;
         }, {})
       );
+      
+      // Update host_id from player list
+      const hostPlayer = normalizedPlayers.find(p => p.is_host);
+      if (hostPlayer) {
+        setHostId(hostPlayer.account_id);
+        setRoomData(prev => ({ ...prev, host_id: hostPlayer.account_id }));
+      }
+      
       console.log('[WaitingRoom] Normalized players:', normalizedPlayers);
       setMembers(normalizedPlayers); // REPLACE state, not append
     };
@@ -202,7 +215,7 @@ export default function WaitingRoom() {
           <MemberListPanel 
             isHost={isHost} 
             roomId={roomId}
-            hostId={roomData?.host_id || 1}
+            hostId={hostId}
             roomName={roomData?.name } 
             roomCode={roomCode}
             maxPlayers={gameRules.maxPlayers}
