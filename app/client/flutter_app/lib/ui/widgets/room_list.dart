@@ -62,7 +62,11 @@ class RoomList extends StatelessWidget {
                   minimumSize: const Size(60, 30),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
-                onPressed: isInGame ? null : () => print("Join ${room.id}"),
+                onPressed: isInGame 
+                  ? null 
+                  : () {
+                      Navigator.pushNamed(context, '/room');
+                    },
                 child: Text(isInGame ? "Locked" : "Join", style: const TextStyle(fontSize: 12)),
               ),
             ],
