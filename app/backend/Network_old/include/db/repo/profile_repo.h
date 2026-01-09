@@ -23,13 +23,4 @@ db_error_t profile_find_by_account(
 
 void profile_free(profile_t *profile);
 
-// Update profile fields (name, avatar, bio) by owning account
-db_error_t profile_update_by_account(
-    int32_t account_id,
-    const char *name,
-    const char *avatar,
-    const char *bio,
-    profile_t **out_profile
-);
-
 #endif // PROFILE_REPO_H

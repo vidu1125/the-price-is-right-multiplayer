@@ -85,21 +85,9 @@ static db_error_t http_request(
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &buf);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, DB_HTTP_TIMEOUT_SEC);
 
-    printf("[DB_CLIENT] %s %s\n", method, url);
-    if (body) {
-        printf("[DB_CLIENT] Body: %s\n", body);
-    }
-
     if (strcmp(method, "POST") == 0) {
         curl_easy_setopt(curl, CURLOPT_POST, 1L);
         curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body);
-    } else if (strcmp(method, "PATCH") == 0) {
-        curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "PATCH");
-        if (body) {
-            curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body);
-        }
-    } else if (strcmp(method, "DELETE") == 0) {
-        curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "DELETE");
     }
 
     CURLcode res = curl_easy_perform(curl);
