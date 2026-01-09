@@ -19,16 +19,33 @@ export default function HistoryPage() {
 
   useEffect(() => {
     console.log("HistoryPage mounted, fetching history...");
-    viewHistory({ limit: 10, offset: 0 })
-      .then(data => {
-        console.log("History received:", data);
-        setHistoryList(data);
-        setLoading(false);
-      })
-      .catch(err => {
-        console.error("Failed to fetch history:", err);
-        setLoading(false);
-      });
+    let mounted = true;
+
+    const fetchHistory = (retryCount = 0) => {
+      if (!mounted) return;
+      viewHistory({ limit: 10, offset: 0 })
+        .then(data => {
+          if (!mounted) return;
+          console.log("History received:", data);
+          setHistoryList(data);
+          setLoading(false);
+        })
+        .catch(err => {
+          if (!mounted) return;
+          console.error("Failed to fetch history:", err);
+          // Retry only if it's potentially a connection issue and we haven't retried too much
+          if (retryCount < 3) {
+            console.log(`Retrying history fetch (${retryCount + 1}/3)...`);
+            setTimeout(() => fetchHistory(retryCount + 1), 1500);
+          } else {
+            setLoading(false);
+          }
+        });
+    }
+
+    fetchHistory();
+
+    return () => { mounted = false; };
   }, []);
 
   // Calculate stats from real data
@@ -116,7 +133,7 @@ function HistoryItem({ match }) {
       <div className="action-col">
         <button
           className="view-btn"
-          onClick={() => navigate(`/match/${match.matchId}`)}
+          onClick={() => navigate(`/match/${match.matchId}`, { state: { match } })}
         >
           VIEW
         </button>

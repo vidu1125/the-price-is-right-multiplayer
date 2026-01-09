@@ -186,35 +186,32 @@ Field
 	Ví dụ
 MCQ:
 {
-  "type": "MCQ",
   "question": "Giá của iPhone 15 Pro tại Việt Nam là bao nhiêu?",
   "choices": [
         "25.990.000",
         "27.990.000",
         "29.990.000",
         "31.990.000"
-  ]
+  ],
+  "image": "URL"
 }
 	BID
 {
   "question": "Giá gốc của PS5 Digital Edition (USD)?",
-  "correct_answer": 399
+  "correct_answer": 399,
+  "image": "URL"
 }
 	WHEEL
 {
-  "segments": [
-        { "value": 0,   "weight": 40 },
-        { "value": 50,  "weight": 30 },
-        { "value": 100, "weight": 20 },
-        { "value": 200, "weight": 10 }
-  ]
+  "type": "wheel",
+  "segments": [0, 10, 20, 30, 40, 50, -20, 100],
+  "label": "classic_wheel"
 }
+
 	BONUS
 {
-  "question": "Giá của iPhone 15 Pro tại Việt Nam?",
-  "real_price": 29990000,
-  "display_rule": {
-        "min_offset": -5000000,
-        "max_offset": 5000000
-  }
+  "question": "...",
+  "display_price": 27990000,
+  "correct_answer": "up",
+  "image": "URL"
 }
