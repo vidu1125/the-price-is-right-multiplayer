@@ -45,51 +45,51 @@
 //==============================================================================
 
 // Success
-#define RES_SUCCESS         200
-#define RES_LOGIN_OK        201
-#define RES_HEARTBEAT_OK    210
-#define RES_ROOM_CREATED    220
-#define RES_ROOM_JOINED     221
-#define RES_ROOM_LEFT       222
-#define RES_ROOM_CLOSED     223
-#define RES_RULES_UPDATED   224
-#define RES_MEMBER_KICKED   225
-#define RES_GAME_STARTED    301
+#define RES_SUCCESS         0x00C8  // 200
+#define RES_LOGIN_OK        0x00C9  // 201
+#define RES_HEARTBEAT_OK    0x00D2  // 210
+#define RES_ROOM_CREATED    0x00DC  // 220
+#define RES_ROOM_JOINED     0x00DD  // 221
+#define RES_ROOM_LEFT       0x00DE  // 222
+#define RES_ROOM_CLOSED     0x00DF  // 223
+#define RES_RULES_UPDATED   0x00E0  // 224
+#define RES_MEMBER_KICKED   0x00E1  // 225
+#define RES_GAME_STARTED    0x012D  // 301
 // Profile
-#define RES_PROFILE_UPDATED  226
-#define RES_PROFILE_FOUND    227
+#define RES_PROFILE_UPDATED 0x00E2  // 226
+#define RES_PROFILE_FOUND   0x00E3  // 227
 
 // Error
-#define ERR_BAD_REQUEST     400
-#define ERR_NOT_LOGGED_IN   401
-#define ERR_INVALID_USERNAME 402
-#define ERR_ROOM_FULL       403
-#define ERR_GAME_STARTED    404
-#define ERR_PAYLOAD_LARGE   405
-#define ERR_NOT_HOST        406
-#define ERR_TIMEOUT         408
-#define ERR_SERVER_ERROR    500
-#define ERR_SERVICE_UNAVAILABLE 501
+#define ERR_BAD_REQUEST     0x0190  // 400
+#define ERR_NOT_LOGGED_IN   0x0191  // 401
+#define ERR_INVALID_USERNAME 0x0192  // 402
+#define ERR_ROOM_FULL       0x0193  // 403
+#define ERR_GAME_STARTED    0x0194  // 404
+#define ERR_PAYLOAD_LARGE   0x0195  // 405
+#define ERR_NOT_HOST        0x0196  // 406
+#define ERR_TIMEOUT         0x0198  // 408
+#define ERR_SERVER_ERROR    0x01F4  // 500
+#define ERR_SERVICE_UNAVAILABLE 0x01F5  // 501
 
 //==============================================================================
 // NOTIFICATION CODES
 //==============================================================================
 
-#define NTF_PLAYER_JOINED   700
-#define NTF_PLAYER_LEFT     701
-#define NTF_PLAYER_LIST     702
-#define NTF_ROUND_START     703
-#define NTF_ROUND_END       704
-#define NTF_SCOREBOARD      705
-#define NTF_ELIMINATION     706
-#define NTF_GAME_END        707
-#define NTF_GAME_START      708
-#define NTF_CHAT_MSG        710
-#define NTF_INVITATION      711
-#define NTF_PLAYER_READY    712
-#define NTF_RULES_CHANGED   713
-#define NTF_MEMBER_KICKED   714
-#define NTF_ROOM_CLOSED     715
+#define NTF_PLAYER_JOINED   0x02BC  //700
+#define NTF_PLAYER_LEFT     0x02BD  //701
+#define NTF_PLAYER_LIST     0x02BE  //702
+#define NTF_ROUND_START     0x02BF  //703
+#define NTF_ROUND_END       0x02C0  //704
+#define NTF_SCOREBOARD      0x02C1  //705
+#define NTF_ELIMINATION     0x02C2  //706
+#define NTF_GAME_END        0x02C3  //707
+#define NTF_GAME_START      0x02C4  //708
+#define NTF_CHAT_MSG        0x02C6  //710
+#define NTF_INVITATION      0x02C7  //711
+#define NTF_PLAYER_READY    0x02C8  //712
+#define NTF_RULES_CHANGED   0x02C9  //713
+#define NTF_MEMBER_KICKED   0x02CA  //714
+#define NTF_ROOM_CLOSED     0x02CB  //715
 
 // Round 1 - Quiz (0x0601 - 0x061F)
 #define OP_C2S_ROUND1_READY       0x0601  // Client ready to start

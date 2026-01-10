@@ -399,31 +399,34 @@ void handle_logout(
 
     const char *session_id = session_id_json->valuestring;
 
-    // Find session
-    session_t *session = NULL;
-    db_error_t err = session_find_by_id(session_id, &session);
-    
-    if (err != DB_SUCCESS || !session) {
-        cJSON_Delete(json);
-        send_error(client_fd, header, ERR_NOT_LOGGED_IN, "Session not found");
-        return;
-    }
+    printf("[AUTH] Logout request: session_id=%s\n", session_id);
+
+    // Get user session to find account_id
+    UserSession *us = session_get_by_socket(client_fd);
+    int32_t account_id = us ? us->account_id : 0;
 
     // TODO: Remove player from any active rooms
     room_remove_member_all(client_fd);
 
-    // Mark session disconnected in DB and keep record
-    printf("[AUTH] Marking session disconnected: %s\n", session_id);
+    // Mark session disconnected in DB (try by session_id first, then by account_id)
+    printf("[AUTH] Marking session disconnected: %s (account_id=%d)\n", session_id, account_id);
     db_error_t update_err = session_update_connected(session_id, false);
+    
+    if (update_err != DB_SUCCESS && account_id > 0) {
+        printf("[AUTH] Update by session_id failed (err=%d), trying by account_id=%d\n", 
+               update_err, account_id);
+        // Fallback: update by account_id
+        update_err = session_update_connected_by_account(account_id, false);
+    }
+    
     if (update_err != DB_SUCCESS) {
-        printf("[AUTH] Failed to update session connected status: err=%d\n", update_err);
+        printf("[AUTH] Failed to update session: err=%d\n", update_err);
     } else {
         printf("[AUTH] Session marked disconnected successfully\n");
     }
 
     // Clear binding and session state
     clear_client_session(client_fd);
-    UserSession *us = session_get_by_socket(client_fd);
     if (us) {
         session_destroy(us);
     }
@@ -440,7 +443,6 @@ void handle_logout(
     // Cleanup
     cJSON_Delete(response);
     cJSON_Delete(json);
-    session_free(session);
 }
 
 void handle_reconnect(
