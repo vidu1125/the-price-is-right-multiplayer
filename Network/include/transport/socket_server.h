@@ -2,14 +2,14 @@
 #define SERVER_H
 
 
-#include <sys/select.h>
+#include <sys/epoll.h>
 #include <time.h>
 #include <stdint.h>
 #include "protocol/protocol.h"
 
 #define SERVER_PORT     5500
 #define MAX_CLIENTS     64
-#define SELECT_TIMEOUT  30
+#define MAX_EVENTS      64
 
 
 
