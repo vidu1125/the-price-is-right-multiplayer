@@ -8,12 +8,18 @@ const defaultHandlers = []; // Array<(opcode, payload) => boolean | void>
  * @param {(payload: ArrayBuffer) => void} handler
  */
 export function registerHandler(opcode, handler) {
+  if (opcode === undefined || opcode === null) {
+    console.warn("[Receiver] Ignore registering handler for undefined opcode");
+    return;
+  }
   const list = handlers.get(opcode) || [];
   list.push(handler);
   handlers.set(opcode, list);
 
   console.log("[Receiver] registerHandler opcode", opcode, "count", list.length);
 }
+
+
 
 // Đăng ký handler mặc định (gọi khi không có handler cụ thể cho opcode)
 export function registerDefaultHandler(handler) {
@@ -57,7 +63,14 @@ export function handleIncoming(buffer) {
   const payload = buffer.slice(16, 16 + payloadLen);
 
   const list = handlers.get(command);
+
   if (!list || list.length === 0) {
+    console.warn("[Receiver] no handler for opcode", "0x" + command.toString(16), "(decimal:", command, ")");
+    // Log available handlers for debugging
+    console.log("[Receiver] Available handlers:", Array.from(handlers.keys()).map(k => {
+      try { return typeof k === 'number' ? `0x${k.toString(16)}(${k})` : `${k}`; } catch (e) { return 'ERR'; }
+    }));
+
     let handled = false;
     console.log("[Receiver] no specific handler, trying", defaultHandlers.length, "default handlers");
     for (const handler of defaultHandlers) {

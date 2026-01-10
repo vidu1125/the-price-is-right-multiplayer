@@ -6,6 +6,7 @@
 #include "handlers/room_handler.h"
 #include "handlers/profile_handler.h"
 #include "handlers/match_handler.h"
+#include "handlers/round1_handler.h"
 #include "handlers/session_context.h"
 #include "handlers/auth_guard.h"
 #include "protocol/opcode.h"
@@ -93,7 +94,15 @@ void dispatch_command(
             account_id
         );        
         break;
-    
+    case OP_C2S_ROUND1_READY:
+    case OP_C2S_ROUND1_GET_QUESTION:
+    case OP_C2S_ROUND1_ANSWER:
+    case OP_C2S_ROUND1_END:
+    case OP_C2S_ROUND1_PLAYER_READY:
+    case OP_C2S_ROUND1_FINISHED:
+        handle_round1(client_fd, header, payload);
+        break;
+
     case CMD_REPLAY:
         printf("[DISPATCH] Parsing to replayHandler\n");       
         handle_replay(client_fd, header, payload, account_id);
