@@ -8,7 +8,7 @@
 #include "db/repo/session_repo.h"
 
 #define MAX_SESSIONS 1024
-#define HEARTBEAT_TIMEOUT_SEC 15
+#define IDLE_SESSION_TIMEOUT_SEC 360  // 5 minutes for idle session cleanup
 #define RECONNECT_GRACE_SEC 300  // 5 minutes realistic reconnect window
 
 static UserSession g_sessions[MAX_SESSIONS];
@@ -160,7 +160,8 @@ void session_cleanup_dead_sessions(void) {
         if (s->account_id == 0) continue;
 
         if (s->state == SESSION_LOBBY || s->state == SESSION_UNAUTHENTICATED) {
-            if (s->last_active && now - s->last_active > HEARTBEAT_TIMEOUT_SEC) {
+            // Only cleanup sessions idle for more than 6 minutes
+            if (s->last_active && now - s->last_active > IDLE_SESSION_TIMEOUT_SEC) {
                 // remove idle dead session
                 if (strlen(s->session_id) > 0) {
                     session_delete(s->session_id);
