@@ -36,6 +36,15 @@
 #define CMD_REPLAY          0x0503
 #define CMD_LEAD            0x0504
 
+// Social Extended (0x0505 - 0x050F)
+#define CMD_FRIEND_ACCEPT   0x0505  // Accept friend request
+#define CMD_FRIEND_REJECT   0x0506  // Reject friend request
+#define CMD_FRIEND_REMOVE   0x0507  // Remove friend
+#define CMD_FRIEND_LIST     0x0508  // Get list of friends with status
+#define CMD_FRIEND_REQUESTS 0x0509  // Get pending friend requests
+#define CMD_STATUS_UPDATE   0x050A  // Update presence status (ONLINE_IDLE, PLAYING, OFFLINE)
+#define CMD_GET_FRIEND_STATUS 0x050B // Get specific friend's status
+
 
 // System
 #define CMD_HEARTBEAT       0x0001
@@ -59,6 +68,15 @@
 #define RES_PROFILE_UPDATED  226
 #define RES_PROFILE_FOUND    227
 
+// Social
+#define RES_FRIEND_ADDED    228
+#define RES_FRIEND_REQUEST_ACCEPTED 229
+#define RES_FRIEND_REQUEST_REJECTED 230
+#define RES_FRIEND_REMOVED  231
+#define RES_FRIEND_LIST     232
+#define RES_FRIEND_REQUESTS 233
+#define RES_STATUS_UPDATED  234
+
 // Error
 #define ERR_BAD_REQUEST     400
 #define ERR_NOT_LOGGED_IN   401
@@ -68,6 +86,14 @@
 #define ERR_PAYLOAD_LARGE   405
 #define ERR_NOT_HOST        406
 #define ERR_TIMEOUT         408
+
+// Social Errors (41x)
+#define ERR_FRIEND_NOT_FOUND 410
+#define ERR_ALREADY_FRIENDS 411
+#define ERR_FRIEND_REQ_DUPLICATE 412
+#define ERR_SELF_ADD        413
+#define ERR_FRIEND_REQ_NOT_FOUND 414
+
 #define ERR_SERVER_ERROR    500
 #define ERR_SERVICE_UNAVAILABLE 501
 
@@ -90,6 +116,13 @@
 #define NTF_RULES_CHANGED   713
 #define NTF_MEMBER_KICKED   714
 #define NTF_ROOM_CLOSED     715
+
+// Social Notifications (71x)
+#define NTF_FRIEND_REQUEST  716   // Friend request received
+#define NTF_FRIEND_ACCEPTED 717   // Friend request accepted
+#define NTF_FRIEND_STATUS   718   // Friend's presence status changed
+#define NTF_FRIEND_ADDED    719   // Friend added (mutual)
+#define NTF_FRIEND_REMOVED  720   // Friend removed
 
 // Round 1 - Quiz (0x0601 - 0x061F)
 #define OP_C2S_ROUND1_READY       0x0601  // Client ready to start
