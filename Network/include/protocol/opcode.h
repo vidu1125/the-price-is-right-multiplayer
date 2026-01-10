@@ -75,21 +75,21 @@
 // NOTIFICATION CODES
 //==============================================================================
 
-#define NTF_PLAYER_JOINED   700
-#define NTF_PLAYER_LEFT     701
-#define NTF_PLAYER_LIST     702
-#define NTF_ROUND_START     703
-#define NTF_ROUND_END       704
-#define NTF_SCOREBOARD      705
-#define NTF_ELIMINATION     706
-#define NTF_GAME_END        707
-#define NTF_GAME_START      708
-#define NTF_CHAT_MSG        710
-#define NTF_INVITATION      711
-#define NTF_PLAYER_READY    712
-#define NTF_RULES_CHANGED   713
-#define NTF_MEMBER_KICKED   714
-#define NTF_ROOM_CLOSED     715
+#define NTF_PLAYER_JOINED   0x02BC  //700
+#define NTF_PLAYER_LEFT     0x02BD  //701
+#define NTF_PLAYER_LIST     0x02BE  //702
+#define NTF_ROUND_START     0x02BF  //703
+#define NTF_ROUND_END       0x02C0  //704
+#define NTF_SCOREBOARD      0x02C1  //705
+#define NTF_ELIMINATION     0x02C2  //706
+#define NTF_GAME_END        0x02C3  //707
+#define NTF_GAME_START      0x02C4  //708
+#define NTF_CHAT_MSG        0x02C6  //710
+#define NTF_INVITATION      0x02C7  //711
+#define NTF_PLAYER_READY    0x02C8  //712
+#define NTF_RULES_CHANGED   0x02C9  //713
+#define NTF_MEMBER_KICKED   0x02CA  //714
+#define NTF_ROOM_CLOSED     0x02CB  //715
 
 // Round 1 - Quiz (0x0601 - 0x061F)
 #define OP_C2S_ROUND1_READY       0x0601  // Client ready to start
