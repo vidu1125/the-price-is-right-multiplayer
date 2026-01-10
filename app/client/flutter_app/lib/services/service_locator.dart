@@ -17,6 +17,6 @@ class ServiceLocator {
     dispatcher = Dispatcher(tcpClient);
     authService = AuthService(tcpClient);
     historyService = HistoryService(tcpClient);
-    profileService = ProfileService();
+    profileService = ProfileService(tcpClient);
   }
 }

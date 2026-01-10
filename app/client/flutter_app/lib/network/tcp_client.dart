@@ -56,7 +56,7 @@ class TcpClient {
       // Logic for splitting packets if multiple come at once could be added here
       // For now, we assume simple packet structure
       final msg = Protocol.decode(data);
-      print("⬅️ Received: cmd=0x${msg.command.toRadixString(16)}, seq=${msg.seq}");
+      print("[$hashCode] ⬅️ Received: cmd=0x${msg.command.toRadixString(16)}, seq=${msg.seq}");
 
       // Handle 401 Unauthorized globally (usually command/opcode 401 in this protocol)
       if (msg.command == 401) {

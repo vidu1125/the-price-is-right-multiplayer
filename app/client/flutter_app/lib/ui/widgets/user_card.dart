@@ -1,11 +1,55 @@
 import 'package:flutter/material.dart';
+import '../../services/service_locator.dart';
+import '../../models/user_profile.dart';
 import '../theme/lobby_theme.dart';
 
-class UserCard extends StatelessWidget {
+class UserCard extends StatefulWidget {
   const UserCard({super.key});
 
   @override
+  State<UserCard> createState() => _UserCardState();
+}
+
+class _UserCardState extends State<UserCard> {
+  UserProfile? _profile;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    if (!await ServiceLocator.authService.isAuthenticated()) return;
+    
+    final profile = await ServiceLocator.profileService.getProfile();
+    if (mounted) {
+      setState(() {
+        _profile = profile;
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final name = _profile?.name ?? "Guest";
+    // Check if avatar string is a URL or empty, otherwise use default
+    // For now simplifying to default asset, can be improved later
+    
+    if (_isLoading) {
+      return Container(
+         decoration: LobbyTheme.userCardDecoration,
+         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+         child: const SizedBox(
+           width: 20, 
+           height: 20, 
+           child: CircularProgressIndicator(strokeWidth: 2)
+         ),
+      );
+    }
+
     return Container(
       // 1. Box hình viên thuốc (Pill shape) từ CSS .user-card
       decoration: LobbyTheme.userCardDecoration,
@@ -15,7 +59,10 @@ class UserCard extends StatelessWidget {
         children: [
           // 2. Avatar với viền kép (Double border effect)
           GestureDetector(
-            onTap: () => print("Open profile modal"),
+            onTap: () {
+               print("Open profile modal: ${_profile?.toJson()}");
+               _loadProfile(); // Tap to refresh for now
+            },
             child: Container(
               width: 48,
               height: 48,
@@ -42,8 +89,9 @@ class UserCard extends StatelessWidget {
           const SizedBox(width: 12),
           
           // 3. Player Name với Shadow đặc trưng từ CSS
+          // 3. Player Name với Shadow đặc trưng từ CSS
           Text(
-            "Player Name",
+            name,
             style: TextStyle(
               fontFamily: 'LuckiestGuy',
               fontSize: 18,
