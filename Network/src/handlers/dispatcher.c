@@ -7,6 +7,7 @@
 #include "handlers/profile_handler.h"
 #include "handlers/match_handler.h"
 #include "handlers/round1_handler.h"
+#include "handlers/start_game_handler.h"
 #include "handlers/session_context.h"
 #include "handlers/auth_guard.h"
 #include "protocol/opcode.h"
