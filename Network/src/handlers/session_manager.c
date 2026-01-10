@@ -64,12 +64,7 @@ static void force_logout_old_socket(UserSession *existing, MessageHeader *req) {
     // Clear local binding so require_auth() will fail
     clear_client_session(existing->socket_fd);
 
-    // Mark session disconnected in DB (best-effort)
-    if (strlen(existing->session_id) > 0) {
-        session_update_connected(existing->session_id, false);
-    }
-
-    // Close socket
+    // Close socket (disconnect handler will update DB when socket closes)
     close(existing->socket_fd);
 }
 
