@@ -40,14 +40,14 @@ Nếu đang Playing: Không xóa Session, chuyển trạng thái sang DISCONNECT
 
 4. Quy tắc Tái đấu & Bỏ cuộc (Reconnect & Forfeit)
 Áp dụng cho người chơi đang trong trạng thái DISCONNECTED_GRACE:
-Thời gian chờ (Grace Period): 45 giây.
+Thời gian chờ (Grace Period): 5 phút (300 giây).
 Thành công:
-Nếu User đăng nhập lại trong vòng 45s (rơi vào Trường hợp B3 ở mục 2), Server gửi gói tin GAME_STATE chứa:
+Nếu User đăng nhập lại trong vòng 5 phút (rơi vào Trường hợp B3 ở mục 2), Server gửi gói tin GAME_STATE chứa:
 Round hiện tại, Câu hỏi hiện tại.
 Điểm số hiện tại.
 Thời gian còn lại của câu hỏi.
 Thất bại (Timeout):
-Sau 45s không thấy quay lại, Server xử lý FORFEIT:
+Sau 5 phút không thấy quay lại, Server xử lý FORFEIT:
 Thông báo cho cả phòng: "Người chơi X đã bỏ cuộc."
 Xóa User khỏi phòng và xóa Session khỏi bộ nhớ.
 Trong chế độ Elimination: Coi như người chơi bị loại ở vòng này.
@@ -56,7 +56,7 @@ Mỗi User Object trên Server C++ sẽ luôn nằm trong 1 trong 4 trạng thá
 UNAUTHENTICATED: Mới kết nối Socket, chưa gửi User/Pass. (Timeout: 10s → Kick).
 LOBBY (IDLE): Đã đăng nhập, đang rảnh rỗi. (Luật: Cho phép Kick cũ lấy mới).
 PLAYING (ACTIVE): Đang trong phòng game và kết nối ổn định. (Luật: Chặn đăng nhập mới).
-PLAYING (DISCONNECTED): Đang trong phòng game nhưng mất tín hiệu. (Luật: Chờ Reconnect trong 45s).
+PLAYING (DISCONNECTED): Đang trong phòng game nhưng mất tín hiệu. (Luật: Chờ Reconnect trong 5 phút).
 6. Quy tắc Đăng xuất (Logout Policy):
 Chủ động (User Logout): Client gửi LOGOUT -> Server xóa Session, đóng Socket.
 Bị động (Server Kick): Server gửi gói tin KICK kèm lý do -> Đóng Socket.

@@ -399,31 +399,34 @@ void handle_logout(
 
     const char *session_id = session_id_json->valuestring;
 
-    // Find session
-    session_t *session = NULL;
-    db_error_t err = session_find_by_id(session_id, &session);
-    
-    if (err != DB_SUCCESS || !session) {
-        cJSON_Delete(json);
-        send_error(client_fd, header, ERR_NOT_LOGGED_IN, "Session not found");
-        return;
-    }
+    printf("[AUTH] Logout request: session_id=%s\n", session_id);
+
+    // Get user session to find account_id
+    UserSession *us = session_get_by_socket(client_fd);
+    int32_t account_id = us ? us->account_id : 0;
 
     // TODO: Remove player from any active rooms
     room_remove_member_all(client_fd);
 
-    // Mark session disconnected in DB and keep record
-    printf("[AUTH] Marking session disconnected: %s\n", session_id);
+    // Mark session disconnected in DB (try by session_id first, then by account_id)
+    printf("[AUTH] Marking session disconnected: %s (account_id=%d)\n", session_id, account_id);
     db_error_t update_err = session_update_connected(session_id, false);
+    
+    if (update_err != DB_SUCCESS && account_id > 0) {
+        printf("[AUTH] Update by session_id failed (err=%d), trying by account_id=%d\n", 
+               update_err, account_id);
+        // Fallback: update by account_id
+        update_err = session_update_connected_by_account(account_id, false);
+    }
+    
     if (update_err != DB_SUCCESS) {
-        printf("[AUTH] Failed to update session connected status: err=%d\n", update_err);
+        printf("[AUTH] Failed to update session: err=%d\n", update_err);
     } else {
         printf("[AUTH] Session marked disconnected successfully\n");
     }
 
     // Clear binding and session state
     clear_client_session(client_fd);
-    UserSession *us = session_get_by_socket(client_fd);
     if (us) {
         session_destroy(us);
     }
@@ -440,7 +443,6 @@ void handle_logout(
     // Cleanup
     cJSON_Delete(response);
     cJSON_Delete(json);
-    session_free(session);
 }
 
 void handle_reconnect(
@@ -459,6 +461,10 @@ void handle_reconnect(
     }
 
     cJSON *session_id_json = cJSON_GetObjectItem(json, "session_id");
+    cJSON *account_id_json = cJSON_GetObjectItem(json, "account_id");
+    int32_t account_id_hint = (account_id_json && cJSON_IsNumber(account_id_json))
+        ? account_id_json->valueint
+        : 0;
 
     if (!session_id_json || !cJSON_IsString(session_id_json)) {
         cJSON_Delete(json);
@@ -471,6 +477,29 @@ void handle_reconnect(
     // Find session
     session_t *session = NULL;
     db_error_t err = session_find_by_id(session_id, &session);
+
+    // If the DB lost session records (e.g., restart), allow re-issuing a session using
+    // the provided account_id hint instead of failing the reconnect outright.
+    if (err == DB_ERROR_NOT_FOUND && account_id_hint > 0) {
+        printf("[AUTH] Session not found; attempting reissue for account_id=%d\n", account_id_hint);
+        account_t *hint_account = NULL;
+        db_error_t acc_err = account_find_by_id(account_id_hint, &hint_account);
+        if (acc_err == DB_SUCCESS && hint_account) {
+            session_t *reissued = NULL;
+            db_error_t create_err = session_create(account_id_hint, &reissued);
+            if (create_err == DB_SUCCESS && reissued) {
+                session_free(session);
+                session = reissued;
+                err = DB_SUCCESS;
+                printf("[AUTH] Reissued new session_id=%s for account_id=%d\n", session->session_id, account_id_hint);
+            } else {
+                printf("[AUTH] Failed to reissue session for account_id=%d err=%d\n", account_id_hint, create_err);
+            }
+        } else {
+            printf("[AUTH] account_id hint lookup failed id=%d err=%d\n", account_id_hint, acc_err);
+        }
+        if (hint_account) account_free(hint_account);
+    }
     
     if (err != DB_SUCCESS || !session) {
         cJSON_Delete(json);

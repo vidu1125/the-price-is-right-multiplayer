@@ -1,15 +1,15 @@
 #include "handlers/session_manager.h"
 #include "protocol/opcode.h"
 #include "transport/room_manager.h"
+#include "handlers/session_context.h"
 #include <string.h>
 #include <stdio.h>
 #include <unistd.h>
 #include "db/repo/session_repo.h"
-#include "handlers/session_context.h"
 
 #define MAX_SESSIONS 1024
-#define HEARTBEAT_TIMEOUT_SEC 15
-#define RECONNECT_GRACE_SEC 300
+#define IDLE_SESSION_TIMEOUT_SEC 360  // 5 minutes for idle session cleanup
+#define RECONNECT_GRACE_SEC 300  // 5 minutes realistic reconnect window
 
 static UserSession g_sessions[MAX_SESSIONS];
 
@@ -49,6 +49,30 @@ static void send_msg(int fd, MessageHeader *req, uint16_t code, const char *msg)
     forward_response(fd, req, code, payload, (uint32_t)strlen(payload));
 }
 
+// Helper to forcibly log out an old socket that is not currently playing
+// Sends a message, removes from rooms, clears session binding and marks DB disconnected.
+static void force_logout_old_socket(UserSession *existing, MessageHeader *req) {
+    if (!existing) return;
+
+    // Notify old client
+    send_msg(existing->socket_fd, req, ERR_NOT_LOGGED_IN,
+             "Account logged in from another device. You have been logged out.");
+
+    // Remove from any rooms
+    room_remove_member_all(existing->socket_fd);
+
+    // Clear local binding so require_auth() will fail
+    clear_client_session(existing->socket_fd);
+
+    // Mark session disconnected in DB (best-effort)
+    if (strlen(existing->session_id) > 0) {
+        session_update_connected(existing->session_id, false);
+    }
+
+    // Close socket
+    close(existing->socket_fd);
+}
+
 UserSession* session_bind_after_login(int socket_fd, int32_t account_id, const char *session_id,
                                       MessageHeader *req) {
     time_t now = time(NULL);
@@ -69,15 +93,8 @@ UserSession* session_bind_after_login(int socket_fd, int32_t account_id, const c
     switch (existing->state) {
         case SESSION_LOBBY:
         case SESSION_UNAUTHENTICATED: {
-            // Soft logout old (do not close app/socket)
-            send_msg(existing->socket_fd, req, ERR_NOT_LOGGED_IN, "Forced logout (new login)");
-            // Remove old socket from any rooms just in case
-            room_remove_member_all(existing->socket_fd);
-            // Clear old socket auth context and mark session disconnected in DB (best effort)
-            if (strlen(existing->session_id) > 0) {
-                session_update_connected(existing->session_id, false);
-            }
-            clear_client_session(existing->socket_fd);
+            // Force logout old (not in match) per workflow: only one active session when idle
+            force_logout_old_socket(existing, req);
             // Rebind to new socket
             existing->socket_fd = socket_fd;
             strncpy(existing->session_id, session_id, sizeof(existing->session_id) - 1);
@@ -143,7 +160,8 @@ void session_cleanup_dead_sessions(void) {
         if (s->account_id == 0) continue;
 
         if (s->state == SESSION_LOBBY || s->state == SESSION_UNAUTHENTICATED) {
-            if (s->last_active && now - s->last_active > HEARTBEAT_TIMEOUT_SEC) {
+            // Only cleanup sessions idle for more than 6 minutes
+            if (s->last_active && now - s->last_active > IDLE_SESSION_TIMEOUT_SEC) {
                 // remove idle dead session
                 if (strlen(s->session_id) > 0) {
                     session_delete(s->session_id);
