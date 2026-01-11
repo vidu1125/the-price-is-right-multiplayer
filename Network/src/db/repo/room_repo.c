@@ -43,7 +43,7 @@ int room_repo_create(
     cJSON_AddStringToObject(payload, "visibility", visibility ? "private" : "public");
     cJSON_AddNumberToObject(payload, "host_id", 1); //TODO: Get from session
     cJSON_AddStringToObject(payload, "status", "waiting");
-    cJSON_AddStringToObject(payload, "mode", mode ? "elimination" : "scoring");
+    cJSON_AddStringToObject(payload, "mode", mode ? "scoring" : "elimination"); // MODE_ELIMINATION=0, MODE_SCORING=1
     cJSON_AddNumberToObject(payload, "max_players", max_players);
     cJSON_AddBoolToObject(payload, "wager_mode", wager_enabled);
     
@@ -163,7 +163,7 @@ int room_repo_set_rules(
     // Workaround: Use RPC function
     cJSON *rpc_payload = cJSON_CreateObject();
     cJSON_AddNumberToObject(rpc_payload, "p_room_id", room_id);
-    cJSON_AddStringToObject(rpc_payload, "p_mode", mode ? "elimination" : "scoring");
+    cJSON_AddStringToObject(rpc_payload, "p_mode", mode ? "scoring" : "elimination"); // MODE_ELIMINATION=0, MODE_SCORING=1
     cJSON_AddNumberToObject(rpc_payload, "p_max_players", max_players);
     cJSON_AddBoolToObject(rpc_payload, "p_wager_mode", wager_enabled);
     

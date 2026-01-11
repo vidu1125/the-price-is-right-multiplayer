@@ -17,42 +17,126 @@ static int g_room_count = 0;
 // Internal Helpers
 //==============================================================================
 
-static RoomState* find_room(int room_id) {
+static RoomState* find_room(uint32_t room_id) {
     for (int i = 0; i < g_room_count; i++) {
-        if (g_rooms[i].room_id == room_id) {
+        if (g_rooms[i].id == room_id) {
             return &g_rooms[i];
         }
     }
     return NULL;
 }
 
-static RoomState* create_room(int room_id) {
+//==============================================================================
+// Room Lifecycle
+//==============================================================================
+
+RoomState* room_create(void) {
     if (g_room_count >= MAX_ROOMS) {
         return NULL;
     }
     
     RoomState *room = &g_rooms[g_room_count++];
-    room->room_id = room_id;
-    room->member_count = 0;
-    memset(room->member_fds, 0, sizeof(room->member_fds));
+    memset(room, 0, sizeof(RoomState));
     
     return room;
 }
 
+void room_destroy(uint32_t room_id) {
+    for (int i = 0; i < g_room_count; i++) {
+        if (g_rooms[i].id == room_id) {
+            // Shift remaining rooms
+            for (int j = i; j < g_room_count - 1; j++) {
+                g_rooms[j] = g_rooms[j + 1];
+            }
+            g_room_count--;
+            return;
+        }
+    }
+}
+
+RoomState* room_get(uint32_t room_id) {
+    return find_room(room_id);
+}
+
 //==============================================================================
-// Public API
+// Player Management
+//==============================================================================
+
+int room_add_player(uint32_t room_id, uint32_t account_id, int client_fd) {
+    RoomState *room = find_room(room_id);
+    if (!room) return -1;
+    
+    if (room->player_count >= MAX_ROOM_MEMBERS) return -1;
+    
+    RoomPlayerState *player = &room->players[room->player_count];
+    player->account_id = account_id;
+    player->is_host = false;
+    player->is_ready = false;
+    player->connected = true;
+    player->joined_at = time(NULL);
+    
+    room->member_fds[room->player_count] = client_fd;
+    room->player_count++;
+    room->member_count++;
+    
+    return 0;
+}
+
+int room_remove_player(uint32_t room_id, uint32_t account_id) {
+    RoomState *room = find_room(room_id);
+    if (!room) return -1;
+    
+    for (int i = 0; i < room->player_count; i++) {
+        if (room->players[i].account_id == account_id) {
+            // Shift remaining players
+            for (int j = i; j < room->player_count - 1; j++) {
+                room->players[j] = room->players[j + 1];
+                room->member_fds[j] = room->member_fds[j + 1];
+            }
+            room->player_count--;
+            room->member_count--;
+            return 0;
+        }
+    }
+    return -1;
+}
+
+bool room_has_player(uint32_t room_id, uint32_t account_id) {
+    RoomState *room = find_room(room_id);
+    if (!room) return false;
+    
+    for (int i = 0; i < room->player_count; i++) {
+        if (room->players[i].account_id == account_id) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool room_user_in_any_room(uint32_t account_id) {
+    for (int i = 0; i < g_room_count; i++) {
+        if (room_has_player(g_rooms[i].id, account_id)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+//==============================================================================
+// Legacy API (kept for compatibility)
 //==============================================================================
 
 void room_add_member(int room_id, int client_fd) {
-    RoomState *room = find_room(room_id);
+    RoomState *room = find_room((uint32_t)room_id);
     
-    // Create room if not exists
+    // Create room if not exists (legacy behavior)
     if (!room) {
-        room = create_room(room_id);
+        room = room_create();
         if (!room) {
-            printf("[ROOM] Cannot create room %d - max limit reached\n", room_id);
+            printf("[ROOM] Cannot create room %d - max limit reached\\n", room_id);
             return;
         }
+        room->id = (uint32_t)room_id;
     }
     
     // Check if already in room
@@ -65,15 +149,15 @@ void room_add_member(int room_id, int client_fd) {
     // Add member
     if (room->member_count < MAX_ROOM_MEMBERS) {
         room->member_fds[room->member_count++] = client_fd;
-        printf("[ROOM] Added fd=%d to room=%d (%d members)\n", 
+        printf("[ROOM] Added fd=%d to room=%d (%d members)\\n", 
                client_fd, room_id, room->member_count);
     } else {
-        printf("[ROOM] Room %d is full\n", room_id);
+        printf("[ROOM] Room %d is full\\n", room_id);
     }
 }
 
 void room_remove_member(int room_id, int client_fd) {
-    RoomState *room = find_room(room_id);
+    RoomState *room = find_room((uint32_t)room_id);
     if (!room) return;
     
     // Find and remove
@@ -84,17 +168,13 @@ void room_remove_member(int room_id, int client_fd) {
                 room->member_fds[j] = room->member_fds[j + 1];
             }
             room->member_count--;
-            printf("[ROOM] Removed fd=%d from room=%d (%d members left)\n",
+            printf("[ROOM] Removed fd=%d from room=%d (%d members left)\\n",
                    client_fd, room_id, room->member_count);
             
             // Remove room if empty
             if (room->member_count == 0) {
-                printf("[ROOM] Room %d is now empty, removing\n", room_id);
-                // Shift remaining rooms
-                for (int k = (int)(room - g_rooms); k < g_room_count - 1; k++) {
-                    g_rooms[k] = g_rooms[k + 1];
-                }
-                g_room_count--;
+                printf("[ROOM] Room %d is now empty, removing\\n", room_id);
+                room_destroy((uint32_t)room_id);
             }
             return;
         }
@@ -116,19 +196,19 @@ void room_remove_member_all(int client_fd) {
         if (!was_member) continue;
 
         // Remove member
-        room_remove_member(room->room_id, client_fd);
+        room_remove_member((int)room->id, client_fd);
 
         // Broadcast that player left
         const char *msg = "Player left the room";
-        room_broadcast(room->room_id, NTF_PLAYER_LEFT, msg, (uint32_t)strlen(msg), -1);
+        room_broadcast((int)room->id, NTF_PLAYER_LEFT, msg, (uint32_t)strlen(msg), -1);
     }
 }
 
 void room_broadcast(int room_id, uint16_t command, const char *payload,
                    uint32_t payload_len, int exclude_fd) {
-    RoomState *room = find_room(room_id);
+    RoomState *room = find_room((uint32_t)room_id);
     if (!room) {
-        printf("[ROOM] Cannot broadcast to room %d - not found\n", room_id);
+        printf("[ROOM] Cannot broadcast to room %d - not found\\n", room_id);
         return;
     }
     
@@ -159,12 +239,12 @@ void room_broadcast(int room_id, uint16_t command, const char *payload,
         sent_count++;
     }
     
-    printf("[ROOM] Broadcast cmd=0x%04x to room=%d (%d recipients)\n",
+    printf("[ROOM] Broadcast cmd=0x%04x to room=%d (%d recipients)\\n",
            command, room_id, sent_count);
 }
 
 const int* room_get_members(int room_id, int *out_count) {
-    RoomState *room = find_room(room_id);
+    RoomState *room = find_room((uint32_t)room_id);
     if (!room) {
         *out_count = 0;
         return NULL;

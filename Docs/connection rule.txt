@@ -1,0 +1,49 @@
+ Ba lớp state – chốt lại cho rõ
+Lớp
+Phạm vi
+Vai trò
+UserConnection
+Global / Session
+User đang ở phase nào của app
+RoomPlayerState
+Global / Room
+User đang ở room nào
+MatchPlayerState
+Local / Match
+User đang chơi match nào
+
+
+
+Case 1: Disconnected in ROOM
+Ngay lập tức đổi 
+UserConnection: SESSION_UNAUTHENTICATED
+RoomState → disconnected → block start game
+Reconnected:
+UserConnection: SESSION_LOBBY
+Lấy room_id → check status match trước room
+UserConnection {
+  account_id
+  session_state   // 4 state bạn chốt
+  current_room_id?   // pointer
+  current_match_id?  // pointer
+}
+Cho phép reconnected ở roomstate
+
+
+Case 2: Disconnected in MATCH
+Ngay lập tức đổi 
+UserConnection: SESSION_UNAUTHENTICATED
+MatchState → disconnected
+
+Reconnected:
+UserConnection: SESSION_LOBBY
+Lấy room_id và match id → check status room và match
+UserConnection {
+  account_id
+  session_state   // 4 state bạn chốt
+  current_room_id?   // pointer
+  current_match_id?  // pointer
+}
+Cho phép reconnected ở roomstate và matchstate
+
+

@@ -17,7 +17,7 @@ export default function WaitingRoom() {
   // Game rules state
   const [gameRules, setGameRules] = useState({
     maxPlayers: 5,
-    mode: "eliminate",
+    mode: "elimination",
     wagerMode: true,
     roundTime: "normal"
   });

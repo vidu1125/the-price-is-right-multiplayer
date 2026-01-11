@@ -6,6 +6,8 @@
 #include "protocol/protocol.h"
 #include "transport/room_manager.h"
 #include "db/repo/room_repo.h"
+#include "handlers/session_manager.h"
+
 //==============================================================================
 // PAYLOAD DEFINITIONS (Room Handler)
 //==============================================================================
@@ -17,32 +19,32 @@
     #pragma pack(push, 1)
 #endif
 
+// CREATE ROOM (36 bytes)
 typedef struct PACKED {
-    char name[64];
-    uint8_t visibility;
+    char name[32];
     uint8_t mode;
     uint8_t max_players;
-    uint8_t round_time;
-    uint8_t wager_enabled;
-    uint8_t reserved[3];
+    uint8_t visibility;
+    uint8_t wager_mode;
 } CreateRoomPayload;
 
+// CREATE ROOM RESPONSE (12 bytes)
+typedef struct PACKED {
+    uint32_t room_id;      // network byte order
+    char room_code[8];
+} CreateRoomResponsePayload;
+
+// Other payloads (keep for now)
 typedef struct PACKED {
     uint32_t room_id;
 } RoomIDPayload;
 
 typedef struct PACKED {
-    uint32_t room_id;
     uint8_t mode;
     uint8_t max_players;
-    uint8_t round_time;
-    uint8_t wager_enabled;
+    uint8_t visibility;
+    uint8_t wager_mode;
 } SetRulesPayload;
-
-typedef struct PACKED {
-    uint32_t room_id;
-    uint32_t target_id;
-} KickMemberPayload;
 
 #if !defined(__GNUC__) && !defined(__clang__)
     #pragma pack(pop)
@@ -59,110 +61,143 @@ static void send_error(int client_fd, MessageHeader *req, uint16_t error_code, c
 // CREATE ROOM
 //==============================================================================
 void handle_create_room(int client_fd, MessageHeader *req, const char *payload) {
-    // 1. Validate payload size
+    printf("[SERVER] [CREATE_ROOM] Request from fd=%d\n", client_fd);
+    
+    // STEP 1: Validate session & state
+    UserSession *session = session_get_by_socket(client_fd);
+    
+    if (!session || session->state == SESSION_UNAUTHENTICATED) {
+        printf("[SERVER] [CREATE_ROOM] Error: Not logged in (fd=%d)\n", client_fd);
+        send_error(client_fd, req, ERR_NOT_LOGGED_IN, "Not logged in");
+        return;
+    }
+    
+    if (session->state != SESSION_LOBBY) {
+        printf("[SERVER] [CREATE_ROOM] Error: Invalid state %d (fd=%d)\n", session->state, client_fd);
+        send_error(client_fd, req, ERR_BAD_REQUEST, "Invalid state");
+        return;
+    }
+    
+    // STEP 2: Check user not in any room
+    if (room_user_in_any_room(session->account_id)) {
+        printf("[SERVER] [CREATE_ROOM] Error: User %u already in a room\n", session->account_id);
+        send_error(client_fd, req, ERR_BAD_REQUEST, "Already in a room");
+        return;
+    }
+    
+    // STEP 3: Validate payload size
     if (req->length != sizeof(CreateRoomPayload)) {
+        printf("[SERVER] [CREATE_ROOM] Error: Invalid payload size %u, expected %lu\n", 
+               req->length, sizeof(CreateRoomPayload));
         send_error(client_fd, req, ERR_BAD_REQUEST, "Invalid payload size");
         return;
     }
     
-    // 2. Copy to local struct (NOT cast!)
+    // STEP 4: Parse payload
     CreateRoomPayload data;
     memcpy(&data, payload, sizeof(data));
     
-    // 3. Null-terminate string (safety)
-    char room_name[65];
-    memcpy(room_name, data.name, 64);
-    room_name[64] = '\0';
+    char room_name[33];
+    memcpy(room_name, data.name, 32);
+    room_name[32] = '\0';
     
-    // 4. Validate business rules
-    if (data.max_players < 2 || data.max_players > 8) {
-        send_error(client_fd, req, ERR_BAD_REQUEST, "max_players must be 2-8");
+    printf("[SERVER] [CREATE_ROOM] Parsed: name='%s', mode=%u, max_players=%u, visibility=%u, wager=%u\n",
+           room_name, data.mode, data.max_players, data.visibility, data.wager_mode);
+    
+    // STEP 5: Validate business rules
+    if (strlen(room_name) == 0 || strlen(room_name) > 32) {
+        send_error(client_fd, req, ERR_BAD_REQUEST, "Invalid room name");
         return;
     }
     
-    if (data.round_time < 10 || data.round_time > 60) {
-        send_error(client_fd, req, ERR_BAD_REQUEST, "round_time must be 10-60s");
+    if (data.mode == MODE_ELIMINATION) {
+        if (data.max_players != 4) {
+            send_error(client_fd, req, ERR_BAD_REQUEST, 
+                       "ELIMINATION requires exactly 4 players");
+            return;
+        }
+    } else if (data.mode == MODE_SCORING) {
+        if (data.max_players < 4 || data.max_players > 6) {
+            send_error(client_fd, req, ERR_BAD_REQUEST, 
+                       "SCORING requires 4-6 players");
+            return;
+        }
+    } else {
+        send_error(client_fd, req, ERR_BAD_REQUEST, "Invalid mode");
         return;
     }
     
-    if (strlen(room_name) == 0) {
-        send_error(client_fd, req, ERR_BAD_REQUEST, "Room name required");
+    if (data.visibility != ROOM_PUBLIC && data.visibility != ROOM_PRIVATE) {
+        send_error(client_fd, req, ERR_BAD_REQUEST, "Invalid visibility");
         return;
     }
     
-    // // 4. Escape JSON string
-    // const char *safe_name = json_escape_string(room_name);
+    if (data.wager_mode != 0 && data.wager_mode != 1) {
+        send_error(client_fd, req, ERR_BAD_REQUEST, "Invalid wager mode");
+        return;
+    }
     
-    // // 5. Build JSON for backend
-    // char json[1024];
-    // snprintf(json, sizeof(json),
-    //     "{\"name\":\"%s\",\"visibility\":\"%s\",\"mode\":\"%s\","
-    //     "\"max_players\":%u,\"round_time\":%u,\"advanced\":{\"wager\":%s}}",
-    //     safe_name,
-    //     data.visibility ? "private" : "public",
-    //     data.mode ? "elimination" : "scoring",
-    //     data.max_players,
-    //     data.round_time,
-    //     data.wager_enabled ? "true" : "false"
-    // );
+    // STEP 6: Create RoomState (in-memory)
+    RoomState *room = room_create();
+    if (!room) {
+        send_error(client_fd, req, ERR_SERVER_ERROR, "Cannot create room");
+        return;
+    }
     
-    // // 6. HTTP POST to backend (parsed)
-    // char resp_buf[2048];
-    // HttpResponse http_resp = http_post_parse("backend", 5000, "/api/room/create",
-    //                                          json, resp_buf, sizeof(resp_buf));
+    strncpy(room->name, room_name, 32);
+    room->host_id = session->account_id;
+    room->status = ROOM_WAITING;
+    room->mode = (GameMode)data.mode;
+    room->max_players = data.max_players;
+    room->visibility = (RoomVisibility)data.visibility;
+    room->wager_mode = data.wager_mode;
     
-    // if (http_resp.status_code < 0) {
-    //     send_error(client_fd, req, ERR_SERVER_ERROR, "Backend unreachable");
-    //     return;
-    // }
+    // STEP 7: Call DB to get ID and code
+    char db_room_code[9] = {0};
+    uint32_t db_room_id = 0;
     
-    // if (http_resp.status_code >= 400) {
-    //     send_error(client_fd, req, ERR_BAD_REQUEST, http_resp.body);
-    //     return;
-    // }
-    
-    // // 7. Parse room_id from response (simplified: assume {"room_id":123,...})
-    // int room_id = 0;
-    // if (sscanf(http_resp.body, "{\"success\":true,\"room_id\":%d", &room_id) == 1) {
-    //     room_add_member(room_id, client_fd);
-    // }
-    
-
-    // 4. Call room_repo instead of backend
-    char result_payload[2048];
-    uint32_t room_id = 0;
-
     int rc = room_repo_create(
         room_name,
         data.visibility,
         data.mode,
         data.max_players,
-        data.wager_enabled,
-        result_payload,
-        sizeof(result_payload),
-        &room_id
+        data.wager_mode,
+        db_room_code,
+        sizeof(db_room_code),
+        &db_room_id
     );
-
+    
     if (rc != 0) {
-        send_error(client_fd, req, ERR_SERVER_ERROR, "Failed to create room");
+        room_destroy(room->id);
+        send_error(client_fd, req, ERR_SERVER_ERROR, "DB error");
         return;
     }
-
-    // 5. Track host as room member
-    room_add_member((int)room_id, client_fd);
-
-    // 6. Prepare response
-    uint32_t result_len = strlen(result_payload);
-
-    // forward response
-    forward_response(
-        client_fd,
-        req,
-        RES_ROOM_CREATED,
-        result_payload,
-        result_len
-    );
-
+    
+    // Update room with DB values
+    room->id = db_room_id;
+    strncpy(room->code, db_room_code, 8);
+    
+    printf("[SERVER] [CREATE_ROOM] DB persisted: id=%u, code=%s\n", room->id, room->code);
+    
+    // STEP 8: Add host as player
+    room_add_player(room->id, session->account_id, client_fd);
+    room->players[0].is_host = true;
+    
+    printf("[SERVER] [CREATE_ROOM] Host added as player (account_id=%u)\n", session->account_id);
+    
+    // STEP 9: Send response
+    CreateRoomResponsePayload resp;
+    resp.room_id = htonl(room->id);
+    memcpy(resp.room_code, room->code, 8);
+    
+    forward_response(client_fd, req, RES_ROOM_CREATED, 
+                     (char*)&resp, sizeof(resp));
+    
+    printf("[SERVER] [CREATE_ROOM] ✅ SUCCESS: room_id=%u, code=%s, name='%s'\n", 
+           room->id, room->code, room->name);
+    
+    // STEP 10: Broadcast NTF_PLAYER_LIST
+    // TODO: Implement in next phase
 }
 
 //==============================================================================
@@ -222,9 +257,12 @@ void handle_close_room(int client_fd, MessageHeader *req, const char *payload) {
 }
 
 //==============================================================================
-// SET RULES (Host only)
+// SET RULES (Host only) - TODO: Implement later
 //==============================================================================
 void handle_set_rules(int client_fd, MessageHeader *req, const char *payload) {
+    (void)payload; // Unused
+    send_error(client_fd, req, ERR_BAD_REQUEST, "Not implemented yet");
+    /*
     // 1. Validate
     if (req->length != sizeof(SetRulesPayload)) {
         send_error(client_fd, req, ERR_BAD_REQUEST, "Invalid payload");
@@ -234,9 +272,7 @@ void handle_set_rules(int client_fd, MessageHeader *req, const char *payload) {
     // 2. Copy & extract
     SetRulesPayload data;
     memcpy(&data, payload, sizeof(data));
-    uint32_t room_id = ntohl(data.room_id);
-    
-   
+    // TODO: Get room_id from session instead
     
     char resp_buf[2048];
 
@@ -244,7 +280,7 @@ void handle_set_rules(int client_fd, MessageHeader *req, const char *payload) {
         room_id,
         data.mode,
         data.max_players,
-        data.wager_enabled,
+        data.wager_mode,
         resp_buf,
         sizeof(resp_buf)
     );
@@ -261,13 +297,16 @@ void handle_set_rules(int client_fd, MessageHeader *req, const char *payload) {
     // 7. Forward response to host
     forward_response(client_fd, req, RES_RULES_UPDATED,
                     resp_buf, strlen(resp_buf));
-
+    */
 }
 
 //==============================================================================
 // KICK MEMBER (Host only)
 //==============================================================================
 void handle_kick_member(int client_fd, MessageHeader *req, const char *payload) {
+    (void)payload; // Unused
+    send_error(client_fd, req, ERR_BAD_REQUEST, "Not implemented yet");
+    /*
     // 1. Validate
     if (req->length != sizeof(KickMemberPayload)) {
         send_error(client_fd, req, ERR_BAD_REQUEST, "Invalid payload");
@@ -314,7 +353,7 @@ void handle_kick_member(int client_fd, MessageHeader *req, const char *payload) 
     // 6. Forward response to host
     forward_response(client_fd, req, RES_MEMBER_KICKED,
                     resp_buf, strlen(resp_buf));
-
+    */
 }
 
 //==============================================================================
