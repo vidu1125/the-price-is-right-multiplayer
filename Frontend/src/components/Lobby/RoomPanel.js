@@ -41,31 +41,26 @@ export default function RoomPanel() {
   };
 
   useEffect(() => {
-    registerHandler(OPCODE.RES_ROOM_CREATED, (payload) => {
-      console.log("✅ Room created response received");
-      const text = new TextDecoder().decode(payload);
-      try {
-        let jsonStr = text;
-        const bodyStart = text.indexOf('\r\n\r\n');
-        if (bodyStart !== -1) {
-          jsonStr = text.substring(bodyStart + 4);
-        }
-        const data = JSON.parse(jsonStr);
-        const roomCode = data.room_code || data.room?.code || data.code;
-        const roomId = data.room_id || data.room?.id;
+    // Handler for RES_ROOM_CREATED moved to hostService.js to handle binary payload correctly
+    // and centralised logic.
+    /*
+    registerHandler(OPCODE.RES_ROOM_CREATED, (payload) => { ... }); 
+    */
 
-        setShowModal(false);
-        navigate('/waitingroom', {
-          state: {
-            roomId: roomId,
-            roomCode: roomCode,
-            isHost: true
-          }
-        });
-      } catch (err) {
-        console.error("Parse error:", err);
-      }
-    });
+    // Listen for room creation success from hostService.js
+    const onRoomCreated = (e) => {
+      const { roomId, roomCode } = e.detail;
+      console.log("🚀 Event received: room_created", e.detail);
+      setShowModal(false);
+      navigate('/waitingroom', {
+        state: {
+          roomId,
+          roomCode,
+          isHost: true
+        }
+      });
+    };
+    window.addEventListener('room_created', onRoomCreated);
 
     registerHandler(OPCODE.ERR_BAD_REQUEST, (payload) => {
       const text = new TextDecoder().decode(payload);
@@ -76,6 +71,10 @@ export default function RoomPanel() {
         alert(`❌ Error: ${text}`);
       }
     });
+
+    return () => {
+      window.removeEventListener('room_created', onRoomCreated);
+    };
   }, [navigate]);
 
   const handleCreateRoom = () => {

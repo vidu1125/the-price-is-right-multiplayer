@@ -65,14 +65,16 @@ registerHandler(OPCODE.RES_ROOM_CREATED, (payload) => {
         return;
     }
 
-    // Parse binary payload - payload is Uint8Array
-    const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength);
+    // Parse binary payload
+    // payload is ArrayBuffer (from receiver.js slice)
+    const view = new DataView(payload);
 
     // Read room_id (4 bytes, network byte order = big-endian)
     const roomId = view.getUint32(0, false);
 
     // Read room_code (8 bytes, null-terminated string)
-    const codeBytes = payload.slice(4, 12);
+    // Create Uint8Array view regarding the same buffer to read bytes
+    const codeBytes = new Uint8Array(payload, 4, 8);
     const roomCode = new TextDecoder()
         .decode(codeBytes)
         .replace(/\0/g, ''); // Remove null terminators
@@ -83,8 +85,11 @@ registerHandler(OPCODE.RES_ROOM_CREATED, (payload) => {
     localStorage.setItem('current_room_id', roomId.toString());
     sessionStorage.setItem('room_code', roomCode);
 
-    // Navigate to waiting room
-    window.location.href = '/waitingroom';
+    // Dispatch event for UI to handle navigation (using React Router)
+    // using window.location.href would cause a reload and disconnect the socket!
+    window.dispatchEvent(new CustomEvent('room_created', {
+        detail: { roomId, roomCode }
+    }));
 });
 
 //==============================================================================

@@ -101,9 +101,8 @@ int room_repo_create(
     }
     
     // 6. Build success response
-    snprintf(out_buf, out_size, 
-        "{\"success\":true,\"room_id\":%d,\"room_code\":\"%s\"}",
-        *room_id, code_item->valuestring);
+    // 6. Return room code directly (not JSON)
+    snprintf(out_buf, out_size, "%s", code_item->valuestring);
     
     cJSON_Delete(response);
     return 0;
