@@ -98,6 +98,10 @@ class _RoomCardState extends State<RoomCard> {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final double titleSize = (screenWidth * 0.025).clamp(24.0, 48.0);
+    final double buttonTextSize = (screenWidth * 0.012).clamp(12.0, 20.0);
+
     return Container(
       decoration: LobbyTheme.roomPanelDecoration,
       padding: const EdgeInsets.all(24),
@@ -105,7 +109,7 @@ class _RoomCardState extends State<RoomCard> {
         children: [
           Text(
             "ROOM LIST",
-            style: LobbyTheme.gameFont(fontSize: 32, color: LobbyTheme.yellowGame),
+            style: LobbyTheme.gameFont(fontSize: titleSize, color: LobbyTheme.yellowGame),
           ),
           const SizedBox(height: 16),
           // Sử dụng Expanded để ListView chiếm trọn không gian trống của khung nền
@@ -124,6 +128,7 @@ class _RoomCardState extends State<RoomCard> {
                   color: LobbyTheme.yellowReload,
                   textColor: Colors.white,
                   onPressed: () => print("Reloading..."),
+                  fontSize: buttonTextSize,
                 ),
               ),
               const SizedBox(width: 12),
@@ -136,6 +141,7 @@ class _RoomCardState extends State<RoomCard> {
                   color: LobbyTheme.blueAction,
                   textColor: Colors.white,
                   onPressed: () => print("Finding..."),
+                  fontSize: buttonTextSize,
                 ),
               ),
               const SizedBox(width: 12),
@@ -148,6 +154,7 @@ class _RoomCardState extends State<RoomCard> {
                   color: LobbyTheme.greenCreate,
                   textColor: Colors.white,
                   onPressed: () => _showCreateRoomModal(),
+                  fontSize: buttonTextSize,
                 ),
               ),
             ],
@@ -162,6 +169,7 @@ class _RoomCardState extends State<RoomCard> {
     required Color color,
     required Color textColor,
     required VoidCallback onPressed,
+    double fontSize = 16,
   }) {
     return Container(
       decoration: BoxDecoration(
@@ -191,7 +199,7 @@ class _RoomCardState extends State<RoomCard> {
         onPressed: onPressed,
         child: Text(
           label,
-          style: LobbyTheme.gameFont(fontSize: 16, color: textColor),
+          style: LobbyTheme.gameFont(fontSize: fontSize, color: textColor),
         ),
       ),
     );

@@ -83,56 +83,64 @@ class _PlayerSettingsPageState extends State<PlayerSettingsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFE3F2FD),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Container(
-            constraints: const BoxConstraints(maxWidth: 980),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.96),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0xFF1F2A44), width: 2),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.18),
-                  blurRadius: 28,
-                  offset: const Offset(0, 10),
-                )
-              ],
-            ),
-            child: Column(
-              children: [
-                _buildHeader(),
-                Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      // Responsive Grid: 2 cột trên màn hình rộng, 1 cột trên mobile
-                      if (constraints.maxWidth > 700) {
-                        return Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(flex: 11, child: _buildForm()),
-                            const SizedBox(width: 40),
-                            Expanded(flex: 9, child: _buildPreview()),
-                          ],
-                        );
-                      } else {
-                        return Column(
-                          children: [
-                            _buildPreview(),
-                            const SizedBox(height: 32),
-                            _buildForm(),
-                          ],
-                        );
-                      }
-                    },
-                  ),
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: Image.asset("assets/images/lobby-bg.png", fit: BoxFit.cover),
+          ),
+          Positioned.fill(child: Container(color: Colors.black.withOpacity(0.5))),
+          Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Container(
+                constraints: const BoxConstraints(maxWidth: 980),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.96),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0xFF1F2A44), width: 2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.18),
+                      blurRadius: 28,
+                      offset: const Offset(0, 10),
+                    )
+                  ],
                 ),
-              ],
+                child: Column(
+                  children: [
+                    _buildHeader(),
+                    Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          // Responsive Grid: 2 cột trên màn hình rộng, 1 cột trên mobile
+                          if (constraints.maxWidth > 700) {
+                            return Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(flex: 11, child: _buildForm()),
+                                const SizedBox(width: 40),
+                                Expanded(flex: 9, child: _buildPreview()),
+                              ],
+                            );
+                          } else {
+                            return Column(
+                              children: [
+                                _buildPreview(),
+                                const SizedBox(height: 32),
+                                _buildForm(),
+                              ],
+                            );
+                          }
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }

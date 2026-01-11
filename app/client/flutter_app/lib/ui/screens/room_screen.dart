@@ -298,52 +298,62 @@ class _RoomScreenState extends State<RoomScreen> {
   }
 
   Widget _buildGameRulesPanel() {
-    return Container(
-      decoration: RoomTheme.panelDecoration,
-      padding: const EdgeInsets.all(15),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text("GAME RULES", style: TextStyle(fontFamily: 'LuckiestGuy', fontSize: 22, color: Color(0xFFFFEB3B))),
-          const SizedBox(height: 15),
-          _ruleRow("MAX PLAYERS", "6"), // Cập nhật đúng số lượng 6
-          _ruleRow("VISIBILITY", "PUBLIC"),
-          _ruleRow("MODE", "SCORING"),
-          _ruleRow("ROUND TIME", "15S"),
-          _ruleRow("WAGER", "ON"),
-        ],
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final w = constraints.maxWidth;
+        final titleSize = (w * 0.12).clamp(18.0, 32.0);
+        final labelSize = (w * 0.08).clamp(12.0, 20.0);
+        final valueSize = (w * 0.08).clamp(12.0, 20.0);
+
+        return Container(
+          decoration: RoomTheme.panelDecoration,
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text("GAME RULES", style: TextStyle(fontFamily: 'LuckiestGuy', fontSize: titleSize, color: const Color(0xFFFFEB3B))),
+              const SizedBox(height: 20),
+              _ruleRow("MAX PLAYERS", "6", labelSize, valueSize),
+              _ruleRow("VISIBILITY", "PUBLIC", labelSize, valueSize),
+              _ruleRow("MODE", "SCORING", labelSize, valueSize),
+              _ruleRow("ROUND TIME", "15S", labelSize, valueSize),
+              _ruleRow("WAGER", "ON", labelSize, valueSize),
+            ],
+          ),
+        );
+      }
     );
   }
 
   Widget _buildMemberListPanel() {
     return Container(
       decoration: RoomTheme.panelDecoration,
-      padding: const EdgeInsets.all(15), // Giảm padding để tăng diện tích hiển thị
+      padding: const EdgeInsets.all(20),
       child: Column(
+        mainAxisSize: MainAxisSize.min, // Giúp pannel ôm sát nội dung
         children: [
           Text(_room?.name ?? "ROOM", style: RoomTheme.titleStyle),
           const SizedBox(height: 15),
-          Expanded(
-            child: GridView.count(
-              crossAxisCount: 3,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              // Chỉnh từ 0.7 lên 1.0 hoặc 1.1 để card ngắn lại (bé hơn)
-              childAspectRatio: 1.0, 
-              physics: const NeverScrollableScrollPhysics(),
-              children: List.generate(6, (index) {
-                if (_room != null && index < _room!.members.length) {
-                  return _buildPlayerCard(_room!.members[index]);
-                } else {
-                  return _buildEmptySlot();
-                }
-              }),
-            ),
+          // Không dùng Expanded để GridView tự định nghĩa chiều cao theo nội dung
+          GridView.count(
+            shrinkWrap: true,
+            crossAxisCount: 3,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            childAspectRatio: 1.25, // Tăng tỉ lệ để Card rộng và ngắn lại, fit 6 ô đẹp hơn
+            physics: const NeverScrollableScrollPhysics(),
+            children: List.generate(6, (index) {
+              if (_room != null && index < _room!.members.length) {
+                return _buildPlayerCard(_room!.members[index]);
+              } else {
+                return _buildEmptySlot();
+              }
+            }),
           ),
+          const SizedBox(height: 15),
           Text(
             "PLAYERS (${_room?.members.length ?? 0}/6)", 
-            style: const TextStyle(fontFamily: 'LuckiestGuy', color: Colors.white70, fontSize: 14)
+            style: const TextStyle(fontFamily: 'LuckiestGuy', color: Colors.white, fontSize: 16)
           ),
         ],
       ),
@@ -354,74 +364,99 @@ class _RoomScreenState extends State<RoomScreen> {
     final isHostMember = member.accountId == _room!.hostId;
     final statusColor = member.ready ? const Color(0xFF8BC34A) : const Color(0xFFFFB74D);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: member.ready ? statusColor : Colors.white24, 
-          width: 2 // Giảm độ dày viền
-        ),
-      ),
-      child: Stack(
-        children: [
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center, // Căn giữa nội dung
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final w = constraints.maxWidth;
+        // Calculate responsive sizes
+        final double avatarRadius = w * 0.22; 
+        final double nameFontSize = (w * 0.10).clamp(10.0, 24.0);
+        final double statusFontSize = (w * 0.07).clamp(8.0, 16.0);
+        final double crownSize = w * 0.25;
+
+        return Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(15),
+            border: Border.all(
+              color: member.ready ? statusColor : Colors.white24, 
+              width: 3
+            ),
+          ),
+          child: Stack(
             children: [
-              CircleAvatar(
-                radius: 20, // Thu nhỏ avatar (từ 25 xuống 20)
-                backgroundColor: const Color(0xFFE0E0E0),
-                // Sử dụng ảnh nấm nếu không có avatar
-                backgroundImage: member.avatar != null 
-                  ? NetworkImage(member.avatar!) 
-                  : const AssetImage('assets/images/mushroom.png') as ImageProvider,
-                child: member.avatar == null 
-                  ? const SizedBox.shrink() // Ẩn icon người đi vì đã có nấm
-                  : null, 
+              Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircleAvatar(
+                    radius: avatarRadius,
+                    backgroundColor: const Color(0xFFE0E0E0),
+                    backgroundImage: member.avatar != null 
+                      ? NetworkImage(member.avatar!) 
+                      : const AssetImage('assets/images/default-mushroom.jpg') as ImageProvider,
+                    child: member.avatar == null 
+                       ? const SizedBox.shrink()
+                       : null,
+                  ),
+                  SizedBox(height: w * 0.04),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Text(
+                      member.email.toUpperCase(),
+                      style: TextStyle(
+                        fontFamily: 'LuckiestGuy',
+                        fontSize: nameFontSize,
+                        color: const Color(0xFF1F2A44),
+                      ),
+                      textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  SizedBox(height: w * 0.03),
+                  Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.symmetric(horizontal: 12),
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    decoration: BoxDecoration(
+                      color: statusColor,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      member.ready ? "READY" : "WAITING",
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontFamily: 'LuckiestGuy',
+                        fontSize: statusFontSize,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 4),
-              Text(
-                member.email.toUpperCase(),
-                style: const TextStyle(
-                  fontFamily: 'LuckiestGuy',
-                  fontSize: 12, // Giảm cỡ chữ tên
-                  color: Color(0xFF1F2A44),
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 4),
-              // Thanh trạng thái nhỏ gọn phía dưới
-              Container(
-                width: double.infinity,
-                margin: const EdgeInsets.symmetric(horizontal: 10),
-                padding: const EdgeInsets.symmetric(vertical: 2),
-                decoration: BoxDecoration(
-                  color: statusColor,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  member.ready ? "READY" : "WAITING",
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontFamily: 'LuckiestGuy',
-                    fontSize: 9, // Chữ trạng thái nhỏ lại
-                    color: Colors.white,
+              if (isHostMember)
+                Positioned(
+                  top: -crownSize * 0.15,
+                  left: -crownSize * 0.10,
+                  child: Transform.rotate(
+                    angle: -0.2,
+                    child: Image.asset(
+                      'assets/images/crown.png',
+                      width: crownSize,
+                      height: crownSize,
+                      errorBuilder: (context, error, stackTrace) => Icon(Icons.star, color: Colors.amber, size: crownSize * 0.8),
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
-          if (isHostMember)
-            const Positioned(top: 4, left: 4, child: Icon(Icons.star, color: Colors.amber, size: 16)),
-        ],
-      ),
+        );
+      },
     );
   }
 
   Widget _buildEmptySlot() {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.3), // Tối hơn một chút để phân biệt
+        color: Colors.black.withOpacity(0.3),
         borderRadius: BorderRadius.circular(15),
         border: Border.all(color: Colors.white10, width: 2),
       ),
@@ -431,7 +466,7 @@ class _RoomScreenState extends State<RoomScreen> {
           style: TextStyle(
             fontFamily: 'LuckiestGuy',
             color: Colors.white24,
-            fontSize: 14,
+            fontSize: 16, // Chữ Empty to hơn cho cân đối
           ),
         ),
       ),
@@ -468,14 +503,14 @@ class _RoomScreenState extends State<RoomScreen> {
     );
   }
 
-  Widget _ruleRow(String label, String value) {
+  Widget _ruleRow(String label, String value, double labelSize, double valueSize) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(fontFamily: 'LuckiestGuy', color: Color(0xFF29B6F6), fontSize: 18)),
-          Text(value, style: const TextStyle(fontFamily: 'LuckiestGuy', color: RoomTheme.accentYellow, fontSize: 22)),
+          Text(label, style: TextStyle(fontFamily: 'LuckiestGuy', color: const Color(0xFF29B6F6), fontSize: labelSize)),
+          Text(value, style: TextStyle(fontFamily: 'LuckiestGuy', color: RoomTheme.accentYellow, fontSize: valueSize)),
         ],
       ),
     );

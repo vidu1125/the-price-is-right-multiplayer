@@ -50,6 +50,10 @@ class _UserCardState extends State<UserCard> {
       );
     }
 
+    final screenWidth = MediaQuery.of(context).size.width;
+    final double nameFontSize = (screenWidth * 0.015).clamp(14.0, 24.0);
+    final double avatarSize = (screenWidth * 0.04).clamp(40.0, 60.0);
+
     return Container(
       // 1. Box hình viên thuốc (Pill shape) từ CSS .user-card
       decoration: LobbyTheme.userCardDecoration,
@@ -64,8 +68,8 @@ class _UserCardState extends State<UserCard> {
                _loadProfile(); // Tap to refresh for now
             },
             child: Container(
-              width: 48,
-              height: 48,
+              width: avatarSize,
+              height: avatarSize,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: const Color(0xFFF8F8F8), // Nền trắng nhẹ cho avatar
@@ -76,10 +80,10 @@ class _UserCardState extends State<UserCard> {
                   'assets/images/default-mushroom.jpg',
                   fit: BoxFit.cover,
                   // Dự phòng nếu không tìm thấy ảnh
-                  errorBuilder: (context, error, stackTrace) => const Icon(
+                  errorBuilder: (context, error, stackTrace) => Icon(
                     Icons.person,
                     color: LobbyTheme.primaryDark,
-                    size: 30,
+                    size: avatarSize * 0.6,
                   ),
                 ),
               ),
@@ -89,12 +93,11 @@ class _UserCardState extends State<UserCard> {
           const SizedBox(width: 12),
           
           // 3. Player Name với Shadow đặc trưng từ CSS
-          // 3. Player Name với Shadow đặc trưng từ CSS
           Text(
             name,
             style: TextStyle(
               fontFamily: 'LuckiestGuy',
-              fontSize: 18,
+              fontSize: nameFontSize,
               color: LobbyTheme.primaryDark,
               // Hiệu ứng text-shadow: 1px 1px 0 #fff trong CSS
               shadows: const [

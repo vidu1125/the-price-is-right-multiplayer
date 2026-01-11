@@ -43,17 +43,17 @@ class LobbyScreen extends StatelessWidget {
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center, // Các nút gom lại giữa cột
                             children: [
-                              _sideButton("VIEW HISTORY", () {
+                              _sideButton(context, "VIEW HISTORY", () {
                                 Navigator.pushNamed(context, '/history');
                               }),
-                              _sideButton("VIEW TUTORIAL", () {
+                              _sideButton(context, "VIEW TUTORIAL", () {
                                 Navigator.pushNamed(context, '/tutorial');
                               }),
-                              _sideButton("SETTING", () {
+                              _sideButton(context, "SETTING", () {
                                 Navigator.pushNamed(context, '/settings');
                               }),
                               const SizedBox(height: 40), // Khoảng cách riêng cho nút Logout
-                              _sideButton("LOG OUT", () async {
+                              _sideButton(context, "LOG OUT", () async {
                                 final res = await ServiceLocator.authService.logout();
                                 if (res["success"] == true) {
                                   if (context.mounted) {
@@ -89,16 +89,21 @@ class LobbyScreen extends StatelessWidget {
     );
   }
 
-  Widget _sideButton(String label, VoidCallback onPressed, {bool isLogout = false}) {
+  Widget _sideButton(BuildContext context, String label, VoidCallback onPressed, {bool isLogout = false}) {
+    // Calculate responsive font size based on screen width
+    // Increased size as requested
+    final screenWidth = MediaQuery.of(context).size.width;
+    final double fontSize = (screenWidth * 0.02).clamp(18.0, 32.0);
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 20),
+      margin: const EdgeInsets.only(bottom: 24), // Increased margin
       width: double.infinity,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.25),
-            offset: const Offset(0, 6), // Đổ bóng xuống dưới
+            offset: const Offset(0, 6),
             blurRadius: 16,
           )
         ],
@@ -106,9 +111,12 @@ class LobbyScreen extends StatelessWidget {
       child: ElevatedButton(
         style: isLogout ? LobbyTheme.logoutButtonStyle : LobbyTheme.sideButtonStyle,
         onPressed: onPressed,
-        child: Text(
-          label,
-          style: LobbyTheme.gameFont(fontSize: 20), // Tăng size font cho giống Web
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8), // Increased vertical padding
+          child: Text(
+            label,
+            style: LobbyTheme.gameFont(fontSize: fontSize), 
+          ),
         ),
       ),
     );

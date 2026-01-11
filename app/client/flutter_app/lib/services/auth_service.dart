@@ -48,12 +48,21 @@ class AuthService {
         }),
       );
 
-      final data = Protocol.decodeJson(response.payload);
       if (response.command == Command.resLoginOk || response.command == Command.resSuccess) {
-        await persistAuth(data);
-        return {"success": true, "data": data};
+         final data = Protocol.decodeJson(response.payload);
+         await persistAuth(data);
+         return {"success": true, "data": data};
       } else {
-        return {"success": false, "error": data["error"] ?? "Login failed"};
+         // Error response might be plain text
+         String errorMsg;
+         try {
+           final data = Protocol.decodeJson(response.payload);
+           errorMsg = data["error"] ?? "Login failed (error code 0x${response.command.toRadixString(16)})";
+         } catch (_) {
+           // Fallback for plain text payload
+           errorMsg = String.fromCharCodes(response.payload);
+         }
+         return {"success": false, "error": errorMsg};
       }
     } catch (e) {
       return {"success": false, "error": e.toString()};

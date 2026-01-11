@@ -81,25 +81,28 @@ class _TutorialPageState extends State<TutorialPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFE3F2FD), // Light blue background
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFFE3F2FD), Color(0xFFBBDEFB)],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
+      backgroundColor: const Color(0xFFE3F2FD),
+      body: Stack(
+        children: [
+          // Background Image
+          Positioned.fill(
+            child: Image.asset("assets/images/lobby-bg.png", fit: BoxFit.cover),
           ),
-        ),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
-          child: Column(
-            children: [
-              _buildHeroSection(),
-              const SizedBox(height: 40),
-              _buildCarousel(),
-            ],
+          Positioned.fill(child: Container(color: Colors.black.withOpacity(0.5))),
+          
+          Container(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
+              child: Column(
+                children: [
+                  _buildHeroSection(),
+                  const SizedBox(height: 40),
+                  _buildCarousel(),
+                ],
+              ),
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

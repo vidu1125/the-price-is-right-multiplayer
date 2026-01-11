@@ -23,6 +23,10 @@ class RoomList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final double contentFontSize = (screenWidth * 0.012).clamp(12.0, 18.0);
+    final double buttonFontSize = (screenWidth * 0.01).clamp(10.0, 14.0);
+    
     return ListView.separated(
       padding: const EdgeInsets.symmetric(vertical: 8),
       itemCount: rooms.length,
@@ -38,12 +42,12 @@ class RoomList extends StatelessWidget {
             children: [
               SizedBox(
                 width: 40,
-                child: Text(room.id.toString(), style: LobbyTheme.tableContentFont),
+                child: Text(room.id.toString(), style: LobbyTheme.tableContentFont.copyWith(fontSize: contentFontSize)),
               ),
               Expanded(
                 child: Text(
                   room.name,
-                  style: LobbyTheme.tableContentFont.copyWith(fontWeight: FontWeight.bold),
+                  style: LobbyTheme.tableContentFont.copyWith(fontWeight: FontWeight.bold, fontSize: contentFontSize),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -53,6 +57,7 @@ class RoomList extends StatelessWidget {
                   room.status,
                   style: LobbyTheme.tableContentFont.copyWith(
                     color: isInGame ? Colors.orangeAccent : Colors.greenAccent,
+                    fontSize: contentFontSize
                   ),
                 ),
               ),
@@ -68,7 +73,7 @@ class RoomList extends StatelessWidget {
                   : () {
                       Navigator.pushNamed(context, '/room', arguments: {'roomId': room.id});
                     },
-                child: Text(isInGame ? "Locked" : "Join", style: const TextStyle(fontSize: 12)),
+                child: Text(isInGame ? "Locked" : "Join", style: TextStyle(fontSize: buttonFontSize)),
               ),
             ],
           ),
