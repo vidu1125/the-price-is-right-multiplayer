@@ -157,6 +157,7 @@ void handle_create_room(int client_fd, MessageHeader *req, const char *payload) 
     uint32_t db_room_id = 0;
     
     int rc = room_repo_create(
+        session->account_id,
         room_name,
         data.visibility,
         data.mode,
