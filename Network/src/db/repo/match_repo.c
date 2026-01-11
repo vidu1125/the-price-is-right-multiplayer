@@ -140,6 +140,110 @@ db_error_t db_match_create(
     
     return err;
 }
+
+// Insert match only - for game start
+db_error_t db_match_insert(
+    uint32_t room_id,
+    const char *mode,
+    int max_players,
+    int64_t *out_match_id
+) {
+    if (!out_match_id) return DB_ERROR_INVALID_PARAM;
+    *out_match_id = 0;
+
+    // Use hardcoded room_id for testing (will be replaced with actual room data later)
+    (void)room_id; // Suppress warning
+    uint32_t test_room_id = 56; // Hardcoded room ID for testing
+
+    // Build match payload
+    cJSON *match_payload = cJSON_CreateObject();
+    cJSON_AddNumberToObject(match_payload, "room_id", test_room_id);
+    cJSON_AddStringToObject(match_payload, "mode", mode ? mode : "classic");
+    cJSON_AddNumberToObject(match_payload, "max_players", max_players);
+    
+    // started_at = now
+    char now_str[32];
+    get_current_iso_time(now_str, sizeof(now_str));
+    cJSON_AddStringToObject(match_payload, "started_at", now_str);
+    // ended_at = null (match not ended yet)
+
+    cJSON *match_res = NULL;
+    db_error_t err = db_post("matches", match_payload, &match_res);
+    cJSON_Delete(match_payload);
+
+    if (err != DB_SUCCESS) {
+        printf("[MATCH_REPO] Failed to insert match: err=%d\n", err);
+        if (match_res) cJSON_Delete(match_res);
+        return err;
+    }
+
+    // Extract match ID from response
+    int64_t match_id = 0;
+    if (cJSON_IsArray(match_res) && cJSON_GetArraySize(match_res) > 0) {
+        cJSON *item = cJSON_GetArrayItem(match_res, 0);
+        cJSON *id_json = cJSON_GetObjectItem(item, "id");
+        if (id_json && cJSON_IsNumber(id_json)) {
+            match_id = id_json->valueint;
+        }
+    }
+    cJSON_Delete(match_res);
+
+    if (match_id == 0) {
+        printf("[MATCH_REPO] Failed to parse match ID from response\n");
+        return DB_ERROR_PARSE;
+    }
+
+    *out_match_id = match_id;
+    printf("[MATCH_REPO] Match inserted successfully: db_match_id=%lld\n", (long long)match_id);
+    
+    return DB_SUCCESS;
+}
+
+// Insert match_players for a match
+db_error_t db_match_players_insert(
+    int64_t db_match_id,
+    const int32_t *account_ids,
+    int player_count
+) {
+    if (db_match_id == 0 || !account_ids || player_count <= 0) {
+        return DB_ERROR_INVALID_PARAM;
+    }
+
+    printf("[MATCH_REPO] Inserting %d players for match_id=%lld...\n", 
+           player_count, (long long)db_match_id);
+
+    // Build array of player objects
+    cJSON *players_array = cJSON_CreateArray();
+    
+    for (int i = 0; i < player_count; i++) {
+        cJSON *player = cJSON_CreateObject();
+        cJSON_AddNumberToObject(player, "match_id", db_match_id);
+        cJSON_AddNumberToObject(player, "account_id", account_ids[i]);
+        cJSON_AddNumberToObject(player, "score", 0); // Initial score
+        cJSON_AddBoolToObject(player, "winner", false);
+        cJSON_AddBoolToObject(player, "eliminated", false);
+        cJSON_AddBoolToObject(player, "forfeited", false);
+        
+        cJSON_AddItemToArray(players_array, player);
+    }
+
+    // Insert all players at once
+    cJSON *response = NULL;
+    db_error_t err = db_post("match_players", players_array, &response);
+    cJSON_Delete(players_array);
+
+    if (err != DB_SUCCESS) {
+        printf("[MATCH_REPO] Failed to insert match_players: err=%d\n", err);
+        if (response) cJSON_Delete(response);
+        return err;
+    }
+
+    if (response) cJSON_Delete(response);
+    
+    printf("[MATCH_REPO] Successfully inserted %d match_players\n", player_count);
+    return DB_SUCCESS;
+}
+
 db_error_t db_match_get_history(
     int32_t account_id,
     int limit,

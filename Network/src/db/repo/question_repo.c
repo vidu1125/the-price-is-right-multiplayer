@@ -61,3 +61,42 @@ int history_repo_get(
     *out_json = result;
     return 0;
 }
+
+// Fetch random questions from database filtered by round type
+db_error_t question_get_random(const char *round_type, int count, cJSON **out_json) {
+    if (!out_json || count <= 0 || !round_type) {
+        return DB_ERROR_INVALID_PARAM;
+    }
+
+    *out_json = NULL;
+
+    // SQL query to get random questions filtered by round_type
+    const char *sql_template =
+        "SELECT id, question, answer, price, image_url, category, round_type "
+        "FROM questions "
+        "WHERE round_type = '%s' "
+        "ORDER BY RANDOM() "
+        "LIMIT %d;";
+
+    char query[512];
+    snprintf(query, sizeof(query), sql_template, round_type, count);
+
+    printf("[QUESTION_REPO] Fetching %d random '%s' questions\n", count, round_type);
+
+    cJSON *result = NULL;
+    db_error_t rc = db_get("query", query, &result);
+
+    if (rc != DB_OK) {
+        printf("[QUESTION_REPO] Query failed: rc=%d\n", rc);
+        return rc;
+    }
+
+    if (!result || !cJSON_IsArray(result)) {
+        printf("[QUESTION_REPO] Invalid response format\n");
+        if (result) cJSON_Delete(result);
+        return DB_ERROR_PARSE;
+    }
+
+    *out_json = result;
+    return DB_OK;
+}
