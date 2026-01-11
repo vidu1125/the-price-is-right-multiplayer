@@ -18,6 +18,7 @@ class RoomList extends StatelessWidget {
     Room(id: 6, name: "Quick Play - Open Slot (F)", status: "Waiting"),
     Room(id: 7, name: "The Big Reveal (G)", status: "In Game"),
     Room(id: 8, name: "Midnight Madness (H)", status: "Waiting"),
+    Room(id: 999, name: "[TEST] Simulation Room", status: "Waiting"),
   ];
 
   @override
@@ -65,7 +66,7 @@ class RoomList extends StatelessWidget {
                 onPressed: isInGame 
                   ? null 
                   : () {
-                      Navigator.pushNamed(context, '/room');
+                      Navigator.pushNamed(context, '/room', arguments: {'roomId': room.id});
                     },
                 child: Text(isInGame ? "Locked" : "Join", style: const TextStyle(fontSize: 12)),
               ),

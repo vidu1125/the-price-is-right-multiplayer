@@ -73,10 +73,12 @@ class _LoginScreenState extends State<LoginScreen> {
                         if (_formKey.currentState!.validate()) {
                           setState(() => _isLoading = true);
                           
+                          print("🔴 Sending Login Request...");
                           final result = await ServiceLocator.authService.login(
                             _emailController.text, 
                             _passwordController.text
                           );
+                          print("🔴 Login Result: $result");
 
                           setState(() => _isLoading = false);
 

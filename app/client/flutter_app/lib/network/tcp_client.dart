@@ -123,7 +123,7 @@ class TcpClient {
     send(packet);
 
     return completer.future.timeout(
-      const Duration(seconds: 10),
+      const Duration(seconds: 20),
       onTimeout: () {
         _pending.remove(seqNum);
         throw TimeoutException("Request 0x${command.toRadixString(16)} (seq=$seqNum) timed out");

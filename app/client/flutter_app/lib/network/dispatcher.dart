@@ -16,7 +16,7 @@ class Dispatcher {
     _subscription = client.messageStream.listen(_onMessage);
     // Ignore late arriving login responses (handled by request logic usually)
     register(Command.resLoginOk, (msg) {
-      print("ℹ️ Late/Unsolicited Login Response: seq=${msg.seq} (Ignored)");
+      // print("ℹ️ Late/Unsolicited Login Response: seq=${msg.seq} (Ignored)");
     });
   }
 
