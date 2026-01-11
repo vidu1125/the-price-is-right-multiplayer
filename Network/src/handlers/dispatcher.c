@@ -5,7 +5,6 @@
 #include "handlers/history_handler.h"
 #include "handlers/room_handler.h"
 #include "handlers/profile_handler.h"
-#include "handlers/match_handler.h"
 #include "handlers/round1_handler.h"
 #include "handlers/start_game_handler.h"
 #include "handlers/session_context.h"
