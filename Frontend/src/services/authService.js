@@ -69,7 +69,8 @@ registerDefaultHandler((opcode, payload) => {
   const ERR_SERVER_ERROR = 500;
   const ERR_SERVICE_UNAVAILABLE = 501;
 
-  const authOpcodes = [RES_SUCCESS, RES_LOGIN_OK, ERR_BAD_REQUEST, ERR_NOT_LOGGED_IN, ERR_INVALID_USERNAME, ERR_SERVER_ERROR, ERR_SERVICE_UNAVAILABLE];
+  // Only handle auth-specific opcodes here (not ERR_NOT_LOGGED_IN - it's handled elsewhere)
+  const authOpcodes = [RES_SUCCESS, RES_LOGIN_OK, ERR_BAD_REQUEST, ERR_INVALID_USERNAME, ERR_SERVER_ERROR, ERR_SERVICE_UNAVAILABLE];
   const isAuth = authOpcodes.includes(opcode);
 
   console.log("[Auth] default handler invoked", { opcode, authOpcodes, isAuth });
@@ -90,6 +91,55 @@ registerDefaultHandler((opcode, payload) => {
   }
 
   return true; // handled
+});
+
+console.log("[AuthService] default handler registered");
+
+// Also register direct handlers for auth opcodes
+registerHandler(OPCODE.RES_SUCCESS, (payload) => {
+  const data = parsePayload(payload);
+  console.log("[Auth] direct RES_SUCCESS", data);
+  finishAuth(data, !data?.success);
+});
+
+registerHandler(OPCODE.RES_LOGIN_OK, (payload) => {
+  const data = parsePayload(payload);
+  console.log("[Auth] direct RES_LOGIN_OK", data);
+  finishAuth(data, !data?.success);
+});
+
+[OPCODE.ERR_BAD_REQUEST, OPCODE.ERR_INVALID_USERNAME, OPCODE.ERR_SERVER_ERROR, OPCODE.ERR_SERVICE_UNAVAILABLE]
+  .forEach((opcode) => {
+    registerHandler(opcode, (payload) => {
+      const text = new TextDecoder().decode(payload);
+      console.log("[Auth] direct ERR opcode", opcode, text);
+      handleAuthError(payload);
+    });
+  });
+
+// Special handler for ERR_NOT_LOGGED_IN - only force logout if from another device
+registerHandler(OPCODE.ERR_NOT_LOGGED_IN, (payload) => {
+  const text = new TextDecoder().decode(payload);
+  console.log("[Auth] ERR_NOT_LOGGED_IN received:", text);
+  
+  // Check if this is a forced logout from another device
+  if (text.includes("Account logged in from another device")) {
+    console.warn("Account logged in elsewhere");
+    clearAuth();
+    alert("Your account has been logged in from another device. You have been logged out.");
+    window.location.href = "/";
+    return;
+  }
+  
+  // Otherwise, if there's a pending auth request, handle as auth error
+  if (loginPending || registerPending || reconnectPending) {
+    console.log("[Auth] ERR_NOT_LOGGED_IN - auth request pending, treating as error");
+    handleAuthError(payload);
+    return;
+  }
+  
+  // Otherwise, let other handlers (e.g., profileService) deal with it
+  console.log("[Auth] ERR_NOT_LOGGED_IN - letting other handlers deal with it");
 });
 
 console.log("[AuthService] default handler registered");
