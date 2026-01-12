@@ -99,68 +99,82 @@ class _RoomCardState extends State<RoomCard> {
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final double titleSize = (screenWidth * 0.025).clamp(24.0, 48.0);
-    final double buttonTextSize = (screenWidth * 0.012).clamp(12.0, 20.0);
+    final double titleSize = (screenWidth * 0.028).clamp(26.0, 52.0); // Increased from 0.025
+    final double buttonTextSize = (screenWidth * 0.015).clamp(14.0, 24.0); // Increased from 0.012, 12-20
 
-    return Container(
-      decoration: LobbyTheme.roomPanelDecoration,
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        children: [
-          Text(
-            "ROOM LIST",
-            style: LobbyTheme.gameFont(fontSize: titleSize, color: LobbyTheme.yellowGame),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Responsive padding - reduced max for more compact display
+        final double containerPadding = (constraints.maxWidth * 0.03).clamp(16.0, 24.0);
+        
+        return Center(
+          child: Container(
+            // Increase to 98% for maximum width
+            width: constraints.maxWidth * 0.98,
+            decoration: LobbyTheme.roomPanelDecoration,
+            padding: EdgeInsets.all(containerPadding), // Responsive padding
+            child: Column(
+              children: [
+                Text(
+                  "ROOM LIST",
+                  style: LobbyTheme.gameFont(fontSize: titleSize, color: LobbyTheme.yellowGame),
+                ),
+                const SizedBox(height: 12), // Giảm từ 16
+                // Dùng Flexible để RoomList tự động điều chỉnh chiều cao
+                Flexible(
+                  child: RoomList(),
+                ),
+                const SizedBox(height: 10), // Giảm từ 12
+                // Row containing action buttons (Reload, Find, Create)
+                Row(
+                  children: [
+                    // Reload button
+                    Expanded(
+                      flex: 4, // Make Reload and Find larger (flex 4)
+                      child: _actionButton(
+                        label: "RELOAD",
+                        color: LobbyTheme.yellowReload,
+                        textColor: Colors.white,
+                        onPressed: () => print("Reloading..."),
+                        fontSize: buttonTextSize,
+                        verticalPadding: 24, // Increased from 22
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    
+                    // Find Room button
+                    Expanded(
+                      flex: 4, // Make Reload and Find larger
+                      child: _actionButton(
+                        label: "FIND ROOM",
+                        color: LobbyTheme.blueAction,
+                        textColor: Colors.white,
+                        onPressed: () => print("Finding..."),
+                        fontSize: buttonTextSize,
+                        verticalPadding: 24, // Increased from 22
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    
+                    // Create Room button
+                    Expanded(
+                      flex: 5, // Create Room slightly bigger or similar
+                      child: _actionButton(
+                        label: "+ CREATE ROOM",
+                        color: LobbyTheme.greenCreate,
+                        textColor: Colors.white,
+                        onPressed: () => _showCreateRoomModal(),
+                        fontSize: buttonTextSize,
+                        verticalPadding: 24, // Increased from 22
+                      ),
+                    ),
+                  ],
+                )
+              ],
+            ),
           ),
-          const SizedBox(height: 16),
-          // Sử dụng Expanded để ListView chiếm trọn không gian trống của khung nền
-          Expanded(
-            child: RoomList(),
-          ),
-          const SizedBox(height: 20),
-          // Row chứa các button hành động (Reload, Find, Create) đã fix tỷ lệ ở bước trước
-          Row(
-            children: [
-              // Nút Reload
-              Expanded(
-                flex: 1, // Set to equal flex to match the "identical" request
-                child: _actionButton(
-                  label: "RELOAD",
-                  color: LobbyTheme.yellowReload,
-                  textColor: Colors.white,
-                  onPressed: () => print("Reloading..."),
-                  fontSize: buttonTextSize,
-                ),
-              ),
-              const SizedBox(width: 12),
-              
-              // Nút Find Room
-              Expanded(
-                flex: 1, // Set to equal flex
-                child: _actionButton(
-                  label: "FIND ROOM",
-                  color: LobbyTheme.blueAction,
-                  textColor: Colors.white,
-                  onPressed: () => print("Finding..."),
-                  fontSize: buttonTextSize,
-                ),
-              ),
-              const SizedBox(width: 12),
-              
-              // Nút Create Room
-              Expanded(
-                flex: 1, // Set to equal flex
-                child: _actionButton(
-                  label: "+ CREATE ROOM",
-                  color: LobbyTheme.greenCreate,
-                  textColor: Colors.white,
-                  onPressed: () => _showCreateRoomModal(),
-                  fontSize: buttonTextSize,
-                ),
-              ),
-            ],
-          )
-        ],
-      ),
+        );
+      }
     );
   }
 
@@ -170,6 +184,7 @@ class _RoomCardState extends State<RoomCard> {
     required Color textColor,
     required VoidCallback onPressed,
     double fontSize = 16,
+    double verticalPadding = 18,
   }) {
     return Container(
       decoration: BoxDecoration(
@@ -187,7 +202,7 @@ class _RoomCardState extends State<RoomCard> {
           backgroundColor: color,
           foregroundColor: textColor,
           elevation: 0, // Tắt elevation mặc định để dùng BoxShadow của Container
-          padding: const EdgeInsets.symmetric(vertical: 18),
+          padding: EdgeInsets.symmetric(vertical: verticalPadding),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
             side: const BorderSide(color: LobbyTheme.primaryDark, width: 3),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/match_detail_theme.dart';
 import '../theme/lobby_theme.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class MatchDetailScreen extends StatelessWidget {
   final Map<String, dynamic> data;
@@ -21,30 +22,33 @@ class MatchDetailScreen extends StatelessWidget {
 
     final roundNumbers = groupedRounds.keys.toList()..sort();
 
+    // Calculate stats
+    final Set<String> uniquePlayers = {};
+    for (var q in questions) {
+      final answers = q['answers'] as List<dynamic>? ?? [];
+      for (var a in answers) {
+        if (a['player_name'] != null) uniquePlayers.add(a['player_name']);
+      }
+    }
+    final int playerCount = uniquePlayers.isEmpty ? (data['player_count'] as int? ?? 0) : uniquePlayers.length;
+    final String mode = (data['display_mode'] ?? data['mode'] ?? 'SCORING').toString().toUpperCase();
+    final String score = (data['score'] ?? '0').toString();
+    final String matchId = (data['match_id'] ?? '?').toString();
+
     return Scaffold(
-      backgroundColor: MatchDetailTheme.backgroundDark,
+      extendBodyBehindAppBar: true, 
       body: Stack(
         children: [
-          // Nút Back (Top Right giống Web)
-          Positioned(
-            top: 40,
-            right: 25,
-            child: ElevatedButton(
-              style: MatchDetailTheme.backHomeButtonStyle,
-              onPressed: () => Navigator.pop(context),
-              child: Text("BACK", style: LobbyTheme.gameFont(fontSize: 14)),
-            ),
+          // Background matching History and Lobby
+          Positioned.fill(
+             child: Image.asset("assets/images/lobby-bg.png", fit: BoxFit.cover),
           ),
-
+          Positioned.fill(child: Container(color: Colors.black.withOpacity(0.5))),
           SafeArea(
             child: Column(
               children: [
                 const SizedBox(height: 20),
-                Text("MATCH #${data['match_id'] ?? '?'}", 
-                  style: LobbyTheme.gameFont(fontSize: 28, color: MatchDetailTheme.yellowBadge)),
-                const SizedBox(height: 5),
-                Text("MODE: ${data['mode']?.toString().toUpperCase() ?? '?'}", 
-                  style: const TextStyle(color: Colors.white54, letterSpacing: 1.5, fontSize: 12)),
+                _buildSummaryHeader(matchId, mode, score, playerCount),
                 const SizedBox(height: 20),
                 
                 Expanded(
@@ -60,8 +64,58 @@ class MatchDetailScreen extends StatelessWidget {
               ],
             ),
           ),
+
+          // Nút Back
+          Positioned(
+            top: 40,
+            right: 25,
+            child: ElevatedButton(
+              style: MatchDetailTheme.backHomeButtonStyle,
+              onPressed: () => Navigator.pop(context),
+              child: Text("BACK", style: LobbyTheme.gameFont(fontSize: 14)),
+            ),
+          ),
         ],
       ),
+    );
+  }
+  
+  Widget _buildSummaryHeader(String matchId, String mode, String score, int players) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: MatchDetailTheme.yellowBadge.withOpacity(0.5), width: 1.5),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 10, offset: const Offset(0, 5))
+        ]
+      ),
+      child: Column(
+        children: [
+          Text("MATCH #$matchId", style: GoogleFonts.luckiestGuy(fontSize: 40, color: MatchDetailTheme.yellowBadge, letterSpacing: 2)),
+          const SizedBox(height: 20),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _summaryItem("MODE", mode, Colors.lightBlueAccent),
+              _summaryItem("SCORING", score, MatchDetailTheme.correctGreen),
+              _summaryItem("PLAYERS", "$players", Colors.orangeAccent),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _summaryItem(String label, String value, Color color) {
+    return Column(
+      children: [
+        Text(value, style: GoogleFonts.luckiestGuy(fontSize: 36, color: color)),
+        const SizedBox(height: 5),
+        Text(label, style: GoogleFonts.luckiestGuy(fontSize: 16, color: Colors.white70)),
+      ],
     );
   }
 
@@ -70,11 +124,34 @@ class MatchDetailScreen extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(vertical: 15),
-          child: Text("ROUND $roundNumber", 
-            style: LobbyTheme.gameFont(fontSize: 20, color: Colors.white70)),
+          padding: const EdgeInsets.only(top: 30, bottom: 15),
+          child: Stack( // Sử dụng Stack để tạo hiệu ứng đổ bóng/viền cho chữ Round
+            children: [
+               // Shadow/Outline effect
+               Text(
+                "ROUND $roundNumber",
+                style: LobbyTheme.gameFont(
+                  fontSize: 36, 
+                  color: Colors.transparent, // Transparent because it's just shadow source
+                ).copyWith(
+                  shadows: [
+                    const Shadow(color: Colors.black, blurRadius: 8, offset: Offset(2, 2)),
+                    const Shadow(color: Colors.black, blurRadius: 8, offset: Offset(-2, 2)),
+                  ]
+                ),
+              ),
+              // Main Text
+              Text(
+                "ROUND $roundNumber",
+                style: LobbyTheme.gameFont(
+                  fontSize: 36, // Tăng size lên hẳn (từ 24 lên 36)
+                  color: MatchDetailTheme.yellowBadge, // Chuyển sang màu vàng cho tông xuyệt tông
+                ),
+              ),
+            ],
+          ),
         ),
-        // Danh sách câu hỏi trong Round
+        // Danh sách câu hỏi
         ...questions.map((q) => _buildQuestionCard(q)),
       ],
     );
@@ -84,8 +161,8 @@ class MatchDetailScreen extends StatelessWidget {
     final answers = q['answers'] as List<dynamic>? ?? [];
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 15),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 25), // Tăng khoảng cách giữa các card
+      padding: const EdgeInsets.all(20), // Tăng padding bên trong
       decoration: MatchDetailTheme.questionCardDecoration,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -101,7 +178,7 @@ class MatchDetailScreen extends StatelessWidget {
                 child: const Text("QUESTION", style: MatchDetailTheme.roundBadgeStyle),
               ),
               const SizedBox(width: 10),
-              Text("#${q['question_idx'] ?? '?'}", style: LobbyTheme.gameFont(fontSize: 16, color: MatchDetailTheme.yellowBadge)),
+              Text("#${q['question_idx'] ?? '?'}", style: LobbyTheme.gameFont(fontSize: 20, color: MatchDetailTheme.yellowBadge)),
             ],
           ),
           const SizedBox(height: 12),
@@ -137,6 +214,7 @@ class MatchDetailScreen extends StatelessWidget {
               ans,
               style: TextStyle(
                 fontFamily: 'Parkinsans',
+                fontSize: 16,
                 fontWeight: FontWeight.bold,
                 color: isCorrect ? MatchDetailTheme.correctGreen : MatchDetailTheme.wrongRed,
               ),

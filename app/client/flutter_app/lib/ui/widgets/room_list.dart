@@ -24,56 +24,71 @@ class RoomList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final double contentFontSize = (screenWidth * 0.012).clamp(12.0, 18.0);
-    final double buttonFontSize = (screenWidth * 0.01).clamp(10.0, 14.0);
+    final double contentFontSize = (screenWidth * 0.015).clamp(14.0, 24.0);
+    final double buttonFontSize = (screenWidth * 0.014).clamp(14.0, 22.0);
+    
+    // Show all rooms - scroll if more than ~8 visible
     
     return ListView.separated(
       padding: const EdgeInsets.symmetric(vertical: 8),
-      itemCount: rooms.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 8), // Khoảng cách giữa các hàng
+      itemCount: rooms.length, // Show all available rooms
+      separatorBuilder: (context, index) => const SizedBox(height: 8),
       itemBuilder: (context, index) {
         final room = rooms[index];
         bool isInGame = room.status == "In Game";
 
+
         return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          decoration: LobbyTheme.tableRowDecoration, // Dùng decoration từ theme
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: LobbyTheme.tableRowDecoration,
           child: Row(
             children: [
+              // ID column - width for 5 digits
               SizedBox(
-                width: 40,
-                child: Text(room.id.toString(), style: LobbyTheme.tableContentFont.copyWith(fontSize: contentFontSize)),
+                width: 70,
+                child: Text(
+                  room.id.toString(),
+                  style: LobbyTheme.tableContentFont.copyWith(fontSize: contentFontSize),
+                ),
               ),
+              
+              // NAME column - expanded
               Expanded(
                 child: Text(
                   room.name,
-                  style: LobbyTheme.tableContentFont.copyWith(fontWeight: FontWeight.bold, fontSize: contentFontSize),
+                  style: LobbyTheme.tableContentFont.copyWith(
+                    fontWeight: FontWeight.bold,
+                    fontSize: contentFontSize
+                  ),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
+              
+              const SizedBox(width: 20), // Spacing before button
+              
+              // JOIN/LOCKED button - fixed size
               SizedBox(
-                width: 80,
-                child: Text(
-                  room.status,
-                  style: LobbyTheme.tableContentFont.copyWith(
-                    color: isInGame ? Colors.orangeAccent : Colors.greenAccent,
-                    fontSize: contentFontSize
+                width: 110, // Increased from 100 to fit "LOCKED" text fully
+                height: 42,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: isInGame ? Colors.grey : const Color(0xFF66BB6A),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      side: const BorderSide(color: LobbyTheme.primaryDark, width: 2),
+                    ),
+                  ),
+                  onPressed: isInGame 
+                    ? null 
+                    : () {
+                        Navigator.pushNamed(context, '/room', arguments: {'roomId': room.id});
+                      },
+                  child: Text(
+                    isInGame ? "LOCK" : "JOIN",
+                    style: LobbyTheme.gameFont(fontSize: buttonFontSize, color: Colors.white),
                   ),
                 ),
-              ),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: isInGame ? Colors.grey : const Color(0xFF66BB6A),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
-                  minimumSize: const Size(60, 30),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-                onPressed: isInGame 
-                  ? null 
-                  : () {
-                      Navigator.pushNamed(context, '/room', arguments: {'roomId': room.id});
-                    },
-                child: Text(isInGame ? "Locked" : "Join", style: TextStyle(fontSize: buttonFontSize)),
               ),
             ],
           ),

@@ -3,6 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 
 class HistoryTheme {
   static const Color primaryBlue = Color(0xFF29B6F6);
+  static const Color primaryGold = Color(0xFFFFD700); // Restored
+  static const Color successGreen = Color(0xFF4CAF50); // Restored
   static const Color darkBlue = Color(0xFF1F2A44);
   static const Color glassWhite = Color(0x1EFFFFFF); // white with 0.12 opacity
   static const Color forfeitRed = Color(0xFFEF5350);
@@ -22,6 +24,18 @@ class HistoryTheme {
     Shadow(offset: Offset(2, 2), color: darkBlue),
     Shadow(offset: Offset(0, 4), color: Colors.black38, blurRadius: 8),
   ];
+  static List<Shadow> textOutlineShadow = gameShowShadow; // Alias
+
+  static TextStyle statValueStyle = GoogleFonts.luckiestGuy(
+    letterSpacing: 1,
+    shadows: const [Shadow(offset: Offset(0, 2), blurRadius: 2)],
+  );
+
+  static BoxDecoration statsPanelDecoration = BoxDecoration(
+    color: Colors.white.withOpacity(0.05),
+    borderRadius: BorderRadius.circular(16),
+    border: Border.all(color: primaryBlue.withOpacity(0.5), width: 2),
+  );
 
   static TextStyle titleStyle = GoogleFonts.luckiestGuy(
     fontSize: _clampDouble(28, 42), // phỏng theo clamp trong CSS
