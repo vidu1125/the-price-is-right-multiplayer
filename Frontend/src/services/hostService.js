@@ -28,62 +28,68 @@ function encodeString(str, maxLength) {
 //==============================================================================
 
 /**
- * CreateRoomPayload struct (72 bytes total):
- * - char name[64]
- * - uint8_t visibility
+ * CreateRoomPayload struct (36 bytes total) - UPDATED:
+ * - char name[32]
  * - uint8_t mode
  * - uint8_t max_players
- * - uint8_t round_time
- * - uint8_t wager_enabled
- * - uint8_t reserved[3]
+ * - uint8_t visibility
+ * - uint8_t wager_mode
  */
 export function createRoom(roomData) {
-    const { name, visibility, mode, maxPlayers, roundTime, wagerEnabled } = roomData;
+    const { name, visibility, mode, maxPlayers, wagerEnabled } = roomData;
 
-    const buffer = new ArrayBuffer(72);
+    const buffer = new ArrayBuffer(36);
     const view = new DataView(buffer);
 
-    // Encode name (64 bytes, null-terminated)
-    const nameBytes = encodeString(name || "New Room", 64);
-    new Uint8Array(buffer, 0, 64).set(nameBytes);
+    // Encode name (32 bytes, null-terminated)
+    const nameBytes = encodeString(name || "New Room", 32);
+    new Uint8Array(buffer, 0, 32).set(nameBytes);
 
-    // Pack fields
-    view.setUint8(64, visibility === 'private' ? 1 : 0);
-    view.setUint8(65, mode === 'elimination' ? 1 : 0);
-    view.setUint8(66, maxPlayers || 6);
-    view.setUint8(67, roundTime || 15);
-    view.setUint8(68, wagerEnabled ? 1 : 0);
-    // reserved[3] = already zeros
+    // Pack fields (order: mode, max_players, visibility, wager_mode)
+    view.setUint8(32, mode === 'elimination' ? 0 : 1);  // MODE_ELIMINATION=0, MODE_SCORING=1
+    view.setUint8(33, maxPlayers || 6);
+    view.setUint8(34, visibility === 'private' ? 1 : 0); // ROOM_PUBLIC=0, ROOM_PRIVATE=1
+    view.setUint8(35, wagerEnabled ? 1 : 0);
 
-    console.log('[Host] Creating room:', { name, visibility, mode, maxPlayers, roundTime, wagerEnabled });
+    console.log('[CLIENT] [CREATE_ROOM] Sending:', { name, visibility, mode, maxPlayers, wagerEnabled, payloadSize: 36 });
     sendPacket(OPCODE.CMD_CREATE_ROOM, buffer);
 }
 
 registerHandler(OPCODE.RES_ROOM_CREATED, (payload) => {
-    const text = new TextDecoder().decode(payload);
+    console.log('[CLIENT] [CREATE_ROOM] Response received, payload size:', payload.byteLength);
 
-    // Skip HTTP headers if present
-    let jsonStr = text;
-    const bodyStart = text.indexOf('\r\n\r\n');
-    if (bodyStart !== -1) {
-        jsonStr = text.substring(bodyStart + 4);
+    // Validate payload size
+    if (payload.byteLength !== 12) {
+        console.error('[CLIENT] [CREATE_ROOM] Invalid payload size:', payload.byteLength, 'expected 12');
+        alert('Failed to create room: Invalid server response');
+        return;
     }
 
-    try {
-        const response = JSON.parse(jsonStr);
+    // Parse binary payload
+    // payload is ArrayBuffer (from receiver.js slice)
+    const view = new DataView(payload);
 
-        if (response.success) {
-            console.log('[Host] Room created:', response);
-            localStorage.setItem('current_room_id', response.room_id.toString());
-            // Store code too if needed
-            sessionStorage.setItem('room_code', response.room_code);
-            window.location.href = '/waitingroom';
-        } else {
-            alert('Failed to create room: ' + response.error);
-        }
-    } catch (e) {
-        console.error('[Host] Parse error:', e, jsonStr);
-    }
+    // Read room_id (4 bytes, network byte order = big-endian)
+    const roomId = view.getUint32(0, false);
+
+    // Read room_code (8 bytes, null-terminated string)
+    // Create Uint8Array view regarding the same buffer to read bytes
+    const codeBytes = new Uint8Array(payload, 4, 8);
+    const roomCode = new TextDecoder()
+        .decode(codeBytes)
+        .replace(/\0/g, ''); // Remove null terminators
+
+    console.log('[CLIENT] [CREATE_ROOM] ✅ SUCCESS:', { roomId, roomCode });
+
+    // Store room info
+    localStorage.setItem('current_room_id', roomId.toString());
+    sessionStorage.setItem('room_code', roomCode);
+
+    // Dispatch event for UI to handle navigation (using React Router)
+    // using window.location.href would cause a reload and disconnect the socket!
+    window.dispatchEvent(new CustomEvent('room_created', {
+        detail: { roomId, roomCode }
+    }));
 });
 
 //==============================================================================

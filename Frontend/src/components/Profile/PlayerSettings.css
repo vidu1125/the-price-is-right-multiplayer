@@ -19,10 +19,17 @@
 }
 
 .settings-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: flex-start;
 	background: linear-gradient(135deg, #29B6F6 0%, #00ACC1 100%);
 	color: white;
 	padding: clamp(18px, 3vw, 28px);
 	border-bottom: 2px solid #1F2A44;
+	gap: 20px;
+}
+.settings-header .header-content {
+	flex: 1;
 }
 .settings-header h2 {
 	font-family: 'Luckiest Guy', cursive;
@@ -37,6 +44,23 @@
 .settings-header p {
 	margin-top: 8px;
 	opacity: 0.95;
+}
+.settings-header .back-btn {
+	background: rgba(255, 255, 255, 0.2);
+	border: 2px solid white;
+	color: white;
+	padding: 10px 18px;
+	border-radius: 8px;
+	font-size: 14px;
+	font-weight: bold;
+	cursor: pointer;
+	white-space: nowrap;
+	transition: all 0.3s ease;
+	height: fit-content;
+}
+.settings-header .back-btn:hover {
+	background: rgba(255, 255, 255, 0.3);
+	transform: translateX(-4px);
 }
 
 .settings-grid {
