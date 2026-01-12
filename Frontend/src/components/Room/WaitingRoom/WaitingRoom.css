@@ -120,22 +120,29 @@
     min-width: 55px;
     text-align: center;
     transition: all 0.2s;
+    cursor: pointer;
+    background: #2c3e50; /* Mặc định xám */
+    color: #5d6d7e;      /* Chữ xám */
+    opacity: 0.6;
 }
 
-.status-badge.on {
+.status-badge.on.active-badge {
     background: #8BC34A; /* Xanh lá rực rỡ */
     color: white;
     text-shadow: 1px 1px 0 rgba(0,0,0,0.5);
     box-shadow: 0 4px 0 #558b2f;
+    border-color: #fff;
+    opacity: 1;
 }
 
-.status-badge.off {
-    background: #2c3e50; /* Màu tối mờ */
-    color: #5d6d7e;      /* Chữ xám mờ */
-    border-color: #16212e;
-    opacity: 0.7;
+.status-badge.off.active-badge {
+    background: #f44336; /* Đỏ */
+    color: white;
+    text-shadow: 1px 1px 0 rgba(0,0,0,0.5);
+    box-shadow: 0 4px 0 #c62828;
+    border-color: #fff;
+    opacity: 1;
 }
-
 /* Mode & Time Options */
 .mode-options, .time-options {
     display: flex;

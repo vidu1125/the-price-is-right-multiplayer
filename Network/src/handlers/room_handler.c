@@ -7,6 +7,8 @@
 #include "transport/room_manager.h"
 #include "db/repo/room_repo.h"
 #include "handlers/session_manager.h"
+#include "db/core/db_client.h"
+#include <cjson/cJSON.h>
 
 //==============================================================================
 // PAYLOAD DEFINITIONS (Room Handler)
@@ -180,11 +182,32 @@ void handle_create_room(int client_fd, MessageHeader *req, const char *payload) 
     
     printf("[SERVER] [CREATE_ROOM] DB persisted: id=%u, code=%s\n", room->id, room->code);
     
-    // STEP 8: Add host as player
-    room_add_player(room->id, session->account_id, client_fd);
+    // STEP 8: Fetch host profile to get name
+    char profile_name[64] = "Host";
+    char query[128];
+    snprintf(query, sizeof(query), "account_id=eq.%u", session->account_id);
+    
+    cJSON *profile_response = NULL;
+    db_error_t profile_rc = db_get("profiles", query, &profile_response);
+    
+    if (profile_rc == DB_OK && profile_response) {
+        cJSON *first = cJSON_GetArrayItem(profile_response, 0);
+        if (first) {
+            cJSON *name_item = cJSON_GetObjectItem(first, "name");
+            if (name_item && cJSON_IsString(name_item)) {
+                strncpy(profile_name, name_item->valuestring, sizeof(profile_name) - 1);
+                profile_name[sizeof(profile_name) - 1] = '\0';
+            }
+        }
+        cJSON_Delete(profile_response);
+    }
+    
+    // STEP 9: Add host as player with name
+    room_add_player(room->id, session->account_id, profile_name, client_fd);
     room->players[0].is_host = true;
     
-    printf("[SERVER] [CREATE_ROOM] Host added as player (account_id=%u)\n", session->account_id);
+    printf("[SERVER] [CREATE_ROOM] Host added as player (account_id=%u, name=%s)\n", 
+           session->account_id, profile_name);
     
     // STEP 9: Send response
     CreateRoomResponsePayload resp;
@@ -198,7 +221,7 @@ void handle_create_room(int client_fd, MessageHeader *req, const char *payload) 
            room->id, room->code, room->name);
     
     // STEP 10: Broadcast NTF_PLAYER_LIST
-    // TODO: Implement in next phase
+    broadcast_player_list(room->id);
 }
 
 //==============================================================================
