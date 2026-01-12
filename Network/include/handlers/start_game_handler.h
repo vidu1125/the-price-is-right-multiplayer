@@ -6,7 +6,6 @@
 #include "protocol/protocol.h"
 #include "transport/room_manager.h"
 
-
 #define MAX_MATCH_PLAYERS 8
 #define MAX_MATCH_ROUNDS 6
 #define MAX_QUESTIONS_PER_ROUND 10
@@ -103,7 +102,7 @@ typedef struct {
     int64_t  db_match_id;
 
     MatchStatus status;
-
+    GameMode mode;
     MatchPlayerState players[MAX_MATCH_PLAYERS];
     int player_count;
 

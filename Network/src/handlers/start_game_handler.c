@@ -24,19 +24,92 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
     printf("[HANDLER] <startgame> Request received for Room ID: %u\n", room_id);
 
     // =========================================================================
-    // VALIDATION: Check room state, host, and readiness
+    // VALIDATION: Check session state
     // =========================================================================
-    // TODO: Validate room state
-    // - Check if room exists in database
-    // - Check if requester is host (via session_get_by_socket)
-    // - Check if room is full/ready
-    // - Check if room is not already playing
-    
     UserSession *session = session_get_by_socket(client_fd);
     if (!session || session->state != SESSION_LOBBY) {
-        printf("[HANDLER] <startgame> Invalid session state\n");
+        printf("[HANDLER] <startgame> Error: Invalid session state\n");
+        forward_response(client_fd, req, ERR_BAD_REQUEST, "Invalid session state", 21);
         return;
     }
+
+    // =========================================================================
+    // VALIDATION: Check room exists and get state
+    // =========================================================================
+    RoomState *room = room_get(room_id);
+    if (!room) {
+        printf("[HANDLER] <startgame> Error: Room %u not found\n", room_id);
+        forward_response(client_fd, req, ERR_BAD_REQUEST, "Room not found", 14);
+        return;
+    }
+
+    // =========================================================================
+    // VALIDATION: Check if requester is host
+    // =========================================================================
+    if (room->host_id != session->account_id) {
+        printf("[HANDLER] <startgame> Error: Only host can start game (host=%u, requester=%d)\n", 
+               room->host_id, session->account_id);
+        forward_response(client_fd, req, ERR_BAD_REQUEST, "Only host can start game", 24);
+        return;
+    }
+
+    // =========================================================================
+    // VALIDATION: Check room status is WAITING
+    // =========================================================================
+    if (room->status != ROOM_WAITING) {
+        printf("[HANDLER] <startgame> Error: Room status is not WAITING (status=%d)\n", room->status);
+        forward_response(client_fd, req, ERR_BAD_REQUEST, "Room not in waiting state", 26);
+        return;
+    }
+
+    // =========================================================================
+    // VALIDATION: Check player count based on game mode
+    // =========================================================================
+    uint8_t player_count = room->player_count;
+    
+    if (room->mode == MODE_ELIMINATION) {
+        // Elimination mode: MUST have exactly 4 players
+        if (player_count != 4) {
+            printf("[HANDLER] <startgame> Error: Elimination mode requires exactly 4 players (current: %d)\n", 
+                   player_count);
+            forward_response(client_fd, req, ERR_BAD_REQUEST, 
+                           "Elimination mode requires exactly 4 players", 45);
+            return;
+        }
+    } else if (room->mode == MODE_SCORING) {
+        // Scoring mode: MUST have 4-6 players
+        if (player_count < 4 || player_count > 6) {
+            printf("[HANDLER] <startgame> Error: Scoring mode requires 4-6 players (current: %d)\n", 
+                   player_count);
+            forward_response(client_fd, req, ERR_BAD_REQUEST, 
+                           "Scoring mode requires 4-6 players", 35);
+            return;
+        }
+    } else {
+        printf("[HANDLER] <startgame> Error: Invalid game mode %d\n", room->mode);
+        forward_response(client_fd, req, ERR_BAD_REQUEST, "Invalid game mode", 17);
+        return;
+    }
+
+    printf("[HANDLER] <startgame> ✅ Validation passed: room_id=%u, mode=%s, players=%d\n",
+           room_id, 
+           room->mode == MODE_ELIMINATION ? "ELIMINATION" : "SCORING",
+           player_count);
+
+    // =========================================================================
+    // VALIDATION: Check all players are connected
+    // =========================================================================
+    for (uint8_t i = 0; i < player_count; i++) {
+        if (!room->players[i].connected) {
+            printf("[HANDLER] <startgame> Error: Player account_id=%u is not connected\n", 
+                   room->players[i].account_id);
+            forward_response(client_fd, req, ERR_BAD_REQUEST, 
+                           "All players must be connected", 30);
+            return;
+        }
+    }
+
+    printf("[HANDLER] <startgame> ✅ All %d players are connected\n", player_count);
 
     // =========================================================================
     // STEP 1: CREATE MATCH REALTIME (In-memory MatchState)
@@ -225,5 +298,14 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
     );
 
     printf("[HANDLER] <startgame> Step 6: Round 1 start broadcasted to room %u\n", room_id);
+    // =========================================================================
+    // STEP 6: SEND SUCCESS RESPONSE TO HOST
+    // =========================================================================
+    char resp_json[128];
+    snprintf(resp_json, sizeof(resp_json), "{\"success\":true,\"match_id\":%u}", match->runtime_match_id);
+    
+    forward_response(client_fd, req, RES_GAME_STARTED, resp_json, strlen(resp_json));
+    printf("[HANDLER] <startgame> Sent RES_GAME_STARTED to host\n");
+
     printf("[HANDLER] <startgame> Game start sequence completed successfully\n");
 }
