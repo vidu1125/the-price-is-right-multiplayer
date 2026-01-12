@@ -1,5 +1,6 @@
 // UserCard.js
 import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import "./UserCard.css";
 import { fetchProfile } from "../../services/profileService";
 
@@ -8,9 +9,11 @@ const DEFAULT_AVATAR_URL = "/bg/default-mushroom.jpg";
 export default function UserCard() {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const location = useLocation();
 
   useEffect(() => {
-    fetchProfile()
+    setLoading(true);
+    fetchProfile(true) // Force refresh to get latest profile
       .then(data => {
         setProfile(data);
         setLoading(false);
@@ -19,7 +22,7 @@ export default function UserCard() {
         console.error("[UserCard] failed to fetch profile", err);
         setLoading(false);
       });
-  }, []);
+  }, [location]); // Refetch when route changes
 
   const handleAvatarClick = () => {
     console.log("Open profile modal (later)");
