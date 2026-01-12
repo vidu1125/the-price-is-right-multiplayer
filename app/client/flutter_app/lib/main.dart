@@ -20,10 +20,12 @@ Future<void> main() async {
   // 2. Setup global auth redirect
   ServiceLocator.tcpClient.onUnauthenticated = () async {
     await ServiceLocator.authService.clearAuth();
+    ServiceLocator.tcpClient.disconnect();
     navigatorKey.currentState?.pushNamedAndRemoveUntil('/login', (route) => false);
   };
 
   // 3. Connect and Bootstrap
+  String initialRoute = '/login';
   try {
     await ServiceLocator.tcpClient.connect(AppConfig.serverHost, AppConfig.serverPort);
     
@@ -31,17 +33,26 @@ Future<void> main() async {
     final sid = authState["sessionId"];
     if (sid != null) {
       print("🔄 Found session, attempting bootstrap reconnect...");
-      await ServiceLocator.authService.reconnect(sid);
+      final res = await ServiceLocator.authService.reconnect(sid);
+      if (res["success"] == true) {
+         initialRoute = '/lobby';
+         print("✅ Bootstrap reconnect successful. Navigating to Lobby.");
+      } else {
+         print("⚠️ Bootstrap reconnect failed: ${res['error']}");
+         // Auto clear is handled in reconnect() if it fails with invalid session, 
+         // but if it failed due to connection error, maybe we stay on login.
+      }
     }
   } catch (e) {
     print("❌ Startup failed: $e");
   }
 
-  runApp(const MyApp());
+  runApp(MyApp(initialRoute: initialRoute));
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final String initialRoute;
+  const MyApp({super.key, required this.initialRoute});
 
   @override
   Widget build(BuildContext context) {
@@ -49,7 +60,7 @@ class MyApp extends StatelessWidget {
       title: 'The Price Is Right',
       debugShowCheckedModeBanner: false,
       navigatorKey: navigatorKey,
-      home: const LoginScreen(),
+      initialRoute: initialRoute,
       routes: {
         '/login': (context) => const LoginScreen(),
         '/register': (context) => const RegisterScreen(),

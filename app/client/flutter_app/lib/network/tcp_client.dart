@@ -51,22 +51,57 @@ class TcpClient {
     }
   }
 
+  // Buffer for incomplete packets
+  final List<int> _buffer = [];
+
   void _handleIncomingData(Uint8List data) {
     try {
-      // Logic for splitting packets if multiple come at once could be added here
-      // For now, we assume simple packet structure
-      final msg = Protocol.decode(data);
-      print("[$hashCode] ⬅️ Received: cmd=0x${msg.command.toRadixString(16)}, seq=${msg.seq}");
+      // Append incoming data to buffer
+      _buffer.addAll(data);
 
-      // Handle 401 Unauthorized globally (usually command/opcode 401 in this protocol)
-      if (msg.command == 401) {
-        onUnauthenticated?.call();
-      }
+      // Process complete packets from buffer
+      while (_buffer.length >= Protocol.headerSize) {
+        // Parse header to get payload length
+        final headerBytes = Uint8List.fromList(_buffer.sublist(0, Protocol.headerSize));
+        final headerData = ByteData.sublistView(headerBytes);
+        
+        final magic = headerData.getUint16(0, Endian.big);
+        final version = headerData.getUint8(2);
+        
+        // Validate magic/version
+        if (magic != Protocol.magic || version != Protocol.version) {
+          print("❌ Invalid protocol header, clearing buffer");
+          _buffer.clear();
+          break;
+        }
+        
+        final payloadLength = headerData.getUint32(12, Endian.big);
+        final totalLength = Protocol.headerSize + payloadLength;
 
-      if (_pending.containsKey(msg.seq)) {
-        _pending.remove(msg.seq)!.complete(msg);
-      } else {
-        _messageController.add(msg);
+        // Check if we have the complete packet
+        if (_buffer.length < totalLength) {
+          // Wait for more data
+          break;
+        }
+
+        // Extract complete packet
+        final packetBytes = Uint8List.fromList(_buffer.sublist(0, totalLength));
+        _buffer.removeRange(0, totalLength);
+
+        // Decode and handle
+        final msg = Protocol.decode(packetBytes);
+        print("[$hashCode] ⬅️ Received: cmd=0x${msg.command.toRadixString(16)}, seq=${msg.seq}");
+
+        // Handle 401 Unauthorized globally
+        if (msg.command == 401) {
+          onUnauthenticated?.call();
+        }
+
+        if (_pending.containsKey(msg.seq)) {
+          _pending.remove(msg.seq)!.complete(msg);
+        } else {
+          _messageController.add(msg);
+        }
       }
     } catch (e) {
       print("❌ Protocol violation or decode error: $e");
@@ -131,7 +166,6 @@ class TcpClient {
     );
   }
 
-  /// Fire-and-forget command
   void sendCommand({required int command, Map<String, dynamic>? json}) {
     final payload = json != null ? Protocol.jsonPayload(json) : null;
     final packet = Protocol.buildPacket(
@@ -140,6 +174,17 @@ class TcpClient {
       payload: payload,
     );
     send(packet);
+  }
+
+  /// Explicitly close the connection but keep the client instance usable for reconnection
+  void disconnect() {
+    _socket?.destroy();
+    // The onDone callback (_handleDisconnect) will be triggered by destroy(),
+    // but just in case it's immediate or sync:
+    if (_status != ConnectionStatus.disconnected) {
+       // _handleDisconnect(); // Don't call manually if onDone handles it, to avoid double handling?
+       // destroy() causes the stream to close.
+    }
   }
 
   void dispose() {

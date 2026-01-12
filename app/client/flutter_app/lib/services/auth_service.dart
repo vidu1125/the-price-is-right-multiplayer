@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../network/tcp_client.dart';
 import '../core/command.dart';
 import '../core/protocol.dart';
+import '../core/config.dart';
 
 class AuthService {
   final TcpClient client;
@@ -17,6 +18,10 @@ class AuthService {
     required String name,
   }) async {
     try {
+      if (client.status != ConnectionStatus.connected) {
+         await client.connect(AppConfig.serverHost, AppConfig.serverPort);
+      }
+
       final response = await client.request(
         Command.registerReq,
         payload: Protocol.jsonPayload({
@@ -40,6 +45,10 @@ class AuthService {
 
   Future<Map<String, dynamic>> login(String email, String password) async {
     try {
+      if (client.status != ConnectionStatus.connected) {
+         await client.connect(AppConfig.serverHost, AppConfig.serverPort);
+      }
+
       final response = await client.request(
         Command.loginReq,
         payload: Protocol.jsonPayload({
@@ -71,11 +80,20 @@ class AuthService {
 
   Future<Map<String, dynamic>> reconnect(String sessionId) async {
     try {
+      final prefs = await SharedPreferences.getInstance();
+      final accountIdStr = prefs.getString("account_id");
+      
+      final Map<String, dynamic> payload = {
+        "session_id": sessionId,
+      };
+      
+      if (accountIdStr != null) {
+        payload["account_id"] = int.tryParse(accountIdStr);
+      }
+
       final response = await client.request(
         Command.reconnect,
-        payload: Protocol.jsonPayload({
-          "session_id": sessionId,
-        }),
+        payload: Protocol.jsonPayload(payload),
       );
 
       final data = Protocol.decodeJson(response.payload);
@@ -97,6 +115,7 @@ class AuthService {
 
     if (sessionId == null) {
       await clearAuth();
+      client.disconnect();
       return {"success": true, "message": "Already logged out"};
     }
 
@@ -109,14 +128,18 @@ class AuthService {
       final data = Protocol.decodeJson(response.payload);
       if (response.command == Command.resSuccess || response.command == Command.resLoginOk) {
         await clearAuth();
+        client.disconnect();
         return {"success": true, "data": data};
       } else {
-        // Even if server logout fails, we might want to clear local auth for better UX?
-        // JS only clears if result?.success IS true. Let's stick to that for parity.
+        await clearAuth(); // Clear anyway on error?
+        client.disconnect();
         return {"success": false, "error": data["error"] ?? "Logout failed"};
       }
     } catch (e) {
       print("Logout request failed: $e");
+      // Force clear
+      await clearAuth();
+      client.disconnect();
       return {"success": false, "error": e.toString()};
     }
   }

@@ -16,6 +16,8 @@
 #include "protocol/protocol.h"
 #include "handlers/dispatcher.h"
 #include "handlers/round1_handler.h"
+#include "handlers/session_manager.h"
+#include "handlers/match_manager.h"
 
 // REMOVED: business / handler / db
 // #include "../include/handler/client_manager.h"
@@ -89,6 +91,11 @@ int create_listening_socket() {
 }
 
 void initialize_server() {
+    // Initialize managers before socket setup
+    printf("[Server] Initializing managers...\n");
+    session_manager_init();
+    match_manager_init();
+    
     listen_fd = create_listening_socket();
 
     // Create epoll instance
