@@ -8,6 +8,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { registerHandler } from "../../../network/receiver";
 import { OPCODE } from "../../../network/opcode";
+import { startGame } from "../../../services/gameService";
 
 export default function WaitingRoom() {
   const location = useLocation();
@@ -117,6 +118,12 @@ export default function WaitingRoom() {
       navigate('/lobby');
     });
 
+    // 6. NTF_GAME_START
+    registerHandler(OPCODE.NTF_GAME_START || 0x02C4, (payload) => {
+      console.log("[NTF] Game Started! Navigating...");
+      navigate('/round', { state: { roomId: roomId, roomCode: roomCode, isHost: isHost } });
+    });
+
     // Cleanup listeners? 
     // Ideally receiver.js should support unregister, but if not, 
     // subsequent renders normally override if using named keys or singleton.
@@ -137,6 +144,13 @@ export default function WaitingRoom() {
     setRoom(prev => ({ ...prev, rules: newRules }));
 
     // TODO: Implement sendPacket(OPCODE.CMD_SET_RULE, rulesPayload);
+  };
+
+
+  // Handle Start Game
+  const handleStartGame = () => {
+    console.log("Host initiating game start...");
+    startGame(room.id);
   };
 
   if (!roomId) return null;
@@ -184,7 +198,7 @@ export default function WaitingRoom() {
         {/* RIGHT: Actions */}
         <div className="wr-right-actions">
           {isHost && (
-            <button className="start-game-btn">START GAME</button>
+            <button className="start-game-btn" onClick={handleStartGame}>START GAME</button>
           )}
           <button className="invite-btn">INVITE FRIENDS</button>
           <button className="leave-btn" onClick={() => navigate('/lobby')}>LEAVE ROOM</button>
