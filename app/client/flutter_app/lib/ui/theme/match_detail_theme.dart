@@ -3,10 +3,11 @@ import 'package:flutter/material.dart';
 class MatchDetailTheme {
   static const Color backgroundDark = Color(0xFF1A1A2E);
   // Thay đổi: Nền card sáng hơn, trong suốt hơn để tạo cảm giác nhẹ nhàng
-  static const Color cardBg = Color(0xCCF8F9FA); 
+  // Thay đổi: Nền card giống Lobby Row Background
+  static const Color cardBg = Color(0xB3465A78); 
   static const Color yellowBadge = Color(0xFFFFDE59);
   static const Color primaryBlue = Color(0xFF29B6F6);
-  static const Color textDark = Color(0xFF2C3E50); // Chữ tối trên nền sáng
+  static const Color textDark = Colors.white; // Chữ trắng trên nền tối
   static const Color errorRed = Color(0xFFE74C3C);
   static const Color correctGreen = Color(0xFF2ECC71);
   static const Color wrongRed = Color(0xFFE74C3C);
@@ -14,8 +15,8 @@ class MatchDetailTheme {
 
   static BoxDecoration questionCardDecoration = BoxDecoration(
     color: cardBg,
-    borderRadius: BorderRadius.circular(24),
-    border: Border.all(color: Colors.white.withOpacity(0.5), width: 1.5),
+    borderRadius: BorderRadius.circular(12), // Giảm radius giống row lobby (12)
+    border: Border.all(color: const Color(0xFF1F2A44), width: 2), // primaryDark, width 2
     boxShadow: [
       BoxShadow(
         color: Colors.black.withOpacity(0.1),

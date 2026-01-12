@@ -145,6 +145,7 @@ class MatchDetailScreen extends StatelessWidget {
   }
 
   Widget _buildQuestionCard(Map<String, dynamic> q) {
+    print("Question Data: $q"); // DEBUG: Check if question_image exists and is correct
     final answers = q['answers'] as List<dynamic>? ?? [];
 
     return Container(
@@ -165,6 +166,23 @@ class MatchDetailScreen extends StatelessWidget {
           const Divider(height: 30, thickness: 1),
           Text(q['question_text'] ?? "", style: MatchDetailTheme.questionTextStyle),
           const SizedBox(height: 20),
+          if (q['question_image'] != null && q['question_image'].toString().isNotEmpty)
+             Column(
+               children: [
+                 ClipRRect(
+                   borderRadius: BorderRadius.circular(12),
+                   child: Image.network(
+                     q['question_image'],
+                     height: 220,
+                     width: double.infinity,
+                     fit: BoxFit.cover,
+                     errorBuilder: (context, error, stackTrace) => 
+                       const Center(child: Text("Could not load image", style: TextStyle(color: Colors.red))),
+                   ),
+                 ),
+                 const SizedBox(height: 20),
+               ],
+             ),
           // Danh sách người chơi với màu sắc tương phản cao
           ...answers.map((ans) => _buildPlayerRow(ans)),
         ],
