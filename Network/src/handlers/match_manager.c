@@ -51,7 +51,7 @@ MatchState* match_create(uint32_t match_id, uint32_t room_id) {
     memset(slot, 0, sizeof(MatchState));
     slot->runtime_match_id = match_id;
     slot->db_match_id = 0; // Will be set when saved to DB
-    slot->status = MATCH_PLAYING;
+    slot->status = MATCH_WAITING; // Match is waiting to start
     slot->current_round_idx = 0;
     slot->created_at = time(NULL);
     slot->player_count = 0;
@@ -87,6 +87,16 @@ void match_destroy(uint32_t match_id) {
     if (!match) {
         printf("[HANDLER] <matchManager> WARN: Match ID %u not found for destroy\n", match_id);
         return;
+    }
+
+    // Free allocated json_data strings in all rounds
+    for (int r = 0; r < match->round_count && r < MAX_MATCH_ROUNDS; r++) {
+        RoundState *round = &match->rounds[r];
+        for (int q = 0; q < round->question_count && q < MAX_QUESTIONS_PER_ROUND; q++) {
+            if (round->question_data[q].json_data) {
+                free(round->question_data[q].json_data);
+            }
+        }
     }
 
     printf("[HANDLER] <matchManager> Destroying match ID=%u\n", match_id);
