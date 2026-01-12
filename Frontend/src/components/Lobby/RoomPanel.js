@@ -2,7 +2,7 @@
 import "./RoomPanel.css";
 import RoomList from "./RoomList";
 import { createRoom } from "../../services/hostService";
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { registerHandler } from "../../network/receiver";
 import { OPCODE } from "../../network/opcode";
 import { useNavigate } from "react-router-dom";
@@ -40,6 +40,13 @@ export default function RoomPanel() {
     });
   };
 
+  // Use ref to keep track of latest formData without re-binding event listener
+  const formDataRef = useRef(formData);
+
+  useEffect(() => {
+    formDataRef.current = formData;
+  }, [formData]);
+
   useEffect(() => {
     // Handler for RES_ROOM_CREATED moved to hostService.js to handle binary payload correctly
     // and centralised logic.
@@ -51,12 +58,21 @@ export default function RoomPanel() {
     const onRoomCreated = (e) => {
       const { roomId, roomCode } = e.detail;
       console.log("🚀 Event received: room_created", e.detail);
+      console.log("👉 Current Form Data:", formDataRef.current); // Debug log
+
       setShowModal(false);
       navigate('/waitingroom', {
         state: {
           roomId,
           roomCode,
-          isHost: true
+          roomName: formDataRef.current.name, // Pass room name from ref
+          isHost: true,
+          gameRules: {
+            maxPlayers: formDataRef.current.maxPlayers,
+            mode: formDataRef.current.mode,
+            wagerMode: formDataRef.current.wagerEnabled,
+            roundTime: formDataRef.current.roundTime || 15
+          }
         }
       });
     };
@@ -74,8 +90,9 @@ export default function RoomPanel() {
 
     return () => {
       window.removeEventListener('room_created', onRoomCreated);
+      // unregisterHandler(OPCODE.RES_ROOM_CREATED);
     };
-  }, [navigate]);
+  }, []); // Only run once on mount
 
   const handleCreateRoom = () => {
     createRoom(formData);

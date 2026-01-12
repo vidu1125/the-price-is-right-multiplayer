@@ -62,7 +62,7 @@ RoomState* room_get(uint32_t room_id) {
 // Player Management
 //==============================================================================
 
-int room_add_player(uint32_t room_id, uint32_t account_id, int client_fd) {
+int room_add_player(uint32_t room_id, uint32_t account_id, const char *name, int client_fd) {
     RoomState *room = find_room(room_id);
     if (!room) return -1;
     
@@ -70,6 +70,8 @@ int room_add_player(uint32_t room_id, uint32_t account_id, int client_fd) {
     
     RoomPlayerState *player = &room->players[room->player_count];
     player->account_id = account_id;
+    strncpy(player->name, name ? name : "Player", sizeof(player->name) - 1);
+    player->name[sizeof(player->name) - 1] = '\0';
     player->is_host = false;
     player->is_ready = false;
     player->connected = true;
@@ -78,6 +80,8 @@ int room_add_player(uint32_t room_id, uint32_t account_id, int client_fd) {
     room->member_fds[room->player_count] = client_fd;
     room->player_count++;
     room->member_count++;
+    
+    printf("[ROOM] Added player: id=%u, name='%s' to room %u\n", account_id, player->name, room_id);
     
     return 0;
 }
@@ -254,6 +258,49 @@ const int* room_get_members(int room_id, int *out_count) {
     return room->member_fds;
 }
 
+
+/**
+ * Broadcast NTF_PLAYER_LIST to all members in a room
+ */
+void broadcast_player_list(uint32_t room_id) {
+    RoomState *room = find_room(room_id);
+    if (!room) {
+        printf("[ROOM] Cannot broadcast player list - room %u not found\n", room_id);
+        return;
+    }
+    
+    // Build JSON payload with player list
+    // Format: {"members":[{"account_id":47,"name":"Player1","is_host":true,"is_ready":false},...]}
+    char payload[2048];
+    int offset = 0;
+    
+    offset += snprintf(payload + offset, sizeof(payload) - offset, "{\"members\":[");
+    
+    for (int i = 0; i < room->player_count; i++) {
+        RoomPlayerState *p = &room->players[i];
+        
+        if (i > 0) {
+            offset += snprintf(payload + offset, sizeof(payload) - offset, ",");
+        }
+        
+        offset += snprintf(payload + offset, sizeof(payload) - offset,
+            "{\"account_id\":%u,\"name\":\"%s\",\"is_host\":%s,\"is_ready\":%s}",
+            p->account_id,
+            p->name,
+            p->is_host ? "true" : "false",
+            p->is_ready ? "true" : "false"
+        );
+    }
+    
+    offset += snprintf(payload + offset, sizeof(payload) - offset, "]}");
+    
+    printf("[ROOM] Broadcasting player list for room %u: %s\n", room_id, payload);
+    
+    // Broadcast to all members
+    room_broadcast((int)room_id, NTF_PLAYER_LIST, payload, (uint32_t)offset, -1);
+}
+
 int room_get_count(void) {
     return g_room_count;
 }
+
