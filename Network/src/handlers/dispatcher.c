@@ -9,6 +9,7 @@
 #include "handlers/round1_handler.h"
 #include "handlers/social_handler.h"
 #include "handlers/presence_handler.h"
+#include "handlers/friend_handler.h"
 #include "handlers/session_context.h"
 #include "handlers/auth_guard.h"
 #include "protocol/opcode.h"
@@ -112,22 +113,13 @@ void dispatch_command(
 
     // Social - Friend Management
     case CMD_FRIEND_ADD:
-        handle_friend_add(client_fd, header, payload);
-        break;
     case CMD_FRIEND_ACCEPT:
-        handle_friend_accept(client_fd, header, payload);
-        break;
     case CMD_FRIEND_REJECT:
-        handle_friend_reject(client_fd, header, payload);
-        break;
     case CMD_FRIEND_REMOVE:
-        handle_friend_remove(client_fd, header, payload);
-        break;
     case CMD_FRIEND_LIST:
-        handle_friend_list(client_fd, header, payload);
-        break;
     case CMD_FRIEND_REQUESTS:
-        handle_friend_requests(client_fd, header, payload);
+    case CMD_SEARCH_USER:
+        handle_friend(client_fd, header, payload);
         break;
 
     // Presence & Status

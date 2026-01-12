@@ -44,6 +44,7 @@
 #define CMD_FRIEND_REQUESTS 0x0509  // Get pending friend requests
 #define CMD_STATUS_UPDATE   0x050A  // Update presence status (ONLINE_IDLE, PLAYING, OFFLINE)
 #define CMD_GET_FRIEND_STATUS 0x050B // Get specific friend's status
+#define CMD_SEARCH_USER     0x050C  // Search users by name/email
 
 
 // System
@@ -87,7 +88,10 @@
 #define ERR_NOT_HOST        406
 #define ERR_TIMEOUT         408
 
-// Social Errors (41x)
+// Social Errors (40x - 41x)
+#define ERR_FORBIDDEN       403
+#define ERR_NOT_FOUND       404
+#define ERR_CONFLICT        409
 #define ERR_FRIEND_NOT_FOUND 410
 #define ERR_ALREADY_FRIENDS 411
 #define ERR_FRIEND_REQ_DUPLICATE 412
