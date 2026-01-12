@@ -71,7 +71,8 @@ export default function RoomPanel() {
             maxPlayers: formDataRef.current.maxPlayers,
             mode: formDataRef.current.mode,
             wagerMode: formDataRef.current.wagerEnabled,
-            roundTime: formDataRef.current.roundTime || 15
+            roundTime: formDataRef.current.roundTime || 15,
+            visibility: formDataRef.current.visibility || "public"
           }
         }
       });
