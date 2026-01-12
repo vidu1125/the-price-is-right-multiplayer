@@ -41,6 +41,10 @@ db_error_t db_client_init(void) {
     g_supabase_url = getenv(ENV_SUPABASE_URL);
     g_supabase_key = getenv(ENV_SUPABASE_KEY);
 
+    printf("[DB_CLIENT] Init: URL=%s, KEY=%s\n", 
+           g_supabase_url ? g_supabase_url : "NULL", 
+           g_supabase_key ? (strlen(g_supabase_key) > 5 ? "HIDDEN" : "SHORT") : "NULL");
+
     if (!g_supabase_url || !g_supabase_key)
         return DB_ERR_INVALID_ARG;
 
@@ -134,6 +138,7 @@ db_error_t db_get(const char *table, const char *query, cJSON **out_json) {
     char url[DB_HTTP_MAX_URL];
     snprintf(url, sizeof(url), "%s%s/%s?%s",
              g_supabase_url, SUPABASE_REST_PATH, table, query);
+    printf("[DB_GET] Request URL: %s\n", url);
     return http_request("GET", url, NULL, out_json);
 }
 

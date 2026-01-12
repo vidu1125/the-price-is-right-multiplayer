@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../services/service_locator.dart';
 import '../../services/room_service.dart';
+import '../../services/game_service.dart';
 import '../../models/room.dart';
 import '../theme/lobby_theme.dart';
 import '../theme/room_theme.dart';
@@ -171,7 +172,14 @@ class _RoomScreenState extends State<RoomScreen> {
   }
   
   Future<void> _startGame() async {
-      await ServiceLocator.roomService.startGame(widget.roomId);
+    final result = await ServiceLocator.gameService.startGame(widget.roomId);
+    if (result['success'] != true) {
+        if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text("Failed to start game: ${result['error']}")),
+            );
+        }
+    }
   }
 
   @override

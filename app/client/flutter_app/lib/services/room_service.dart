@@ -178,11 +178,7 @@ class RoomService {
       await client.request(Command.kick, payload: buffer.buffer.asUint8List());
   }
 
-  Future<void> startGame(int roomId) async {
-      final buffer = ByteData(4);
-      buffer.setUint32(0, roomId);
-      await client.request(Command.startGame, payload: buffer.buffer.asUint8List());
-  }
+
 
   void dispose() {
       _eventController.close();
