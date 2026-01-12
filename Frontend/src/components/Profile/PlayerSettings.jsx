@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { getAuthState } from "../../services/authService";
 import { updateProfile } from "../../services/profileService";
 import "./PlayerSettings.css";
 
 export default function PlayerSettings() {
+  const navigate = useNavigate();
   const { profile } = getAuthState();
   const [name, setName] = useState(profile?.name || "");
   const [avatar, setAvatar] = useState(profile?.avatar || "");
@@ -55,8 +57,17 @@ export default function PlayerSettings() {
     <div className="player-settings">
       <div className="settings-card">
         <div className="settings-header">
-          <h2>Player Settings</h2>
-          <p>Customize your profile so everyone recognizes you</p>
+          <div className="header-content">
+            <h2>Player Settings</h2>
+            <p>Customize your profile so everyone recognizes you</p>
+          </div>
+          <button 
+            className="back-btn" 
+            onClick={() => navigate("/")}
+            title="Back to Lobby"
+          >
+            ← Back to Lobby
+          </button>
         </div>
 
         <div className="settings-grid">
