@@ -213,6 +213,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
       // Inject data from record to details
       details['score'] = record.score;
       details['display_mode'] = record.mode;
+      details['match_id'] = record.matchId;
       
       if (mounted) {
         Navigator.pop(context);

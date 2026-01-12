@@ -47,7 +47,17 @@ class MatchDetailScreen extends StatelessWidget {
           SafeArea(
             child: Column(
               children: [
-                const SizedBox(height: 20),
+                Padding(
+                  padding: const EdgeInsets.only(top: 10, right: 20, bottom: 10),
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: ElevatedButton(
+                      style: MatchDetailTheme.backHomeButtonStyle,
+                      onPressed: () => Navigator.pop(context),
+                      child: Text("BACK", style: LobbyTheme.gameFont(fontSize: 20)), // Increased size
+                    ),
+                  ),
+                ),
                 _buildSummaryHeader(matchId, mode, score, playerCount),
                 const SizedBox(height: 20),
                 
@@ -66,15 +76,7 @@ class MatchDetailScreen extends StatelessWidget {
           ),
 
           // Nút Back
-          Positioned(
-            top: 40,
-            right: 25,
-            child: ElevatedButton(
-              style: MatchDetailTheme.backHomeButtonStyle,
-              onPressed: () => Navigator.pop(context),
-              child: Text("BACK", style: LobbyTheme.gameFont(fontSize: 14)),
-            ),
-          ),
+
         ],
       ),
     );
@@ -124,34 +126,19 @@ class MatchDetailScreen extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(top: 30, bottom: 15),
-          child: Stack( // Sử dụng Stack để tạo hiệu ứng đổ bóng/viền cho chữ Round
-            children: [
-               // Shadow/Outline effect
-               Text(
-                "ROUND $roundNumber",
-                style: LobbyTheme.gameFont(
-                  fontSize: 36, 
-                  color: Colors.transparent, // Transparent because it's just shadow source
-                ).copyWith(
-                  shadows: [
-                    const Shadow(color: Colors.black, blurRadius: 8, offset: Offset(2, 2)),
-                    const Shadow(color: Colors.black, blurRadius: 8, offset: Offset(-2, 2)),
-                  ]
-                ),
-              ),
-              // Main Text
-              Text(
-                "ROUND $roundNumber",
-                style: LobbyTheme.gameFont(
-                  fontSize: 36, // Tăng size lên hẳn (từ 24 lên 36)
-                  color: MatchDetailTheme.yellowBadge, // Chuyển sang màu vàng cho tông xuyệt tông
-                ),
-              ),
-            ],
+          padding: const EdgeInsets.only(top: 40, bottom: 20),
+          child: Text(
+            "ROUND $roundNumber",
+            style: GoogleFonts.luckiestGuy(
+              fontSize: 42, // Tăng kích thước cực đại
+              color: MatchDetailTheme.yellowBadge,
+              letterSpacing: 3,
+              shadows: [
+                const Shadow(color: Colors.black54, offset: Offset(3, 3), blurRadius: 5),
+              ],
+            ),
           ),
         ),
-        // Danh sách câu hỏi
         ...questions.map((q) => _buildQuestionCard(q)),
       ],
     );
@@ -161,46 +148,42 @@ class MatchDetailScreen extends StatelessWidget {
     final answers = q['answers'] as List<dynamic>? ?? [];
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 25), // Tăng khoảng cách giữa các card
-      padding: const EdgeInsets.all(20), // Tăng padding bên trong
+      margin: const EdgeInsets.only(bottom: 25),
+      padding: const EdgeInsets.all(24),
       decoration: MatchDetailTheme.questionCardDecoration,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: MatchDetailTheme.yellowBadge,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Text("QUESTION", style: MatchDetailTheme.roundBadgeStyle),
-              ),
-              const SizedBox(width: 10),
-              Text("#${q['question_idx'] ?? '?'}", style: LobbyTheme.gameFont(fontSize: 20, color: MatchDetailTheme.yellowBadge)),
+              Text("QUESTION #${q['question_idx'] ?? '?'}", 
+                style: GoogleFonts.luckiestGuy(color: MatchDetailTheme.primaryBlue, fontSize: 18)),
+              const Icon(Icons.help_outline, color: MatchDetailTheme.primaryBlue),
             ],
           ),
-          const SizedBox(height: 12),
-          Text(
-            q['question_text'] ?? "No question text availble",
-            style: MatchDetailTheme.questionTextStyle,
-          ),
-          const SizedBox(height: 15),
-          const Divider(color: Colors.white10),
-          // Bảng câu trả lời của người chơi
-          ...answers.map((ans) => _buildPlayerRow(
-            ans['player_name'] ?? '?', 
-            ans['answer']?.toString() ?? '-', 
-            ans['is_correct'] == true, 
-            ans['score_delta'] != null ? (ans['score_delta'] >= 0 ? "+${ans['score_delta']}" : "${ans['score_delta']}") : "0"
-          )),
+          const Divider(height: 30, thickness: 1),
+          Text(q['question_text'] ?? "", style: MatchDetailTheme.questionTextStyle),
+          const SizedBox(height: 20),
+          // Danh sách người chơi với màu sắc tương phản cao
+          ...answers.map((ans) => _buildPlayerRow(ans)),
         ],
       ),
     );
   }
 
-  Widget _buildPlayerRow(String name, String ans, bool isCorrect, String pts) {
+  Widget _buildPlayerRow(Map<String, dynamic> data) {
+    final String name = data['player_name'] ?? '?';
+    final String ans = data['answer']?.toString() ?? '-';
+    final bool isCorrect = data['is_correct'] == true;
+    final int scoreDelta = data['score_delta'] ?? 0;
+    final String pts = scoreDelta >= 0 ? "+$scoreDelta" : "$scoreDelta";
+    
+    // Status check
+    final String status = (data['status'] ?? '').toString().toLowerCase();
+    final bool isEliminated = status == 'eliminated' || data['is_eliminated'] == true;
+    final bool isForfeited = status == 'forfeit' || status == 'forfeited' || data['is_forfeit'] == true;
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
@@ -210,24 +193,40 @@ class MatchDetailScreen extends StatelessWidget {
             child: Text(name, style: MatchDetailTheme.playerNameStyle, overflow: TextOverflow.ellipsis),
           ),
           Expanded(
-            child: Text(
-              ans,
-              style: TextStyle(
-                fontFamily: 'Parkinsans',
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: isCorrect ? MatchDetailTheme.correctGreen : MatchDetailTheme.wrongRed,
-              ),
+            child: Row(
+              children: [
+                Text(
+                  ans,
+                  style: TextStyle(
+                    fontFamily: 'Parkinsans',
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: isCorrect ? MatchDetailTheme.correctGreen : MatchDetailTheme.wrongRed,
+                  ),
+                ),
+                if (isEliminated) _buildStatusBadge("ELIMINATED", Colors.orange),
+                if (isForfeited) _buildStatusBadge("FORFEITED", Colors.red),
+              ],
             ),
           ),
           Text(pts, 
             style: TextStyle(
               color: pts.startsWith('+') ? Colors.blueAccent : Colors.orangeAccent,
+              fontSize: 20,
               fontWeight: FontWeight.bold
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildStatusBadge(String text, Color color) {
+    return Container(
+      margin: const EdgeInsets.only(left: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(6)),
+      child: Text(text, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
     );
   }
 }

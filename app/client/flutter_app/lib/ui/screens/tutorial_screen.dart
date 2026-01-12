@@ -88,7 +88,20 @@ class _TutorialPageState extends State<TutorialPage> {
           Positioned.fill(
             child: Image.asset("assets/images/lobby-bg.png", fit: BoxFit.cover),
           ),
-          Positioned.fill(child: Container(color: Colors.black.withOpacity(0.5))),
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    const Color(0xFF0D47A1).withOpacity(0.7), 
+                    const Color(0xFF29B6F6).withOpacity(0.5),
+                  ],
+                ),
+              ),
+            ),
+          ),
           
           Container(
             child: SingleChildScrollView(
@@ -109,40 +122,36 @@ class _TutorialPageState extends State<TutorialPage> {
 
   Widget _buildHeroSection() {
     return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.2), width: 2),
-      ),
+      padding: const EdgeInsets.all(30),
+      // Use glassDecoration from theme
+      decoration: TutorialTheme.glassDecoration(opacity: 0.2), 
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text("LEARN THE RULES", 
-            style: TextStyle(letterSpacing: 1.5, fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF1F2A44))),
-          const SizedBox(height: 8),
+          Text("LEARN THE RULES", style: TutorialTheme.gameFont(size: 18, color: TutorialTheme.brightYellow)),
+          const SizedBox(height: 10),
           Text(
-            "The Price Is Right Tutorial",
-            style: TutorialTheme.headerStyle(fontSize: 32),
+            "The Price Is Right",
+            style: GoogleFonts.luckiestGuy(fontSize: 52, color: Colors.white, shadows: TutorialTheme.gameShowShadow(offset: 3)),
           ),
           const SizedBox(height: 12),
           Text(
-            "Quick recap of modes, mechanics, and scoring so you can jump into the lobby with confidence.",
-            style: TutorialTheme.bodyStyle(),
+            "Quick recap of modes, mechanics, and scoring.",
+            style: TextStyle(fontFamily: 'Parkinsans', fontSize: 18, color: Colors.white.withOpacity(0.9)),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 25),
           Row(
             children: [
               _buildHeroButton("Back to Lobby", isPrimary: true, onPressed: () => Navigator.pop(context)),
-              const SizedBox(width: 12),
+              const SizedBox(width: 15),
               _buildHeroButton("Go Back", isPrimary: false, onPressed: () => Navigator.pop(context)),
             ],
           ),
-          const SizedBox(height: 30),
+          const SizedBox(height: 35),
           Row(
             children: [
               _buildModePill("Scoring Mode", "4 - 6 players", "Highest total points wins"),
-              const SizedBox(width: 10),
+              const SizedBox(width: 15),
               _buildModePill("Elimination Mode", "Exactly 4 players", "Be the last player"),
             ],
           )
@@ -164,7 +173,7 @@ class _TutorialPageState extends State<TutorialPage> {
       ),
       child: Text(
         text.toUpperCase(),
-        style: TutorialTheme.headerStyle(fontSize: 14).copyWith(color: Colors.white),
+        style: GoogleFonts.luckiestGuy(fontSize: 18, color: Colors.white),
       ),
     );
   }
@@ -172,19 +181,20 @@ class _TutorialPageState extends State<TutorialPage> {
   Widget _buildModePill(String title, String players, String goal) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: const Color(0xFF29B6F6).withOpacity(0.15),
+          color: const Color(0xFF29B6F6).withOpacity(0.2),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withOpacity(0.2)),
+          border: Border.all(color: const Color(0xFF29B6F6), width: 2),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-            Text(players, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+            Text(title, style: GoogleFonts.luckiestGuy(fontSize: 20, color: const Color(0xFF29B6F6))),
+            const SizedBox(height: 5),
+            Text(players, style: const TextStyle(fontFamily: 'Parkinsans', fontSize: 16, color: Colors.white70)),
             const SizedBox(height: 4),
-            Text(goal, style: const TextStyle(fontSize: 12)),
+            Text(goal, style: const TextStyle(fontFamily: 'Parkinsans', fontSize: 16, color: Colors.white)),
           ],
         ),
       ),
@@ -193,12 +203,15 @@ class _TutorialPageState extends State<TutorialPage> {
 
   Widget _buildCarousel() {
     return Container(
-      constraints: const BoxConstraints(minHeight: 400),
-      padding: const EdgeInsets.all(20),
+      constraints: const BoxConstraints(minHeight: 500),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.12),
+        color: const Color(0xFF1E1E2F).withOpacity(0.95),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.2), width: 2),
+        border: Border.all(color: const Color(0xFFFFDE59), width: 3),
+         boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 15, offset: const Offset(0, 5))
+        ]
       ),
       child: Column(
         children: [
@@ -212,7 +225,7 @@ class _TutorialPageState extends State<TutorialPage> {
                 child: Text(
                   sections[_currentSection]['title'].toUpperCase(),
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.luckiestGuy(color: const Color(0xFF29B6F6), fontSize: 18),
+                  style: GoogleFonts.luckiestGuy(color: const Color(0xFFFFDE59), fontSize: 28),
                 ),
               ),
               _buildNavBtn("NEXT →", _currentSection < sections.length - 1 ? () {
@@ -220,11 +233,11 @@ class _TutorialPageState extends State<TutorialPage> {
               } : null),
             ],
           ),
-          const SizedBox(height: 10),
-          Text("${_currentSection + 1} / ${sections.length}", style: GoogleFonts.luckiestGuy(color: const Color(0xFF29B6F6))),
-          const SizedBox(height: 20),
+          const SizedBox(height: 15),
+          Text("${_currentSection + 1} / ${sections.length}", style: GoogleFonts.luckiestGuy(color: Colors.white54, fontSize: 20)),
+          const SizedBox(height: 25),
           SizedBox(
-            height: 300, // Fixed height for content area
+            height: 400, // Increased height
             child: PageView.builder(
               controller: _pageController,
               onPageChanged: (index) => setState(() => _currentSection = index),
@@ -250,32 +263,57 @@ class _TutorialPageState extends State<TutorialPage> {
             side: const BorderSide(color: Color(0xFF1F2A44), width: 2),
           ),
         ),
-        child: Text(text, style: GoogleFonts.luckiestGuy(color: Colors.white, fontSize: 12)),
+        child: Text(text, style: GoogleFonts.luckiestGuy(color: Colors.white, fontSize: 16)),
       ),
     );
   }
 
   Widget _renderSectionContent(Map<String, dynamic> section) {
-    String type = section['type'];
-
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(30),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.25),
-        borderRadius: BorderRadius.circular(12),
+        color: Colors.white.withOpacity(0.95), // Nền trắng sữa sang trọng
+        borderRadius: BorderRadius.circular(30),
+        boxShadow: [
+          BoxShadow(color: Colors.black26, blurRadius: 20, offset: const Offset(0, 10))
+        ],
       ),
-      child: _getContentWidget(type, section),
+      child: Column(
+        children: [
+          // Thanh trang trí nhỏ phía trên
+          Container(width: 50, height: 5, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(10))),
+          const SizedBox(height: 20),
+          Expanded(child: _getContentWidget(section['type'], section)),
+        ],
+      ),
     );
   }
 
   Widget _getContentWidget(String type, Map<String, dynamic> section) {
+    final Color titleColor = const Color(0xFF1A237E); // Xanh Navy đậm
+
     switch (type) {
       case "mechanics":
         return Column(
-          children: mechanics.map((m) => ListTile(
-            leading: const CircleAvatar(radius: 6, backgroundColor: Color(0xFF29B6F6)),
-            title: Text(m['title']!, style: GoogleFonts.luckiestGuy(fontSize: 16)),
-            subtitle: Text(m['detail']!),
+          children: mechanics.map((m) => Container(
+            margin: const EdgeInsets.only(bottom: 20),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.stars_rounded, color: TutorialTheme.primaryBlue, size: 36), // Increased from 28
+                const SizedBox(width: 15),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(m['title']!, style: GoogleFonts.luckiestGuy(fontSize: 26, color: titleColor)), // Increased from 22
+                      const SizedBox(height: 5),
+                      Text(m['detail']!, style: TutorialTheme.detailTextStyle),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           )).toList(),
         );
       case "round":
@@ -283,30 +321,61 @@ class _TutorialPageState extends State<TutorialPage> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              decoration: BoxDecoration(color: const Color(0xFF29B6F6), borderRadius: BorderRadius.circular(20)),
-              child: Text("ROUND ${section['index'] + 1}", style: GoogleFonts.luckiestGuy(color: Colors.white, fontSize: 12)),
-            ),
-            const SizedBox(height: 10),
             ...r['bullets'].map<Widget>((b) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.only(bottom: 16),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text("• ", style: TextStyle(fontWeight: FontWeight.bold)),
-                  Expanded(child: Text(b)),
+                  const Text("⚡", style: TextStyle(fontSize: 28)), // Increased from 20
+                  const SizedBox(width: 12),
+                  Expanded(child: Text(b, style: TutorialTheme.detailTextStyle)),
                 ],
               ),
             )).toList(),
           ],
         );
       case "elimination":
-        return ListView(children: elimination.map((e) => Text("• $e\n")).toList());
+        return Column(
+          children: elimination.map((e) => Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text("💀", style: TextStyle(fontSize: 28)),
+                const SizedBox(width: 12),
+                Expanded(child: Text(e, style: TutorialTheme.detailTextStyle)),
+              ],
+            ),
+          )).toList(),
+        );
       case "bonusduel":
-        return ListView(children: bonusDuel.map((e) => Text("• $e\n")).toList());
+        return Column(
+          children: bonusDuel.map((e) => Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text("⚔️", style: TextStyle(fontSize: 28)),
+                const SizedBox(width: 12),
+                Expanded(child: Text(e, style: TutorialTheme.detailTextStyle)),
+              ],
+            ),
+          )).toList(),
+        );
       case "badges":
-        return ListView(children: badges.map((e) => Text("▪ $e\n")).toList());
+        return Column(
+          children: badges.map((e) => Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text("🏅", style: TextStyle(fontSize: 28)),
+                const SizedBox(width: 12),
+                Expanded(child: Text(e, style: TutorialTheme.detailTextStyle)),
+              ],
+            ),
+          )).toList(),
+        );
       default:
         return const SizedBox();
     }
