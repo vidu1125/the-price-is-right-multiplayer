@@ -7,16 +7,62 @@
  */
 
 #include "protocol/protocol.h"
+#include <stdbool.h>
+#include <time.h>
+#include <stdint.h>
 
 #define MAX_ROOM_MEMBERS 6
 #define MAX_ROOMS 100
+
+//==============================================================================
+// Enums
+//==============================================================================
+
+typedef enum {
+    ROOM_WAITING = 0,
+    ROOM_PLAYING = 1,
+    ROOM_CLOSED = 2
+} RoomStatus;
+
+typedef enum {
+    MODE_ELIMINATION = 0,
+    MODE_SCORING = 1
+} GameMode;
+
+typedef enum {
+    ROOM_PUBLIC = 0,
+    ROOM_PRIVATE = 1
+} RoomVisibility;
 
 //==============================================================================
 // Data Structures
 //==============================================================================
 
 typedef struct {
-    int room_id;
+    uint32_t account_id;
+    bool is_host;
+    bool is_ready;
+    bool connected;
+    time_t joined_at;
+} RoomPlayerState;
+
+typedef struct {
+    uint32_t id;
+    char name[32];
+    char code[8];
+    uint32_t host_id;
+    
+    RoomStatus status;
+    GameMode mode;
+    uint8_t max_players;
+    RoomVisibility visibility;
+    uint8_t wager_mode;
+    
+    // Player tracking
+    RoomPlayerState players[MAX_ROOM_MEMBERS];
+    uint8_t player_count;
+    
+    // Socket tracking (for broadcast)
     int member_fds[MAX_ROOM_MEMBERS];
     int member_count;
 } RoomState;
@@ -24,6 +70,21 @@ typedef struct {
 //==============================================================================
 // Room Management API
 //==============================================================================
+
+/**
+ * Room lifecycle
+ */
+RoomState* room_create(void);
+void room_destroy(uint32_t room_id);
+RoomState* room_get(uint32_t room_id);
+
+/**
+ * Player management
+ */
+int room_add_player(uint32_t room_id, uint32_t account_id, int client_fd);
+int room_remove_player(uint32_t room_id, uint32_t account_id);
+bool room_has_player(uint32_t room_id, uint32_t account_id);
+bool room_user_in_any_room(uint32_t account_id);
 
 /**
  * Add a client to a room

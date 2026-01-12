@@ -89,7 +89,10 @@ UserSession* session_bind_after_login(int socket_fd, int32_t account_id, const c
         case SESSION_LOBBY:
         case SESSION_UNAUTHENTICATED: {
             // Force logout old (not in match) per workflow: only one active session when idle
-            force_logout_old_socket(existing, req);
+            // Only kick if it's a DIFFERENT socket (avoid kicking ourselves on FD reuse)
+            if (existing->socket_fd != socket_fd) {
+                force_logout_old_socket(existing, req);
+            }
             // Rebind to new socket
             existing->socket_fd = socket_fd;
             strncpy(existing->session_id, session_id, sizeof(existing->session_id) - 1);

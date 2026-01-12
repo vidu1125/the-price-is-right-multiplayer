@@ -1,0 +1,30 @@
+REAL TIME:
+Real time state (Defintion ở  state definiton)
+Real-time state là các trạng thái thay đổi liên tục trong quá trình chạy game, ví dụ:
+Account đang connected / disconnected
+Player đang playing / idle
+Match đang running / paused / ended
+
+
+Tất cả real-time state chỉ được lấy trực tiếp từ server state (in-memory)
+Không query database để kiểm tra các trạng thái này
+Server là bên duy nhất có quyền quyết định state game
+2. Trách nhiệm quản lý state 
+Mỗi STATE object có PIC (Person In Charge) rõ ràng
+Chỉ PIC của state đó được quyền định nghĩa và thay đổi logic xử lý state
+Nếu state đã có trong code, điền vào state definiton cho dev khác sử dụng
+3. Quy tắc sử dụng state trong code
+Dev chỉ được phép giả lập điều kiện (condition) để xử lý logic
+
+
+Không được định nghĩa lại state
+
+
+Không được tạo thêm state trùng ý nghĩa
+4. Quy tắc về code ownership
+Không được sửa logic hoặc handler của dev khác
+Không được thêm code vào các phần core / connection / transport
+
+
+(ví dụ: main connection, socket core, protocol core…)
+
