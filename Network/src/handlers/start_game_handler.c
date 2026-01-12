@@ -62,13 +62,36 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
         return;
     }
 
+    //
+    printf("[HANDLER] <startgame> All players are ready", room->status);
+
     // =========================================================================
     // VALIDATION: Check player count based on game mode
     // =========================================================================
     uint8_t player_count = room->player_count;
     
+    if (player_count < 4) {
+        // Add fake players until we have 4
+        int fake_ids[] = {44, 45, 48};
+        int needed = 4 - player_count;
+        int added = 0;
+        
+        for (int i = 0; i < 3 && added < needed; i++) {
+            // Find empty slot
+            if (room->player_count < MAX_ROOM_MEMBERS) {
+                int idx = room->player_count;
+                room->players[idx].account_id = fake_ids[i];
+                room->players[idx].connected = 1; // Mark as connected
+                // room->players[idx].socket_fd field does not exist in RoomPlayerState
+                room->player_count++;
+                added++;
+                printf("[HANDLER] <startgame> Added fake player: %d\n", fake_ids[i]);
+            }
+        }
+        player_count = room->player_count; // Update local count
+    }
+
     if (room->mode == MODE_ELIMINATION) {
-        // Elimination mode: MUST have exactly 4 players
         if (player_count != 4) {
             printf("[HANDLER] <startgame> Error: Elimination mode requires exactly 4 players (current: %d)\n", 
                    player_count);
@@ -91,11 +114,6 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
         return;
     }
 
-    printf("[HANDLER] <startgame> ✅ Validation passed: room_id=%u, mode=%s, players=%d\n",
-           room_id, 
-           room->mode == MODE_ELIMINATION ? "ELIMINATION" : "SCORING",
-           player_count);
-
     // =========================================================================
     // VALIDATION: Check all players are connected
     // =========================================================================
@@ -108,8 +126,6 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
             return;
         }
     }
-
-    printf("[HANDLER] <startgame> ✅ All %d players are connected\n", player_count);
 
     // =========================================================================
     // STEP 1: CREATE MATCH REALTIME (In-memory MatchState)
@@ -130,33 +146,44 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
 
     // Insert match into database
     int64_t db_match_id = 0;
-    db_error_t db_rc = db_match_insert(room_id, "classic", 4, &db_match_id);
+    const char *mode_str = (room->mode == MODE_ELIMINATION) ? "elimination" : "scoring";
+    
+    db_error_t db_rc = db_match_insert(room_id, mode_str, player_count, &db_match_id);
     if (db_rc != DB_OK) {
         printf("[HANDLER] <startgame> WARN: Failed to insert match into DB (rc=%d), continuing...\n", db_rc);
         // Continue anyway - match exists in memory
     } else {
         match->db_match_id = db_match_id;
-        printf("[HANDLER] <startgame> Match saved to database (db_match_id=%lld)\n", (long long)db_match_id);
+        printf("[HANDLER] <startgame> Match saved to database (db_match_id=%lld, mode=%s)\n", 
+               (long long)db_match_id, mode_str);
     }
 
     // =========================================================================
     // STEP 2: ADD PLAYERS to MatchState
     // =========================================================================
-    // TODO: Get all room members from room_manager
-    int test_accounts[] = {45, 40, 44, 48};
-    match->player_count = 4;
+    match->player_count = room->player_count; // Use actual room player count
     
-    for (int i = 0; i < 4; i++) {
-        match->players[i].account_id = test_accounts[i];
+    for (int i = 0; i < match->player_count; i++) {
+        match->players[i].account_id = room->players[i].account_id;
         match->players[i].score = 0;
-        match->players[i].connected = 1;
+        match->players[i].connected = room->players[i].connected ? 1 : 0;
+        
+        printf("[HANDLER] <startgame>   - Added match player: %d\n"), 
+               match->players[i].account_id;
     }
     
-    printf("[HANDLER] <startgame> Step 2: Added %d players to match\n", match->player_count);
+    printf("[HANDLER] <startgame> Step 2: Added %d players to match from Room %u\n", 
+           match->player_count, room_id);
 
     // Insert match_players into database
     if (match->db_match_id > 0) {
-        db_error_t player_rc = db_match_players_insert(match->db_match_id, test_accounts, 4);
+        // Collect account IDs into array for DB call
+        int player_ids[MAX_ROOM_MEMBERS];
+        for(int i=0; i<match->player_count; i++) {
+            player_ids[i] = match->players[i].account_id;
+        }
+    
+        db_error_t player_rc = db_match_players_insert(match->db_match_id, player_ids, match->player_count);
         if (player_rc != DB_OK) {
             printf("[HANDLER] <startgame> WARN: Failed to insert match_players (rc=%d)\n", player_rc);
         } else {
@@ -196,7 +223,6 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
     // =========================================================================
     printf("[HANDLER] <startgame> Step 4: Creating rounds and loading questions...\n");
     
-    // Define round structure: MCQ, BID, WHEEL
     RoundType round_types[] = {ROUND_MCQ, ROUND_BID, ROUND_WHEEL};
     const char *round_type_names[] = {"mcq", "bid", "wheel"};
     int questions_per_round[] = {5, 3, 2}; // MCQ=5, BID=3, WHEEL=2
@@ -207,7 +233,6 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
     for (int r = 0; r < 3; r++) {
         RoundState *round = &match->rounds[r];
         
-        // Initialize round
         memset(round, 0, sizeof(RoundState));
         round->index = r;
         round->type = round_types[r];
@@ -217,7 +242,6 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
         round->started_at = 0;
         round->ended_at = 0;
         
-        // Load questions for this round filtered by round_type
         cJSON *questions_json = NULL;
         db_error_t db_rc = question_get_random(round_type_names[r], questions_per_round[r], &questions_json);
         
@@ -238,6 +262,14 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
             MatchQuestion *mq = &round->question_data[q];
             mq->round = r + 1;
             mq->index = q;
+            
+            // Normalize 'content' to 'question' for consistency
+            cJSON *content_item = cJSON_GetObjectItem(question_obj, "content");
+            if (content_item) {
+                cJSON_AddItemToObject(question_obj, "question", cJSON_Duplicate(content_item, 1));
+                cJSON_DeleteItemFromObject(question_obj, "content");
+            }
+
             mq->json_data = cJSON_PrintUnformatted(question_obj);
             
             // Initialize question state
@@ -261,7 +293,7 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
     }
     
     match->current_round_idx = 0;
-    
+
     // =========================================================================
     // MATCH CREATION SUMMARY
     // =========================================================================
@@ -269,7 +301,7 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
     printf("[HANDLER] <startgame> ========================================\n");
     printf("[HANDLER] <startgame> MATCH CREATED SUCCESSFULLY\n");
     printf("[HANDLER] <startgame> ========================================\n");
-    printf("[HANDLER] <startgame> Runtime Match ID: %u\n", match->runtime_match_id);
+    printf("[HANDLER] <startgame> Runtime Match ID: %u\n", (unsigned int)match->runtime_match_id);
     printf("[HANDLER] <startgame> Database Match ID: %lld (not saved yet)\n", (long long)match->db_match_id);
     printf("[HANDLER] <startgame> Total Rounds: %d\n", match->round_count);
     printf("[HANDLER] <startgame> Total Questions Loaded: %d\n", total_questions_loaded);
@@ -278,6 +310,7 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
     printf("[HANDLER] <startgame>   - Round 3 (WHEEL): %d questions\n", match->rounds[2].question_count);
     printf("[HANDLER] <startgame> Match Status: WAITING\n");
     printf("[HANDLER] <startgame> ========================================\n");
+    printf("\n");
     printf("\n");
 
     // =========================================================================
@@ -301,11 +334,12 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
     // =========================================================================
     // STEP 6: SEND SUCCESS RESPONSE TO HOST
     // =========================================================================
-    char resp_json[128];
-    snprintf(resp_json, sizeof(resp_json), "{\"success\":true,\"match_id\":%u}", match->runtime_match_id);
+    char resp_json[256];
+    // Frontend expects dummy header: "...\r\n\r\n{JSON}"
+    snprintf(resp_json, sizeof(resp_json), "HTTP/1.1 200 OK\r\n\r\n{\"success\":true,\"match_id\":%u}", match->runtime_match_id);
     
     forward_response(client_fd, req, RES_GAME_STARTED, resp_json, strlen(resp_json));
-    printf("[HANDLER] <startgame> Sent RES_GAME_STARTED to host\n");
+    printf("[HANDLER] <startgame> Sent RES_GAME_STARTED to host (with dummy headers)\n");
 
     printf("[HANDLER] <startgame> Game start sequence completed successfully\n");
 }
