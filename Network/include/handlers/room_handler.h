@@ -53,4 +53,14 @@ void handle_leave_room(
     const char *payload
 );
 
+/**
+ * Handle CMD_GET_ROOM_LIST (0x0208)
+ * Get list of waiting rooms
+ */
+void handle_get_room_list(
+    int client_fd,
+    MessageHeader *req,
+    const char *payload
+);
+
 #endif // ROOM_HANDLER_H

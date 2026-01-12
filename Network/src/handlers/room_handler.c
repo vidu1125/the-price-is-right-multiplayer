@@ -445,3 +445,45 @@ void handle_leave_room(int client_fd, MessageHeader *req, const char *payload) {
                     resp_buf, strlen(resp_buf));
 
 }
+
+//==============================================================================
+// GET ROOM LIST
+//==============================================================================
+void handle_get_room_list(int client_fd, MessageHeader *req, const char *payload) {
+    (void)payload; // Request payload is empty/ignored
+    
+    // 1. Query DB for recent waiting rooms
+    // NEW: Query from view 'rooms_with_counts' to get 'current_players'
+    
+    char query[256];
+    snprintf(query, sizeof(query), 
+             "select=id,name,status,mode,max_players,visibility,wager_mode,current_players&status=eq.waiting&order=created_at.desc&limit=10");
+    
+    cJSON *response = NULL;
+    // Update target table to 'rooms_with_counts'
+    db_error_t rc = db_get("rooms_with_counts", query, &response);
+    
+    if (rc != DB_OK || !response) {
+        printf("[SERVER] [GET_ROOM_LIST] DB query failed\n");
+        forward_response(client_fd, req, RES_ROOM_LIST, "[]", 2);
+        return;
+    }
+    
+    // 2. Convert to JSON string
+    char *json_str = cJSON_PrintUnformatted(response);
+    
+    if (!json_str) {
+        cJSON_Delete(response);
+        send_error(client_fd, req, ERR_SERVER_ERROR, "JSON error");
+        return;
+    }
+    
+    printf("[SERVER] [GET_ROOM_LIST] Sending %zu bytes\n", strlen(json_str));
+    
+    // 3. Send response
+    forward_response(client_fd, req, RES_ROOM_LIST, json_str, strlen(json_str));
+    
+    // Cleanup
+    free(json_str);
+    cJSON_Delete(response);
+}
