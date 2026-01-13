@@ -487,7 +487,7 @@ db_error_t db_match_get_detail(
             if (r_type) cJSON_AddStringToObject(q_out, "round_type", rt_str);
             cJSON_AddNumberToObject(q_out, "question_idx", q_idx);
 
-            if (strcasecmp(rt_str, "WHEEL") == 0) {
+            if (strcasecmp(rt_str, "wheel") == 0) {
                 // Wheel round has no question
                 cJSON_AddStringToObject(q_out, "question_text", "");
                 cJSON_AddNullToObject(q_out, "question_image");
@@ -561,7 +561,7 @@ db_error_t db_match_get_detail(
                         char *rt = r_type ? r_type->valuestring : "";
 
                         if (ans_val) {
-                            if (strcasecmp(rt, "MCQ") == 0 && cJSON_IsNumber(ans_val)) {
+                            if (strcasecmp(rt, "mcq") == 0 && cJSON_IsNumber(ans_val)) {
                                 int idx = ans_val->valueint;
                                 if (choices_arr && idx >= 0 && idx < cJSON_GetArraySize(choices_arr)) {
                                     cJSON *c = cJSON_GetArrayItem(choices_arr, idx);
@@ -570,7 +570,7 @@ db_error_t db_match_get_detail(
                                         handled = true;
                                     }
                                 }
-                            } else if (strcasecmp(rt, "BID") == 0) {
+                            } else if (strcasecmp(rt, "bid") == 0) {
                                 if (cJSON_IsNumber(ans_val)) {
                                     snprintf(ans_display, sizeof(ans_display), "$%d", ans_val->valueint);
                                     handled = true;
@@ -578,7 +578,7 @@ db_error_t db_match_get_detail(
                                     snprintf(ans_display, sizeof(ans_display), "$%s", ans_val->valuestring);
                                     handled = true;
                                 }
-                            } else if (strcasecmp(rt, "WHEEL") == 0 || strcasecmp(rt, "BONUS") == 0) {
+                            } else if (strcasecmp(rt, "wheel") == 0 || strcasecmp(rt, "bonus") == 0) {
                                 if (cJSON_IsObject(raw_ans)) {
                                     cJSON *t1 = cJSON_GetObjectItem(raw_ans, "turn1");
                                     cJSON *t2 = cJSON_GetObjectItem(raw_ans, "turn2");
