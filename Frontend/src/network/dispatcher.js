@@ -1,4 +1,4 @@
-import { sendRaw, isConnected } from "./socketClient";
+import { sendRaw, isConnected, ensureConnected } from "./socketClient";
 import { OPCODE } from "./opcode";
 
 const MAGIC = 0x4347;        // ⚠️ PHẢI KHỚP server
@@ -6,7 +6,10 @@ const VERSION = 1;
 
 let seqNum = 1;
 
-export function sendPacket(command, payload = null) {
+export async function sendPacket(command, payload = null) {
+  // Ensure socket is connected
+  await ensureConnected();
+  
   const connected = isConnected();
   console.log("[DISPATCH] isConnected:", connected);
   

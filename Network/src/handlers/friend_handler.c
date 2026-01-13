@@ -164,10 +164,10 @@ void handle_friend_accept(
     printf("[FRIEND] Processing accept friend request\n");
 
     // Authenticate user
-    int32_t user_id = 0;
-    if (!require_auth(client_fd, header, &user_id)) {
+    if (!require_auth(client_fd, header)) {
         return;
     }
+    int32_t user_id = get_client_account(client_fd);
 
     // Parse JSON payload
     cJSON *json = cJSON_Parse(payload);
@@ -228,10 +228,10 @@ void handle_friend_reject(
     printf("[FRIEND] Processing reject friend request\n");
 
     // Authenticate user
-    int32_t user_id = 0;
-    if (!require_auth(client_fd, header, &user_id)) {
+    if (!require_auth(client_fd, header)) {
         return;
     }
+    int32_t user_id = get_client_account(client_fd);
 
     // Parse JSON payload
     cJSON *json = cJSON_Parse(payload);
@@ -291,10 +291,10 @@ void handle_friend_remove(
     printf("[FRIEND] Processing remove friend\n");
 
     // Authenticate user
-    int32_t user_id = 0;
-    if (!require_auth(client_fd, header, &user_id)) {
+    if (!require_auth(client_fd, header)) {
         return;
     }
+    int32_t user_id = get_client_account(client_fd);
 
     // Parse JSON payload
     cJSON *json = cJSON_Parse(payload);
@@ -344,10 +344,10 @@ void handle_friend_list(
     (void)payload;
 
     // Authenticate user
-    int32_t user_id = 0;
-    if (!require_auth(client_fd, header, &user_id)) {
+    if (!require_auth(client_fd, header)) {
         return;
     }
+    int32_t user_id = get_client_account(client_fd);
 
     // Get friend IDs
     int32_t *friend_ids = NULL;
@@ -423,10 +423,10 @@ void handle_friend_requests(
     (void)payload;
 
     // Authenticate user
-    int32_t user_id = 0;
-    if (!require_auth(client_fd, header, &user_id)) {
+    if (!require_auth(client_fd, header)) {
         return;
     }
+    int32_t user_id = get_client_account(client_fd);
 
     // Get pending friend requests
     friend_request_t **requests = NULL;
@@ -504,10 +504,10 @@ void handle_search_user(
     printf("[FRIEND] Processing search user\n");
 
     // Authenticate user
-    int32_t user_id = 0;
-    if (!require_auth(client_fd, header, &user_id)) {
+    if (!require_auth(client_fd, header)) {
         return;
     }
+    int32_t user_id = get_client_account(client_fd);
 
     // Parse JSON payload
     cJSON *json = cJSON_Parse(payload);

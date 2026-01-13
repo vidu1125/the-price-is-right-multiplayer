@@ -17,7 +17,7 @@ BUILD_DIR := build
 SRCS := \
     $(wildcard $(SRC_DIR)/*.c) \
     $(wildcard $(SRC_DIR)/transport/*.c) \
-    $(wildcard $(SRC_DIR)/handlers/*.c) \
+    $(filter-out $(SRC_DIR)/handlers/social_handler.c, $(wildcard $(SRC_DIR)/handlers/*.c)) \
 	$(wildcard $(SRC_DIR)/utils/*.c) \
 	$(wildcard $(SRC_DIR)/db/repo/*.c) \
 	$(wildcard $(SRC_DIR)/db/core/*.c)
