@@ -5,7 +5,7 @@
  * Handles sending commands and receiving events for bidding round.
  */
 
-import { sendBinaryCommand } from '../network/socketClient';
+import { sendPacket } from '../network/dispatcher';
 import { OPCODE } from '../network/opcode';
 import { registerHandler } from '../network/receiver';
 
@@ -23,7 +23,7 @@ export function playerReady(matchId, playerId) {
     view.setUint32(4, playerId, false);
     
     console.log('[Round2] Player ready:', { matchId, playerId });
-    sendBinaryCommand(OPCODE.OP_C2S_ROUND2_PLAYER_READY, buffer);
+    sendPacket(OPCODE.OP_C2S_ROUND2_PLAYER_READY, buffer);
 }
 
 /**
@@ -38,7 +38,7 @@ export function getProduct(matchId, productIdx) {
     view.setUint32(4, productIdx, false);
     
     console.log('[Round2] Get product:', { matchId, productIdx });
-    sendBinaryCommand(OPCODE.OP_C2S_ROUND2_GET_PRODUCT, buffer);
+    sendPacket(OPCODE.OP_C2S_ROUND2_GET_PRODUCT, buffer);
 }
 
 /**
@@ -59,7 +59,7 @@ export function submitBid(matchId, productIdx, bidValue) {
     view.setBigInt64(8, bigBid, false);  // big-endian
     
     console.log('[Round2] Submit bid:', { matchId, productIdx, bidValue });
-    sendBinaryCommand(OPCODE.OP_C2S_ROUND2_BID, buffer);
+    sendPacket(OPCODE.OP_C2S_ROUND2_BID, buffer);
 }
 
 /**

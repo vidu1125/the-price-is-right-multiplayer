@@ -69,42 +69,6 @@ export function isConnected() {
 }
 
 
-export function getSocket() {
-  return socket;
-}
-
-// Send binary command with proper header
-export function sendBinaryCommand(command, payload = null) {
-  if (!socket || socket.readyState !== WebSocket.OPEN) {
-    console.warn("[Socket] Cannot send - not connected");
-    return false;
-  }
-
-  const MAGIC = 0x4347;
-  const VERSION = 1;
-  const payloadLen = payload ? payload.byteLength : 0;
-  const HEADER_SIZE = 16;
-
-  const buffer = new ArrayBuffer(HEADER_SIZE + payloadLen);
-  const view = new DataView(buffer);
-
-  let offset = 0;
-  view.setUint16(offset, MAGIC, false); offset += 2;
-  view.setUint8(offset, VERSION); offset += 1;
-  view.setUint8(offset, 0); offset += 1; // flags
-  view.setUint16(offset, command, false); offset += 2;
-  view.setUint16(offset, 0); offset += 2; // reserved
-  view.setUint32(offset, Date.now() % 0xFFFFFFFF, false); offset += 4; // seqNum
-  view.setUint32(offset, payloadLen, false); offset += 4;
-
-  if (payloadLen > 0) {
-    new Uint8Array(buffer, HEADER_SIZE).set(new Uint8Array(payload));
-  }
-
-  console.log("[Socket] Sending cmd=0x" + command.toString(16), "len=" + payloadLen);
-  socket.send(buffer);
-  return true;
-}
 
 export function waitForConnection(timeout = 5000) {
   return new Promise((resolve, reject) => {
