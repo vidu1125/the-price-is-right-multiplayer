@@ -48,7 +48,10 @@ export default function MemberListPanel({ isHost, roomId, hostId, roomName, room
 
       <div className="player-grid">
         {members.map((member) => {
+          if (!member) return null; // Safe check
           const isHostMember = member.account_id === hostId;
+          const isReady = member.is_ready || member.ready; // Handle both cases
+
           return (
             <div key={member.account_id} className={`player-card ${isHostMember ? 'host-card' : ''}`}>
               {isHostMember ? (
@@ -62,8 +65,8 @@ export default function MemberListPanel({ isHost, roomId, hostId, roomName, room
                   <img src={member.avatar || DEFAULT_AVATAR} alt="avatar" className="avatar-circle" />
                 </div>
                 <span className="card-name">{member.name || `Player ${member.account_id}`}</span>
-                <div className={`status-tag ${member.ready ? 'ready' : 'waiting'}`}>
-                  {member.ready ? 'READY' : 'WAITING'}
+                <div className={`status-tag ${isReady ? 'ready' : 'waiting'}`}>
+                  {isReady ? 'READY' : 'WAITING'}
                 </div>
               </div>
             </div>

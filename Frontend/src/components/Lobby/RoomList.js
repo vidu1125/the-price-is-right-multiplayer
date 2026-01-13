@@ -73,29 +73,42 @@ export default function RoomList() {
             <tr><td colSpan="5" style={{ textAlign: "center" }}>No waiting rooms found.</td></tr>
           )}
 
-          {rooms.map((r) => (
-            <tr key={r.id}>
-              {/* <td>{r.id}</td> */}
-              <td>{r.name}</td>
-              <td>{r.mode === 0 ? "Elimination" : "Scoring"}</td>
-              <td>
-                {/* Display Current / Max */}
-                {r.current_players !== undefined
-                  ? `${r.current_players} / ${r.max_players}`
-                  : `? / ${r.max_players}`}
-              </td>
-              <td>{r.status === "waiting" ? "Waiting" : r.status}</td>
-              <td>
-                <button
-                  onClick={() => handleJoin(r.id)}
-                  disabled={r.status !== "waiting"}
-                  className="join-btn"
-                >
-                  Join
-                </button>
-              </td>
-            </tr>
-          ))}
+          {rooms.map((r) => {
+            const isPrivate = r.visibility === "private";
+            return (
+              <tr key={r.id}>
+                {/* <td>{r.id}</td> */}
+                <td>{r.name}</td>
+                <td>{r.mode === 0 || r.mode === "elimination" ? "Elimination" : "Scoring"}</td>
+                <td>
+                  {/* Display Current / Max */}
+                  {r.current_players !== undefined
+                    ? `${r.current_players} / ${r.max_players}`
+                    : `? / ${r.max_players}`}
+                </td>
+                <td>
+                  {isPrivate ? (
+                    <span style={{ color: "red", fontWeight: "bold" }}>Locked 🔒</span>
+                  ) : (
+                    r.status === "waiting" ? "Waiting" : r.status
+                  )}
+                </td>
+                <td>
+                  {!isPrivate ? (
+                    <button
+                      onClick={() => handleJoin(r.id)}
+                      disabled={r.status !== "waiting"}
+                      className="join-btn"
+                    >
+                      Join
+                    </button>
+                  ) : (
+                    <span style={{ color: "#888", fontSize: "0.9em" }}>Invite Only</span>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

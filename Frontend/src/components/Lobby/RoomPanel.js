@@ -91,6 +91,7 @@ export default function RoomPanel() {
           roomId: roomData.roomId,
           roomCode: roomData.roomCode,
           roomName: roomData.roomName,
+          hostId: roomData.hostId,
           isHost: roomData.isHost,
           gameRules: roomData.gameRules
         }

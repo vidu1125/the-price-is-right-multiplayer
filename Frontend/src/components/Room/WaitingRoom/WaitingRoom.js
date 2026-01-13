@@ -15,7 +15,7 @@ export default function WaitingRoom() {
   const navigate = useNavigate();
 
   // 1. Initialize State from Navigation Data
-  const { roomId, roomCode, roomName, isHost, gameRules: passedRules } = location.state || {};
+  const { roomId, roomCode, roomName, isHost, hostId, gameRules: passedRules } = location.state || {};
 
   console.log("[WaitingRoom] location.state:", location.state);
   console.log("[WaitingRoom] roomName from state:", roomName);
@@ -29,7 +29,7 @@ export default function WaitingRoom() {
     id: roomId,
     code: roomCode,
     name: roomName || "My Room",
-    hostId: profile.account_id || null,
+    hostId: hostId || profile.account_id || null,
     players: isHost ? [{
       account_id: profile.account_id,
       name: profile.name || 'Host',

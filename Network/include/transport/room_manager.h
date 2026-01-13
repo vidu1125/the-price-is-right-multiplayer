@@ -41,6 +41,7 @@ typedef enum {
 typedef struct {
     uint32_t account_id;
     char name[64];  // Player name
+    char avatar[256]; // Avatar URL
     bool is_host;
     bool is_ready;
     bool connected;
@@ -82,7 +83,7 @@ RoomState* room_get(uint32_t room_id);
 /**
  * Player management
  */
-int room_add_player(uint32_t room_id, uint32_t account_id, const char *name, int client_fd);
+int room_add_player(uint32_t room_id, uint32_t account_id, const char *name, const char *avatar, int client_fd);
 int room_remove_player(uint32_t room_id, uint32_t account_id);
 bool room_has_player(uint32_t room_id, uint32_t account_id);
 bool room_user_in_any_room(uint32_t account_id);

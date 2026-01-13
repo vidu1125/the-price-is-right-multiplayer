@@ -64,7 +64,7 @@ RoomState* room_get(uint32_t room_id) {
 // Player Management
 //==============================================================================
 
-int room_add_player(uint32_t room_id, uint32_t account_id, const char *name, int client_fd) {
+int room_add_player(uint32_t room_id, uint32_t account_id, const char *name, const char *avatar, int client_fd) {
     RoomState *room = find_room(room_id);
     if (!room) return -1;
     
@@ -72,8 +72,17 @@ int room_add_player(uint32_t room_id, uint32_t account_id, const char *name, int
     
     RoomPlayerState *player = &room->players[room->player_count];
     player->account_id = account_id;
+    
     strncpy(player->name, name ? name : "Player", sizeof(player->name) - 1);
     player->name[sizeof(player->name) - 1] = '\0';
+    
+    if (avatar) {
+        strncpy(player->avatar, avatar, sizeof(player->avatar) - 1);
+        player->avatar[sizeof(player->avatar) - 1] = '\0';
+    } else {
+        player->avatar[0] = '\0';
+    }
+
     player->is_host = false;
     player->is_ready = false;
     player->connected = true;
@@ -84,6 +93,9 @@ int room_add_player(uint32_t room_id, uint32_t account_id, const char *name, int
     room->member_count++;
     
     printf("[SERVER] Added player: id=%u, name='%s' to room %u\n", account_id, player->name, room_id);
+    
+    // Log player state explicitly
+    log_player_state("Player Added", player);
     
     // Log updated state
     log_room_state("After adding player", room);
@@ -417,9 +429,10 @@ void broadcast_player_list(uint32_t room_id) {
         }
         
         offset += snprintf(payload + offset, sizeof(payload) - offset,
-            "{\"account_id\":%u,\"name\":\"%s\",\"is_host\":%s,\"is_ready\":%s}",
+            "{\"account_id\":%u,\"name\":\"%s\",\"avatar\":\"%s\",\"is_host\":%s,\"is_ready\":%s}",
             p->account_id,
             p->name,
+            p->avatar[0] ? p->avatar : "",
             p->is_host ? "true" : "false",
             p->is_ready ? "true" : "false"
         );

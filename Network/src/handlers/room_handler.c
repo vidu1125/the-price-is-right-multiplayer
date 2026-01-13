@@ -190,8 +190,9 @@ void handle_create_room(int client_fd, MessageHeader *req, const char *payload) 
     
     printf("[SERVER] [CREATE_ROOM] DB persisted: id=%u, code=%s\n", room->id, room->code);
     
-    // STEP 8: Fetch host profile to get name
+    // STEP 8: Fetch host profile to get name & avatar
     char profile_name[64] = "Host";
+    char profile_avatar[256] = "";
     char query[128];
     snprintf(query, sizeof(query), "account_id=eq.%u", session->account_id);
     
@@ -206,12 +207,17 @@ void handle_create_room(int client_fd, MessageHeader *req, const char *payload) 
                 strncpy(profile_name, name_item->valuestring, sizeof(profile_name) - 1);
                 profile_name[sizeof(profile_name) - 1] = '\0';
             }
+            cJSON *avatar_item = cJSON_GetObjectItem(first, "avatar");
+            if (avatar_item && cJSON_IsString(avatar_item)) {
+                strncpy(profile_avatar, avatar_item->valuestring, sizeof(profile_avatar) - 1);
+                profile_avatar[sizeof(profile_avatar) - 1] = '\0';
+            }
         }
         cJSON_Delete(profile_response);
     }
     
-    // STEP 9: Add host as player with name
-    room_add_player(room->id, session->account_id, profile_name, client_fd);
+    // STEP 9: Add host as player with name and avatar
+    room_add_player(room->id, session->account_id, profile_name, profile_avatar, client_fd);
     room->players[0].is_host = true;
     
     printf("[SERVER] [CREATE_ROOM] Host added as player (account_id=%u, name=%s)\n", 
@@ -347,8 +353,9 @@ void handle_join_room(int client_fd, MessageHeader *req, const char *payload) {
         }
     }
     
-    // STEP 7: Get player name from DB
+    // STEP 7: Get player name & avatar from DB
     char profile_name[64] = "Player";  // fallback default
+    char profile_avatar[256] = "";     // fallback empty
     char query[128];
     snprintf(query, sizeof(query), "account_id=eq.%u", session->account_id);
     
@@ -363,6 +370,11 @@ void handle_join_room(int client_fd, MessageHeader *req, const char *payload) {
                 strncpy(profile_name, name_item->valuestring, sizeof(profile_name) - 1);
                 profile_name[sizeof(profile_name) - 1] = '\0';
             }
+            cJSON *avatar_item = cJSON_GetObjectItem(first, "avatar");
+            if (avatar_item && cJSON_IsString(avatar_item)) {
+                strncpy(profile_avatar, avatar_item->valuestring, sizeof(profile_avatar) - 1);
+                profile_avatar[sizeof(profile_avatar) - 1] = '\0';
+            }
         }
         cJSON_Delete(profile_response);
     }
@@ -370,7 +382,7 @@ void handle_join_room(int client_fd, MessageHeader *req, const char *payload) {
     printf("[SERVER] [JOIN_ROOM] Player name: %s\n", profile_name);
     
     // STEP 8: Add player to room (in-memory)
-    int rc = room_add_player(room->id, session->account_id, profile_name, client_fd);
+    int rc = room_add_player(room->id, session->account_id, profile_name, profile_avatar, client_fd);
     
     if (rc != 0) {
         printf("[SERVER] [JOIN_ROOM] Error: Failed to add player to room\n");
@@ -412,6 +424,7 @@ void handle_join_room(int client_fd, MessageHeader *req, const char *payload) {
     cJSON *rules = cJSON_CreateObject();
     cJSON_AddStringToObject(rules, "mode", room->mode == MODE_ELIMINATION ? "elimination" : "scoring");
     cJSON_AddNumberToObject(rules, "maxPlayers", room->max_players);
+    cJSON_AddBoolToObject(rules, "wagerMode", room->wager_mode); // Add wager_mode
     cJSON_AddStringToObject(rules, "visibility", room->visibility == ROOM_PUBLIC ? "public" : "private");
     cJSON_AddItemToObject(resp, "gameRules", rules);
     
