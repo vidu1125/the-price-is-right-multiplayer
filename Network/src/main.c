@@ -6,7 +6,8 @@
 #include <cjson/cJSON.h>
 
 #include "transport/socket_server.h"
-#include "db/core/db_client.h"   // 🔹 THÊM
+#include "db/core/db_client.h"
+#include "handlers/round1_test_setup.h"  // Test setup for Round 1 [ENABLED]
 
 //==============================================================================
 // USAGE
@@ -16,8 +17,12 @@ static void print_usage(const char *prog_name) {
     printf("Usage: %s [OPTIONS]\n", prog_name);
     printf("\nOptions:\n");
     printf("  -h, --help      Show this help message\n");
+    printf("  --test          Setup test match for Round 1 (match_id=999)\n");
     printf("\n");
 }
+
+// Global flag for test mode [ENABLED]
+static int g_test_mode = 0;
 
 //==============================================================================
 // MAIN
@@ -30,7 +35,12 @@ int main(int argc, char *argv[]) {
         if ((strcmp(argv[i], "-h") == 0) || (strcmp(argv[i], "--help") == 0)) {
             print_usage(argv[0]);
             return 0;
-        } else {
+        }
+        else if (strcmp(argv[i], "--test") == 0) {
+            g_test_mode = 1;
+            printf("[MAIN] Test mode enabled\n");
+        }
+        else {
             fprintf(stderr, "Unknown option: %s\n", argv[i]);
             print_usage(argv[0]);
             return 1;
@@ -46,7 +56,7 @@ int main(int argc, char *argv[]) {
     srand(time(NULL));
 
     // =====================================================
-    // 🔹 INIT DB CLIENT (CHỈ 1 LẦN)
+    // INIT DB CLIENT
     // =====================================================
     printf("[DB] init...\n");
     if (db_client_init() != DB_OK) {
@@ -96,12 +106,27 @@ int main(int argc, char *argv[]) {
     printf("[DB] Cleanup complete\n");
 
     initialize_server();
+    
+    // =====================================================
+    // TEST MODE: Setup hardcoded test match [ENABLED]
+    // =====================================================
+    if (g_test_mode) {
+        MatchState *test_match = setup_test_match();
+        if (test_match) {
+            print_test_match_state();
+        }
+    }
+    
     main_loop();
+    
+    // =====================================================
+    // CLEANUP [ENABLED]
+    // =====================================================
+    if (g_test_mode) {
+        cleanup_test_match();
+    }
+    
     shutdown_server();
-
-    // =====================================================
-    // 🔹 CLEANUP DB CLIENT
-    // =====================================================
     db_client_cleanup();
 
     printf("\nServer stopped gracefully\n");

@@ -25,6 +25,11 @@ typedef enum {
     MATCH_ENDED   = 2
 } MatchStatus;
 
+typedef enum {
+    MODE_ELIMINATION = 0,  // Loại người điểm thấp nhất mỗi round
+    MODE_SCORING = 1       // Chỉ tính điểm, không loại ai
+} GameMode;
+
 
 typedef enum {
     ROUND_MCQ   = 1,   // round 1
@@ -77,6 +82,7 @@ typedef struct {
     uint8_t connected;       // 1 = online, 0 = disconnected
     uint8_t eliminated;      // 1 = bị loại
     uint8_t forfeited;       // 1 = bỏ cuộc
+    int8_t  eliminated_at_round; // Round bị loại (-1 = chưa bị loại)
 } MatchPlayerState;
 
 // Round state (depends on QuestionState, MatchQuestion)

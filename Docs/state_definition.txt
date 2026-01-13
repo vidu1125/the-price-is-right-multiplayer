@@ -1,0 +1,370 @@
+================================================================================
+STATE DEFINITION - GAME SERVER ARCHITECTURE
+================================================================================
+
+PROJECT: The Price Is Right - Multiplayer Game
+DOCUMENT: State Definition & Flow Specification
+VERSION: 1.0
+DATE: 2025-01-11
+
+================================================================================
+I. SYSTEM ARCHITECTURE
+================================================================================
+
+1. SERVER SETUP
+   - Platform: Linux (WSL) on Machine A
+   - Port: TCP 5500 (local)
+   - Tunnel: Ngrok TCP forwarding (public access)
+   - Command: ngrok tcp 5500
+
+2. CLIENT SETUP
+   - Platform: Flutter application
+   - Connection: Via Ngrok-generated TCP domain and port
+   - Architecture: Independent TCP socket per client
+   - Communication: All routed through server (no peer-to-peer)
+
+   Example Config:
+   class AppConfig {
+     static const String serverHost = "0.tcp.ap.ngrok.io";
+     static const int serverPort = port_number;
+   }
+
+================================================================================
+II. GAME FLOW & STATE TRANSITIONS
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ PHASE 1: LOBBY                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+
+1. CREATE ROOM
+   Client → Server:
+   - Payload: room_name, features
+   
+   Server Processing:
+   - Generate room_id
+   - Add 1 member (creator)
+   - Create DB record
+   
+   Server → Client:
+   - Payload: room_id, success, room_code
+   - Navigate: /waitingroom
+   - Broadcast: room info to all members
+
+2. START GAME
+   Client → Server:
+   - Payload: room_id
+   
+   Server Processing:
+   - Check AccountConnection status
+   - If TRUE:
+     * Generate match_id
+     * Setup match (load all questions + answers)
+     * Save to DB
+     * Send payload: match_id
+     * Navigate: /round1
+   - If FALSE:
+     * Return ERROR
+
+3. JOIN ROOM
+   Client → Server:
+   - Payload: room_id
+   
+   Server Processing:
+   - Check room status:
+     * WAITING → Check conditions → Allow join
+     * PLAYING/ENDED → Return error: "Cannot join"
+   
+   Server → Client:
+   - Payload type:
+     * 1 = Error
+     * 2 = CMD.JOINROOM → Navigate to room
+
+4. INVITE FRIENDS
+   Client → Server:
+   - Payload: room_id, account_id
+   
+   Server Processing:
+   - Check AccountConnection
+   - Check room conditions
+   - Send invitation
+
+5. LEAVE ROOM
+   Client → Server:
+   - Payload: room_id
+   
+   Server Processing:
+   - Check RoomState
+   - If isHost:
+     * Assign new host
+   - Update RoomState
+   - Broadcast to remaining members
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ PHASE 2: GAMEPLAY                                                       │
+└─────────────────────────────────────────────────────────────────────────┘
+
+ROUND 1: MCQ (Multiple Choice Questions)
+─────────────────────────────────────────
+Client Actions:
+- Mount question (stored in RAM)
+- Display timer
+- Select answer
+- Send: question_id + time_taken
+
+Server Processing:
+- Calculate score
+- Send response:
+  * Current total score
+  * Score delta (points earned this question)
+  * Next question payload
+
+Last Question Logic:
+- Check AccountConnection
+- Display: Rankings, scores
+- Elimination Rules:
+  * 1 player disconnected → No elimination needed
+  * >2 players disconnected → Game cannot continue
+  * All connected, >2 players tied at lowest → Bonus round
+
+ROUND 2: BID
+────────────
+(Details TBD)
+
+ROUND 3: WHEEL
+──────────────
+Client Actions:
+- Mount wheel animation
+- Press spin button
+- Send: points earned
+
+Server Processing:
+- Calculate score for current TURN (not added to final yet)
+- Send: score_delta + turn_number
+- If turn 1: Client shows "Spin again?" prompt
+
+Final Scoring:
+- Check AccountConnection:
+  * 1 disconnected → Round ends
+  * 2 disconnected → Game ends
+  * 2 players tied → BONUS round (choose loser)
+
+ROUND 4: BONUS
+──────────────
+Client Actions:
+- Mount card image
+- Show notification to loser
+- Send: done_bonus
+
+Server Processing:
+- Wait for all players' payloads
+- Mount next question
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ PHASE 3: END GAME                                                       │
+└─────────────────────────────────────────────────────────────────────────┘
+
+Server Processing:
+- Check end game conditions
+- Broadcast final results
+- Update MatchState, RoomState
+- Save to database
+- Navigate all clients back to room
+
+================================================================================
+III. SESSION MANAGEMENT
+================================================================================
+
+CONNECTION FLOW:
+────────────────
+1. Client opens app
+2. Client connects to server (TCP)
+3. Server creates session:
+   - AccountConnection object
+   - account_id = null (not authenticated yet)
+   - connected = true
+   - playing = false
+
+4. Client sends authentication
+5. Server updates:
+   - account_id = <authenticated_id>
+
+================================================================================
+IV. STATE DEFINITIONS & OWNERSHIP
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ STATE 1: ACCOUNT CONNECTION (UserSession)                               │
+│ PIC: KHÁNH                                                              │
+└─────────────────────────────────────────────────────────────────────────┘
+
+Location: session_manager.h
+
+Structure:
+{
+  socket_fd: int           // TCP socket file descriptor
+  account_id: int32_t      // User account ID (null before auth)
+  state: SessionState      // Current session state
+}
+
+Description:
+- Created when player logs into game
+- One AccountConnection per active session
+- Manages connection lifecycle
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ STATE 2: SESSION STATE                                                  │
+│ PIC: KHÁNH                                                              │
+└─────────────────────────────────────────────────────────────────────────┘
+
+Enum Values:
+- SESSION_UNAUTHENTICATED  // Connected but not logged in
+- SESSION_LOBBY            // In lobby/waiting room
+- SESSION_PLAYING          // Currently in game
+- SESSION_PLAYING_DISCONNECTED // Lost connection during game
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ STATE 3: MATCH STATE                                                    │
+│ PIC: THƯ                                                                │
+└─────────────────────────────────────────────────────────────────────────┘
+
+Location: start_game_handler.h
+
+Structure:
+{
+  match_id: uint32_t
+  players: MatchPlayerState[]
+  status: MatchStatus          // PLAYING, ENDED
+  rounds: RoundState[]
+  current_round_idx: int
+}
+
+Status Values:
+- PLAYING
+- ENDED
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ STATE 4: ROUND STATE                                                    │
+│ PIC: DŨNG                                                               │
+└─────────────────────────────────────────────────────────────────────────┘
+
+Structure:
+{
+  index: int                    // Round number (1, 2, 3, 4)
+  status: RoundStatus           // PLAYING, ENDED
+  questions: QuestionState[]
+  current_round_idx: int
+  current_question_idx: int
+}
+
+Status Values:
+- PLAYING
+- ENDED
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ STATE 5: MATCH PLAYER STATE                                             │
+│ PIC: THƯ                                                                │
+└─────────────────────────────────────────────────────────────────────────┘
+
+Structure:
+{
+  account_id: int32_t          // Links to UserSession
+  match_player_id: int32_t     // Unique ID in this match
+  score: int                   // Total score across all rounds
+  connected: bool              // Currently connected?
+  eliminated: bool             // Eliminated from game?
+  forfeited: bool              // Voluntarily quit?
+}
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ STATE 6: ROOM STATE                                                     │
+│ PIC: DUYÊN                                                              │
+└─────────────────────────────────────────────────────────────────────────┘
+
+Structure:
+{
+  room_id: uint32_t
+  host_id: int32_t
+  status: RoomStatus           // WAITING, PLAYING, CLOSED
+  players: Map<account_id, RoomPlayerState>
+}
+
+Status Values:
+- WAITING
+- PLAYING
+- CLOSED
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ STATE 7: ROOM PLAYER STATE                                              │
+│ PIC: DUYÊN                                                              │
+└─────────────────────────────────────────────────────────────────────────┘
+
+Structure:
+{
+  account_id: int32_t
+  connected: bool
+  ready: bool
+  is_host: bool
+}
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ STATE 8: QUESTION STATE                                                 │
+│ PIC: THƯ                                                                │
+└─────────────────────────────────────────────────────────────────────────┘
+
+(Structure details TBD)
+
+================================================================================
+V. STATE OWNERSHIP MATRIX
+================================================================================
+
+State Name              | PIC     | File Location        | Access Level
+─────────────────────────────────────────────────────────────────────────
+AccountConnection       | Khánh   | session_manager.h    | Read by others
+SessionState            | Khánh   | session_manager.h    | Read by others
+MatchState              | Thư     | start_game_handler.h | Read by others
+MatchPlayerState        | Thư     | start_game_handler.h | Read by others
+RoundState              | Dũng    | round*_handler.h     | Owned/Modified
+RoomState               | Duyên   | room_manager.h       | Read by others
+RoomPlayerState         | Duyên   | room_manager.h       | Read by others
+QuestionState           | Thư     | (TBD)                | Read by others
+
+RULES:
+------
+1. Only PIC can MODIFY their state
+2. Other devs can only READ state via provided APIs
+3. Never create duplicate state with same meaning
+4. Always use existing state definitions
+
+================================================================================
+VI. CRITICAL GAME RULES
+================================================================================
+
+DISCONNECTION HANDLING:
+───────────────────────
+Round 1 (MCQ):
+  - 1 player disconnected → No elimination
+  - >2 players disconnected → Game ends
+  - All connected, tied at bottom → Bonus round
+
+Round 3 (Wheel):
+  - 1 player disconnected → Round ends normally
+  - 2 players disconnected → Game ends
+  - 2 players tied → Bonus round (choose loser)
+
+SCORING SYSTEM:
+───────────────
+- Score accumulates across all rounds
+- Each round calculates delta (score_earned)
+- Server sends: current_total_score + score_delta
+- Final score determines winner/elimination
+
+ELIMINATION:
+────────────
+- Lowest score after each round (except special cases)
+- Skip elimination if disconnections occur
+- Bonus round if multiple players tied at bottom
+
+================================================================================
+END OF DOCUMENT
+================================================================================

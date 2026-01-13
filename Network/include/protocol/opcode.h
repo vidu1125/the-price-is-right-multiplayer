@@ -40,6 +40,7 @@
 
 // System
 #define CMD_HEARTBEAT       0x0001
+#define CMD_TEST_LOGIN      0x0002  // Test mode: bypass auth
 
 //==============================================================================
 // RESPONSE CODES
@@ -110,3 +111,16 @@
 #define OP_C2S_ROUND1_FINISHED      0x0607  // Player finished all questions
 #define OP_S2C_ROUND1_WAITING       0x0618  // Waiting for other players
 #define OP_S2C_ROUND1_ALL_FINISHED  0x0619  // All players finished, show results
+
+// Round 2 - Bid (0x0620 - 0x063F)
+#define OP_C2S_ROUND2_READY         0x0620  // Client ready for round 2
+#define OP_S2C_ROUND2_START         0x0630  // Server: round 2 started
+#define OP_C2S_ROUND2_GET_PRODUCT   0x0621  // Request current product
+#define OP_S2C_ROUND2_PRODUCT       0x0631  // Server sends product data
+#define OP_C2S_ROUND2_BID           0x0622  // Submit bid
+#define OP_S2C_ROUND2_BID_ACK       0x0632  // Bid received acknowledgment
+#define OP_S2C_ROUND2_TURN_RESULT   0x0633  // Turn result (all bids + scores)
+#define OP_C2S_ROUND2_PLAYER_READY  0x0623  // Player clicks ready
+#define OP_S2C_ROUND2_READY_STATUS  0x0634  // Broadcast ready status
+#define OP_S2C_ROUND2_ALL_READY     0x0635  // All players ready, game starts
+#define OP_S2C_ROUND2_ALL_FINISHED  0x0636  // Round 2 finished, show final results

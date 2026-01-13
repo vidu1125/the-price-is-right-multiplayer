@@ -711,3 +711,98 @@
     color: #90caf9;
     margin-top: 10px;
 }
+
+/* ====================================================
+   ELIMINATED PLAYER SCREEN
+   ==================================================== */
+.eliminated-content {
+    width: 100%;
+    max-width: 600px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 40px 20px;
+    background: linear-gradient(135deg, rgba(255, 50, 50, 0.2) 0%, rgba(100, 0, 0, 0.3) 100%);
+    border-radius: 20px;
+    border: 3px solid #ff4444;
+    box-shadow: 0 0 30px rgba(255, 68, 68, 0.3);
+}
+
+.eliminated-title {
+    font-family: 'Luckiest Guy', cursive;
+    font-size: 3rem;
+    color: #ff4444;
+    margin-bottom: 10px;
+    text-shadow: 3px 3px 0px rgba(0, 0, 0, 0.3);
+    animation: eliminatedPulse 1s ease-in-out infinite;
+}
+
+@keyframes eliminatedPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
+.eliminated-subtitle {
+    font-family: 'Sniglet', sans-serif;
+    font-size: 1.3rem;
+    color: #ffaaaa;
+    margin-bottom: 30px;
+}
+
+.eliminated-info-box {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 15px;
+    padding: 30px;
+    margin: 20px 0;
+    border: 2px solid rgba(255, 68, 68, 0.5);
+}
+
+.eliminated-icon {
+    font-size: 4rem;
+    margin-bottom: 15px;
+}
+
+.eliminated-info-box h2 {
+    font-family: 'Luckiest Guy', cursive;
+    font-size: 1.8rem;
+    color: #ffcccc;
+    margin-bottom: 15px;
+}
+
+.eliminated-info-box p {
+    font-family: 'Sniglet', sans-serif;
+    font-size: 1.2rem;
+    color: #ffaaaa;
+    margin: 8px 0;
+}
+
+.eliminated-info-box strong {
+    color: #ffd700;
+    font-size: 1.5rem;
+}
+
+.eliminated-status {
+    margin-top: 30px;
+    padding: 15px;
+    background: rgba(100, 100, 100, 0.2);
+    border-radius: 10px;
+}
+
+.eliminated-status p {
+    font-family: 'Sniglet', sans-serif;
+    font-size: 1rem;
+    color: #aaaaaa;
+    margin-bottom: 10px;
+}
+
+/* Eliminated banner in summary */
+.eliminated-banner {
+    animation: eliminatedBannerPulse 2s ease-in-out infinite;
+}
+
+@keyframes eliminatedBannerPulse {
+    0%, 100% { box-shadow: 0 0 10px rgba(255, 68, 68, 0.5); }
+    50% { box-shadow: 0 0 25px rgba(255, 68, 68, 0.8); }
+}

@@ -639,3 +639,157 @@ int match_repo_start(
 
     return 0;
 }
+
+//==============================================================================
+// MATCH ANSWER & EVENT FUNCTIONS
+//==============================================================================
+
+db_error_t db_match_save_answer(
+    int32_t match_question_id,
+    int32_t match_player_id,
+    const char *answer_json,
+    int32_t score_delta,
+    int action_idx
+) {
+    if (match_question_id <= 0 || match_player_id <= 0) {
+        return DB_ERROR_INVALID_PARAM;
+    }
+
+    cJSON *payload = cJSON_CreateObject();
+    cJSON_AddNumberToObject(payload, "question_id", match_question_id);
+    cJSON_AddNumberToObject(payload, "player_id", match_player_id);
+    cJSON_AddNumberToObject(payload, "score_delta", score_delta);
+    cJSON_AddNumberToObject(payload, "action_idx", action_idx);
+    
+    // Parse answer_json and add as object
+    if (answer_json) {
+        cJSON *ans = cJSON_Parse(answer_json);
+        if (ans) {
+            cJSON_AddItemToObject(payload, "answer", ans);
+        } else {
+            // Fallback: add as raw JSON string
+            cJSON_AddRawToObject(payload, "answer", answer_json);
+        }
+    }
+
+    cJSON *result = NULL;
+    db_error_t err = db_post("match_answer", payload, &result);
+    
+    cJSON_Delete(payload);
+    if (result) cJSON_Delete(result);
+    
+    if (err == DB_SUCCESS) {
+        printf("[MATCH_REPO] Saved answer: q=%d p=%d delta=%d\n", 
+               match_question_id, match_player_id, score_delta);
+    } else {
+        printf("[MATCH_REPO] Failed to save answer: %d\n", err);
+    }
+    
+    return err;
+}
+
+db_error_t db_match_save_event(
+    uint32_t match_id,
+    int32_t match_player_id,
+    const char *event_type,
+    int round_no,
+    int question_idx
+) {
+    if (match_id == 0 || match_player_id <= 0 || !event_type) {
+        return DB_ERROR_INVALID_PARAM;
+    }
+
+    cJSON *payload = cJSON_CreateObject();
+    cJSON_AddNumberToObject(payload, "match_id", match_id);
+    cJSON_AddNumberToObject(payload, "player_id", match_player_id);
+    cJSON_AddStringToObject(payload, "event_type", event_type);
+    cJSON_AddNumberToObject(payload, "round_no", round_no);
+    cJSON_AddNumberToObject(payload, "question_idx", question_idx);
+
+    cJSON *result = NULL;
+    db_error_t err = db_post("match_events", payload, &result);
+    
+    cJSON_Delete(payload);
+    if (result) cJSON_Delete(result);
+    
+    if (err == DB_SUCCESS) {
+        printf("[MATCH_REPO] Saved event: match=%u player=%d type=%s round=%d\n", 
+               match_id, match_player_id, event_type, round_no);
+    } else {
+        printf("[MATCH_REPO] Failed to save event (table may not exist): %d\n", err);
+    }
+    
+    return err;
+}
+
+db_error_t db_match_create_question(
+    uint32_t match_id,
+    int round_no,
+    const char *round_type,
+    int question_idx,
+    const char *question_json,
+    int32_t *out_id
+) {
+    if (match_id == 0 || !round_type) {
+        return DB_ERROR_INVALID_PARAM;
+    }
+
+    cJSON *payload = cJSON_CreateObject();
+    cJSON_AddNumberToObject(payload, "match_id", match_id);
+    cJSON_AddNumberToObject(payload, "round_no", round_no);
+    cJSON_AddStringToObject(payload, "round_type", round_type);
+    cJSON_AddNumberToObject(payload, "question_idx", question_idx);
+    
+    // Parse and add question JSON
+    if (question_json) {
+        cJSON *q = cJSON_Parse(question_json);
+        if (q) {
+            cJSON_AddItemToObject(payload, "question", q);
+        }
+    }
+
+    cJSON *result = NULL;
+    db_error_t err = db_post("match_question", payload, &result);
+    cJSON_Delete(payload);
+    
+    if (err == DB_SUCCESS && result && cJSON_IsArray(result) && cJSON_GetArraySize(result) > 0) {
+        cJSON *item = cJSON_GetArrayItem(result, 0);
+        cJSON *id_json = cJSON_GetObjectItem(item, "id");
+        if (id_json && out_id) {
+            *out_id = id_json->valueint;
+            printf("[MATCH_REPO] Created match_question id=%d\n", *out_id);
+        }
+    }
+    
+    if (result) cJSON_Delete(result);
+    return err;
+}
+
+db_error_t db_match_update_player(
+    int32_t match_player_id,
+    int32_t final_score,
+    bool eliminated,
+    int eliminated_at_round
+) {
+    if (match_player_id <= 0) {
+        return DB_ERROR_INVALID_PARAM;
+    }
+
+    cJSON *payload = cJSON_CreateObject();
+    cJSON_AddNumberToObject(payload, "score", final_score);
+    cJSON_AddBoolToObject(payload, "eliminated", eliminated);
+    
+    // Note: eliminated_at_round stored in match_events, not here
+    (void)eliminated_at_round;
+
+    char filter[64];
+    snprintf(filter, sizeof(filter), "id=eq.%d", match_player_id);
+
+    cJSON *result = NULL;
+    db_error_t err = db_patch("match_players", filter, payload, &result);
+    
+    cJSON_Delete(payload);
+    if (result) cJSON_Delete(result);
+    
+    return err;
+}

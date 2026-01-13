@@ -3,11 +3,18 @@ import { initSocket, isConnected } from "../network/socketClient";
 import { reconnectSession } from "./authService";
 
 // Bootstraps socket connection and attempts a single reconnect using stored session_id
-export function useAuthBootstrap() {
+// If skip=true, only init socket without reconnect (for test routes)
+export function useAuthBootstrap(skip = false) {
   const reconnectTried = useRef(false);
 
   useEffect(() => {
     initSocket();
+
+    // Skip reconnect for test routes
+    if (skip) {
+      console.log('[AuthBootstrap] Skipping reconnect for test route');
+      return;
+    }
 
     const interval = setInterval(async () => {
       if (reconnectTried.current) return;
@@ -31,5 +38,5 @@ export function useAuthBootstrap() {
     }, 700);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [skip]);
 }

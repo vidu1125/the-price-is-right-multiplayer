@@ -138,6 +138,409 @@
     box-shadow: 0 2px 0 #1e8449;
 }
 
+/* Bid Input Wrapper */
+.bid-input-wrapper {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    background: white;
+    border-radius: 15px;
+    border: 3px solid #2d3436;
+    box-shadow: 0 4px 0 #2d3436;
+}
+
+.currency-symbol {
+    padding-left: 20px;
+    font-family: 'Sniglet', sans-serif;
+    font-size: 1.5rem;
+    color: #27ae60;
+    font-weight: bold;
+}
+
+.bid-input-wrapper .answer-input {
+    flex: 1;
+    border: none;
+    box-shadow: none;
+    border-radius: 0 15px 15px 0;
+}
+
+.answer-input.submitted {
+    background-color: #e8f6ef;
+    color: #27ae60;
+}
+
+.submit-answer-btn.submitted {
+    background-color: #95a5a6;
+    cursor: not-allowed;
+    box-shadow: 0 4px 0 #7f8c8d;
+}
+
+/* Waiting for others */
+.waiting-others {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 20px;
+    padding: 15px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 10px;
+    color: white;
+    font-family: 'Sniglet', sans-serif;
+}
+
+/* Ready Content */
+.ready-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    color: white;
+}
+
+.ready-title {
+    font-family: 'Luckiest Guy', cursive;
+    font-size: 2.5rem;
+    margin-bottom: 10px;
+    text-shadow: 3px 3px 0 #2d3436;
+}
+
+.ready-subtitle {
+    font-family: 'Sniglet', sans-serif;
+    font-size: 1.2rem;
+    opacity: 0.9;
+}
+
+.player-status-list {
+    margin: 20px 0;
+    width: 100%;
+    max-width: 400px;
+}
+
+.player-status-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px 15px;
+    margin: 5px 0;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+}
+
+.player-status-item.ready {
+    background: rgba(46, 204, 113, 0.3);
+}
+
+.connecting-status {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-top: 20px;
+}
+
+.connecting-spinner {
+    font-size: 2rem;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.connection-countdown {
+    color: #ffde00;
+    margin-top: 10px;
+}
+
+/* Result Content */
+.result-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 30px;
+    color: white;
+}
+
+.result-title {
+    font-family: 'Luckiest Guy', cursive;
+    font-size: 2rem;
+    margin-bottom: 20px;
+    text-shadow: 2px 2px 0 #2d3436;
+}
+
+.correct-price-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px 40px;
+    background: linear-gradient(135deg, #27ae60, #2ecc71);
+    border-radius: 15px;
+    border: 3px solid #2d3436;
+    margin-bottom: 25px;
+}
+
+.correct-label {
+    font-family: 'Sniglet', sans-serif;
+    font-size: 0.9rem;
+    opacity: 0.9;
+}
+
+.correct-value {
+    font-family: 'Luckiest Guy', cursive;
+    font-size: 2.5rem;
+    text-shadow: 2px 2px 0 rgba(0,0,0,0.2);
+}
+
+.all-bids-list {
+    width: 100%;
+    max-width: 500px;
+}
+
+.bid-item {
+    display: flex;
+    align-items: center;
+    padding: 12px 15px;
+    margin: 8px 0;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 10px;
+    border-left: 4px solid transparent;
+}
+
+.bid-item.winner {
+    background: rgba(46, 204, 113, 0.3);
+    border-left-color: #2ecc71;
+}
+
+.bid-item.is-me {
+    border: 2px solid #3498db;
+}
+
+.bid-item.overbid {
+    opacity: 0.7;
+}
+
+.bid-rank {
+    width: 40px;
+    font-size: 1.3rem;
+    text-align: center;
+}
+
+.bid-name {
+    flex: 1;
+    font-family: 'Sniglet', sans-serif;
+}
+
+.bid-value {
+    width: 100px;
+    text-align: right;
+    font-family: 'Sniglet', sans-serif;
+    font-weight: bold;
+}
+
+.bid-delta {
+    width: 60px;
+    text-align: right;
+    font-family: 'Luckiest Guy', cursive;
+    color: #bdc3c7;
+}
+
+.bid-delta.positive {
+    color: #2ecc71;
+}
+
+.waiting-next {
+    margin-top: 20px;
+    font-family: 'Sniglet', sans-serif;
+    opacity: 0.8;
+}
+
+/* Summary Content */
+.summary-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 30px;
+    color: white;
+}
+
+.summary-header {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.summary-title {
+    font-family: 'Luckiest Guy', cursive;
+    font-size: 2.5rem;
+    text-shadow: 3px 3px 0 #2d3436;
+}
+
+.summary-countdown {
+    font-family: 'Sniglet', sans-serif;
+    margin-top: 10px;
+}
+
+.countdown-number {
+    font-family: 'Luckiest Guy', cursive;
+    color: #ffde00;
+    font-size: 1.3rem;
+}
+
+.eliminated-banner {
+    text-align: center;
+    padding: 15px 30px;
+    margin-bottom: 15px;
+    background: rgba(255, 0, 0, 0.3);
+    border-radius: 10px;
+    border: 2px solid #ff4444;
+    font-family: 'Luckiest Guy', cursive;
+    font-size: 1.3rem;
+    color: #ff4444;
+}
+
+.summary-scoreboard {
+    width: 100%;
+    max-width: 500px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 15px;
+    padding: 20px;
+}
+
+.scoreboard-title {
+    font-family: 'Luckiest Guy', cursive;
+    text-align: center;
+    margin-bottom: 15px;
+}
+
+.player-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.player-row {
+    display: flex;
+    align-items: center;
+    padding: 12px 15px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 10px;
+}
+
+.player-row.winner {
+    background: linear-gradient(135deg, rgba(255, 215, 0, 0.3), rgba(255, 193, 7, 0.2));
+    border: 2px solid #ffc107;
+}
+
+.player-row.is-you {
+    border-left: 4px solid #3498db;
+}
+
+.player-row.eliminated {
+    opacity: 0.6;
+    background: rgba(255, 100, 100, 0.2);
+    border-left: 4px solid #ff4444;
+}
+
+.player-rank {
+    width: 50px;
+    font-size: 1.3rem;
+    text-align: center;
+}
+
+.player-name {
+    flex: 1;
+    font-family: 'Sniglet', sans-serif;
+}
+
+.eliminated-tag {
+    color: #ff6666;
+    margin-left: 8px;
+    font-size: 0.8rem;
+}
+
+.player-score {
+    font-family: 'Luckiest Guy', cursive;
+    color: #ffde00;
+}
+
+.skip-btn {
+    margin-top: 20px;
+    padding: 15px 40px;
+    background: linear-gradient(135deg, #3498db, #2980b9);
+    color: white;
+    border: 3px solid #2d3436;
+    border-radius: 15px;
+    font-family: 'Luckiest Guy', cursive;
+    font-size: 1.2rem;
+    cursor: pointer;
+    box-shadow: 0 4px 0 #1a5276;
+    transition: all 0.15s;
+}
+
+.skip-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 0 #1a5276;
+}
+
+/* Eliminated Content */
+.eliminated-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    color: white;
+}
+
+.eliminated-title {
+    font-family: 'Luckiest Guy', cursive;
+    font-size: 2.5rem;
+    color: #ff4444;
+    text-shadow: 3px 3px 0 #2d3436;
+}
+
+.eliminated-subtitle {
+    font-family: 'Sniglet', sans-serif;
+    font-size: 1.2rem;
+    opacity: 0.9;
+}
+
+.eliminated-info-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 30px;
+    margin: 20px 0;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 15px;
+}
+
+.eliminated-icon {
+    font-size: 4rem;
+    margin-bottom: 10px;
+}
+
+/* Loading */
+.loading {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 300px;
+    font-family: 'Sniglet', sans-serif;
+    font-size: 1.3rem;
+    color: white;
+}
+
+/* Score Display */
+.score-display {
+    text-align: center;
+    margin-top: 20px;
+    font-family: 'Sniglet', sans-serif;
+    font-size: 1.1rem;
+    color: white;
+    opacity: 0.8;
+}
+
 /* Mobile Responsive */
 @media (max-width: 600px) {
     .quiz-content {
@@ -150,5 +553,8 @@
     .submit-answer-btn {
         width: 100%;
         height: 60px;
+    }
+    .bid-input-wrapper {
+        width: 100%;
     }
 }

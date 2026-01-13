@@ -3,6 +3,7 @@ import { registerHandler } from "../network/receiver";
 
 // Opcodes (MUST match C header)
 const OPCODE = {
+    CMD_TEST_LOGIN: 0x0002,        // Test login (bypass auth)
     C2S_ROUND1_READY: 0x0601,
     S2C_ROUND1_START: 0x0611,
     C2S_ROUND1_GET_QUESTION: 0x0602,
@@ -22,6 +23,31 @@ const OPCODE = {
     NTF_PLAYER_LEFT: 0x02BD,       // 701 decimal - player disconnected
     NTF_PLAYER_RECONNECTED: 0x02BE // 702 decimal - player reconnected
 };
+
+//==============================================================================
+// 0. TEST LOGIN (bypass auth for testing)
+//==============================================================================
+export function testLogin(playerId) {
+    const buffer = new ArrayBuffer(4);
+    const view = new DataView(buffer);
+    
+    view.setUint32(0, playerId, false);  // big-endian
+    
+    console.log('[Round1] Test login for player', playerId);
+    sendPacket(OPCODE.CMD_TEST_LOGIN, buffer);
+}
+
+// Test login response handler (server responds with CMD_TEST_LOGIN)
+registerHandler(OPCODE.CMD_TEST_LOGIN, (payload) => {
+    const text = new TextDecoder().decode(payload);
+    console.log('[Round1] Test login response:', text);
+    try {
+        const data = JSON.parse(text);
+        window.dispatchEvent(new CustomEvent('ws:testLoginResponse', { detail: JSON.stringify(data) }));
+    } catch (e) {
+        console.error('[Round1] Test login parse error:', e);
+    }
+});
 
 //==============================================================================
 // 1. START ROUND
@@ -74,7 +100,13 @@ registerHandler(OPCODE.S2C_ROUND1_QUESTION, (payload) => {
         const data = JSON.parse(text);
         console.log('[Round1] Parsed question:', data);
         
-        window.dispatchEvent(new CustomEvent('round1Question', { detail: data }));
+        // Ensure success field is present (server broadcasts don't always include it)
+        const questionData = {
+            success: data.success !== false, // Default to true unless explicitly false
+            ...data
+        };
+        
+        window.dispatchEvent(new CustomEvent('round1Question', { detail: questionData }));
     } catch (e) {
         console.error('[Round1] JSON parse error:', e);
         console.error('[Round1] Invalid JSON:', text);
@@ -103,7 +135,22 @@ registerHandler(OPCODE.S2C_ROUND1_RESULT, (payload) => {
     
     console.log('[Round1] Answer result:', data);
     
-    window.dispatchEvent(new CustomEvent('round1Result', { detail: data }));
+    // Normalize field names: backend sends score_delta, frontend expects score
+    const normalizedData = {
+        ...data,
+        score: data.score_delta || data.score || 0,  // Map score_delta to score
+        totalScore: data.current_score || 0,
+        // Pass through other fields
+        is_correct: data.is_correct,
+        correct_index: data.correct_index,
+        question_idx: data.question_idx,
+        all_answered: data.all_answered,
+        answered_count: data.answered_count,
+        player_count: data.player_count,
+        has_next: data.has_next
+    };
+    
+    window.dispatchEvent(new CustomEvent('round1Result', { detail: normalizedData }));
 });
 
 //==============================================================================
@@ -153,12 +200,24 @@ registerHandler(OPCODE.S2C_ROUND1_READY_STATUS, (payload) => {
 });
 
 // All players ready - game starts
+// Server will also broadcast first question immediately after this
 registerHandler(OPCODE.S2C_ROUND1_ALL_READY, (payload) => {
     const text = new TextDecoder().decode(payload);
     const data = JSON.parse(text);
     
     console.log('[Round1] All players ready, starting game:', data);
+    console.log('[Round1] Expecting server to broadcast first question...');
+    
+    // Dispatch all ready event
     window.dispatchEvent(new CustomEvent('round1AllReady', { detail: data }));
+    
+    // If first_question is embedded in the response, dispatch it too
+    if (data.first_question) {
+        console.log('[Round1] First question embedded in ALL_READY:', data.first_question);
+        window.dispatchEvent(new CustomEvent('round1Question', { 
+            detail: { success: true, ...data.first_question }
+        }));
+    }
 });
 
 // Waiting for other players

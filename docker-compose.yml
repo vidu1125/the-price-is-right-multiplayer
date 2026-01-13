@@ -9,6 +9,8 @@ services:
     networks:
       - tpir-net
     restart: unless-stopped
+    # Test mode for Round 1 testing
+    command: ["./network_server", "--test"]
 
   ws-bridge:
     build: ./ws-bridge

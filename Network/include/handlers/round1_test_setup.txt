@@ -1,0 +1,36 @@
+#ifndef ROUND1_TEST_SETUP_H
+#define ROUND1_TEST_SETUP_H
+
+#include "handlers/start_game_handler.h"
+#include "protocol/protocol.h"
+
+// Test match ID for testing
+#define TEST_MATCH_ID 999
+
+/**
+ * Setup a test match with hardcoded data:
+ * - Match ID: 999
+ * - 3 players (account_id: 1, 2, 3)
+ * - 1 round (MCQ) with 3 questions
+ * 
+ * Returns pointer to the created MatchState
+ */
+MatchState* setup_test_match(void);
+
+/**
+ * Print current state of test match (for debugging)
+ */
+void print_test_match_state(void);
+
+/**
+ * Cleanup test match and free allocated memory
+ */
+void cleanup_test_match(void);
+
+/**
+ * Handle test login - bypass auth for testing
+ * Payload: 4 bytes account_id (big-endian)
+ */
+void handle_test_login(int client_fd, MessageHeader *header, const char *payload);
+
+#endif // ROUND1_TEST_SETUP_H

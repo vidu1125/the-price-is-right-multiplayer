@@ -2,8 +2,10 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import './Round1.css';
 // Import ensures handlers are registered
 import '../../../services/round1Service';
-import { getQuestion, submitAnswer, endRound1, playerReady } from '../../../services/round1Service';
+import { submitAnswer, endRound1, playerReady } from '../../../services/round1Service';
 import { waitForConnection } from '../../../network/socketClient';
+
+// Note: getQuestion is no longer used - server pushes questions in synchronized mode
 
 const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
     // Game phase: 'connecting' -> 'playing' -> 'waiting' -> 'summary'
@@ -114,6 +116,7 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
 
     //==========================================================================
     // LISTEN: All players connected - Start game automatically
+    // SYNCHRONIZED FLOW: Server broadcasts first question after this
     //==========================================================================
     useEffect(() => {
         const handleAllReady = (e) => {
@@ -127,13 +130,16 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
             setGamePhase('playing');
             setPlayerCount(data.player_count || 4);
 
-            // Start loading first question
-            setTimeout(() => {
-                questionReceivedRef.current = false;
-                currentIdxRef.current = 0;
-                setCurrentQuestionIdx(0);
-                getQuestion(matchId, 0);
-            }, 500);
+            // Reset question tracking
+            questionReceivedRef.current = false;
+            currentIdxRef.current = 0;
+            setCurrentQuestionIdx(0);
+            
+            // SYNCHRONIZED FLOW:
+            // Server will broadcast first question automatically after ALL_READY
+            // If first_question is embedded in response, round1Service dispatches it
+            // Otherwise, wait for server to push S2C_ROUND1_QUESTION
+            console.log('[Round1] Waiting for server to broadcast first question...');
         };
 
         window.addEventListener('round1AllReady', handleAllReady);
@@ -149,29 +155,52 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
     }, [matchId]);
 
     //==========================================================================
-    // LISTEN: Question received
+    // LISTEN: Question received (SERVER PUSHES QUESTIONS - SYNCHRONIZED)
+    // Server broadcasts question to all players at the same time
     //==========================================================================
     useEffect(() => {
         const handleQuestion = (e) => {
             const data = e.detail;
             console.log('[Round1] Question received:', data);
 
-            if (!data.success) {
+            // Check for error (e.g., player eliminated)
+            if (data.success === false) {
                 console.error('[Round1] Failed to get question:', data.error);
+                
+                // Handle eliminated player
+                if (data.error && data.error.includes('eliminated')) {
+                    console.log('[Round1] Player is eliminated, showing waiting screen');
+                    setGamePhase('eliminated');
+                }
                 return;
+            }
+
+            // Make sure we're in playing phase
+            if (gamePhase !== 'playing') {
+                setGamePhase('playing');
             }
 
             questionReceivedRef.current = true;
 
+            // Update question index from server (authoritative)
+            const serverQIdx = data.question_idx;
+            if (serverQIdx !== undefined) {
+                currentIdxRef.current = serverQIdx;
+                setCurrentQuestionIdx(serverQIdx);
+            }
+
             setQuestionData(data);
             setSelectedAnswer(null);
             setIsAnswered(false);
-            setTimeLeft(15);
             setCorrectIndex(null);
             startTime.current = Date.now();
 
+            // Get time limit from server or default to 15s
+            const timeLimit = Math.floor((data.time_limit_ms || 15000) / 1000);
+            setTimeLeft(timeLimit);
+
             // Dispatch initial timer
-            window.dispatchEvent(new CustomEvent('timerUpdate', { detail: { timeLeft: 15 } }));
+            window.dispatchEvent(new CustomEvent('timerUpdate', { detail: { timeLeft: timeLimit } }));
 
             if (timerRef.current) clearInterval(timerRef.current);
             timerRef.current = setInterval(() => {
@@ -192,10 +221,12 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
 
         window.addEventListener('round1Question', handleQuestion);
         return () => window.removeEventListener('round1Question', handleQuestion);
-    }, [handleTimeout]);
+    }, [handleTimeout, gamePhase]);
 
     //==========================================================================
-    // LISTEN: Answer result - Load next question
+    // LISTEN: Answer result - SYNCHRONIZED FLOW
+    // Server broadcasts next question when all players answered
+    // Client just waits for server to push the next question
     //==========================================================================
     useEffect(() => {
         const handleResult = (e) => {
@@ -206,33 +237,42 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
             setIsAnswered(true);
             setCorrectIndex(data.correct_index);
 
-            // Add score
+            // Add score (normalized from score_delta)
             const addedScore = data.score || 0;
-            scoreRef.current += addedScore;
-            setScore(scoreRef.current);
+            // Use totalScore from server (authoritative) or calculate locally
+            const newTotal = data.totalScore || (scoreRef.current + addedScore);
+            scoreRef.current = newTotal;
+            setScore(newTotal);
 
-            console.log('[Round1] Score: +' + addedScore + ', Total: ' + scoreRef.current);
+            console.log('[Round1] Score: +' + addedScore + ', Total: ' + newTotal);
 
             // Dispatch score update
             window.dispatchEvent(new CustomEvent('round1ScoreUpdate', {
-                detail: { score: addedScore, totalScore: scoreRef.current }
+                detail: { score: addedScore, totalScore: newTotal }
             }));
 
-            // Wait 2s then load next question
-            setTimeout(() => {
-                const nextIdx = currentIdxRef.current + 1;
-
-                if (nextIdx < 10) {
-                    currentIdxRef.current = nextIdx;
-                    setCurrentQuestionIdx(nextIdx);
-                    questionReceivedRef.current = false;
-                    getQuestion(matchId, nextIdx);
-                } else {
-                    console.log('[Round1] All 10 questions done! Final score: ' + scoreRef.current);
-                    setGamePhase('waiting');
-                    endRound1(matchId, playerId);
-                }
-            }, 2000);
+            // Show waiting status while waiting for all players
+            const answered = data.answered_count || 0;
+            const total = data.player_count || 0;
+            console.log('[Round1] Waiting for others: ' + answered + '/' + total);
+            
+            // SYNCHRONIZED FLOW: 
+            // - Server will broadcast next question when all_answered is true
+            // - Client doesn't request next question, it waits for server push
+            // - If has_next is false and round is finished, wait for ALL_FINISHED
+            
+            if (data.all_answered) {
+                console.log('[Round1] All answered! Server will broadcast next question...');
+                currentIdxRef.current++;
+                setCurrentQuestionIdx(currentIdxRef.current);
+                // Server will push next question or round end result
+            }
+            
+            // Check if round finished (no more questions)
+            if (data.has_next === false) {
+                console.log('[Round1] Round finished, waiting for final results...');
+                setGamePhase('waiting');
+            }
         };
 
         window.addEventListener('round1Result', handleResult);
@@ -270,6 +310,7 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
 
     //==========================================================================
     // LISTEN: All finished - Show summary (10 giây)
+    // Handles both connected/disconnected and eliminated status
     //==========================================================================
     useEffect(() => {
         const handleAllFinished = (e) => {
@@ -277,19 +318,38 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
             console.log('[Round1] 🏆🏆🏆 ALL_FINISHED received! Current phase:', gamePhase);
             console.log('[Round1] Scoreboard data:', data);
 
+            // Clear any running timers
+            if (timerRef.current) clearInterval(timerRef.current);
+
             setSummaryData(data);
 
             // Separate connected and disconnected players from server response
             const allPlayers = data.players || [];
-            const connected = allPlayers.filter(p => p.connected !== false);
+            
+            // Filter: connected AND not eliminated = active
+            const connected = allPlayers.filter(p => p.connected !== false && !p.eliminated);
             const disconnected = allPlayers.filter(p => p.connected === false);
+            const eliminated = allPlayers.filter(p => p.eliminated === true);
 
             setActivePlayers(connected);
             setDisconnectedPlayers(disconnected);
             setGamePhase('summary');
             setSummaryCountdown(10);
 
-            console.log('[Round1] Active players:', connected.length, 'Disconnected:', disconnected.length);
+            console.log('[Round1] Active:', connected.length, 
+                       'Disconnected:', disconnected.length, 
+                       'Eliminated:', eliminated.length);
+
+            // Log elimination info
+            if (eliminated.length > 0) {
+                console.log('[Round1] 🚫 Eliminated players:', eliminated.map(p => `${p.name}(${p.id})`));
+            }
+
+            // Check if current player is eliminated
+            const meEliminated = eliminated.some(p => Number(p.id) === Number(playerId));
+            if (meEliminated) {
+                console.log('[Round1] YOU have been eliminated!');
+            }
 
             if (summaryTimerRef.current) clearInterval(summaryTimerRef.current);
             summaryTimerRef.current = setInterval(() => {
@@ -308,7 +368,7 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
             window.removeEventListener('round1AllFinished', handleAllFinished);
             if (summaryTimerRef.current) clearInterval(summaryTimerRef.current);
         };
-    }, []);
+    }, [playerId]);
 
     //==========================================================================
     // LISTEN: Player disconnected during game (real-time update)
@@ -473,15 +533,15 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
                     <p className="ready-subtitle">Connecting to game...</p>
 
                     <div className="player-status-list">
-                        <h3>Players Connected ({connectedPlayers.filter(p => p.is_ready).length}/{connectedPlayers.length || 4})</h3>
+                        <h3>Players Connected ({connectedPlayers.filter(p => p.ready).length}/{connectedPlayers.length || playerCount || 3})</h3>
                         {connectedPlayers.length > 0 ? (
                             connectedPlayers.map((p, idx) => (
-                                <div key={idx} className={'player-status-item ' + (p.is_ready ? 'ready' : 'not-ready')}>
+                                <div key={idx} className={'player-status-item ' + (p.ready ? 'ready' : 'not-ready')}>
                                     <span className="player-status-name">
-                                        {p.id === playerId ? '👤 ' + p.name + ' (YOU)' : p.name}
+                                        Player {p.account_id || idx + 1}
                                     </span>
                                     <span className="player-status-badge">
-                                        {p.is_ready ? ' Connected' : '⏳ Connecting...'}
+                                        {p.ready ? '✅ Ready' : '⏳ Connecting...'}
                                     </span>
                                 </div>
                             ))
@@ -582,26 +642,37 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
     }
 
     //==========================================================================
-    // RENDER: Summary screen (10 giây + check số người chơi)
+    // RENDER: Summary screen (10 giây + check số người chơi + eliminated)
     //==========================================================================
     if (gamePhase === 'summary') {
-        // Use activePlayers (real-time) instead of static summaryData
-        let playerList = [...activePlayers];
+        // Get all players from summaryData (server data is authoritative)
+        const allPlayers = summaryData?.players || [];
+        
+        // Separate by status
+        const eliminatedPlayers = allPlayers.filter(p => p.eliminated === true);
+        const activeAndConnected = allPlayers.filter(p => !p.eliminated && p.connected !== false);
+        
+        // Merge with local tracking for disconnected
+        let playerList = [...activeAndConnected];
 
         // Update YOUR score from local state
         playerList = playerList.map(p => {
-            if (p.id === playerId) {
+            if (Number(p.id) === Number(playerId)) {
                 return { ...p, score: scoreRef.current };
             }
             return p;
         });
 
-        // Sort by score
+        // Sort by score descending
         playerList = playerList.sort((a, b) => b.score - a.score);
 
-        const activePlayerCount = activePlayers.length;
+        const activePlayerCount = activeAndConnected.length;
         const hasEnoughPlayers = activePlayerCount >= 2;
         const hasDisconnected = disconnectedPlayers.length > 0;
+        const hasEliminated = eliminatedPlayers.length > 0;
+        
+        // Check if current player is eliminated
+        const amIEliminated = eliminatedPlayers.some(p => Number(p.id) === Number(playerId));
 
         return (
             <div className="round1-wrapper-quiz">
@@ -613,7 +684,26 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
                         </div>
                     </div>
 
-                    {/* Hiển thị số người chơi còn kết nối */}
+                    {/* Show if player is eliminated */}
+                    {amIEliminated && (
+                        <div className="eliminated-banner" style={{
+                            textAlign: 'center',
+                            padding: '15px',
+                            marginBottom: '10px',
+                            background: 'rgba(255, 0, 0, 0.3)',
+                            borderRadius: '10px',
+                            border: '2px solid #ff4444'
+                        }}>
+                            <span style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#ff4444' }}>
+                                ❌ YOU HAVE BEEN ELIMINATED ❌
+                            </span>
+                            <p style={{ margin: '5px 0 0', color: '#ffaaaa' }}>
+                                You had the lowest score this round.
+                            </p>
+                        </div>
+                    )}
+
+                    {/* Show player count and status */}
                     <div className="player-count-info" style={{
                         textAlign: 'center',
                         padding: '10px',
@@ -623,13 +713,18 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
                     }}>
                         <span style={{ fontSize: '1.1rem' }}>
                             {hasEnoughPlayers
-                                ? `✅ ${activePlayerCount} players connected - Ready for Round 2!`
+                                ? `✅ ${activePlayerCount} players remaining - Ready for Round 2!`
                                 : `⚠️ Only ${activePlayerCount} player(s) - Need at least 2 to continue`
                             }
                         </span>
                         {hasDisconnected && (
                             <div style={{ color: '#ff6b6b', fontSize: '0.9rem', marginTop: '5px' }}>
-                                ❌ {disconnectedPlayers.length} player(s) disconnected: {disconnectedPlayers.map(p => p.name).join(', ')}
+                                🔌 {disconnectedPlayers.length} player(s) disconnected
+                            </div>
+                        )}
+                        {hasEliminated && (
+                            <div style={{ color: '#ff9999', fontSize: '0.9rem', marginTop: '5px' }}>
+                                🚫 {eliminatedPlayers.length} player(s) eliminated: {eliminatedPlayers.map(p => p.name).join(', ')}
                             </div>
                         )}
                     </div>
@@ -637,35 +732,59 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
                     <div className="summary-scoreboard">
                         <h2 className="scoreboard-title">FINAL SCOREBOARD</h2>
                         <div className="player-list">
+                            {/* Active players */}
                             {playerList.map((player, index) => {
-                                const isMe = player.id === playerId;
-                                const isDisconnected = disconnectedPlayers.some(p => p.id === player.id);
+                                const isMe = Number(player.id) === Number(playerId);
                                 return (
                                     <div
                                         key={player.id || index}
-                                        className={'player-row ' + (index === 0 ? 'winner ' : '') + (isMe ? 'is-you ' : '') + (isDisconnected ? 'disconnected' : '')}
-                                        style={isDisconnected ? { opacity: 0.5, textDecoration: 'line-through' } : {}}
+                                        className={'player-row ' + (index === 0 ? 'winner ' : '') + (isMe ? 'is-you ' : '')}
                                     >
                                         <div className="player-rank">
                                             {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '#' + (index + 1)}
                                         </div>
                                         <div className="player-name">
                                             {isMe ? (player.name + ' (YOU)') : player.name}
-                                            {isDisconnected && ' ❌'}
                                         </div>
                                         <div className="player-score">{player.score} pts</div>
                                     </div>
                                 );
                             })}
 
-                            {/* Show disconnected players at the bottom */}
-                            {disconnectedPlayers.filter(dp => !playerList.some(p => p.id === dp.id)).map((player, index) => (
+                            {/* Eliminated players */}
+                            {eliminatedPlayers.map((player) => {
+                                const isMe = Number(player.id) === Number(playerId);
+                                return (
+                                    <div
+                                        key={'elim-' + player.id}
+                                        className="player-row eliminated"
+                                        style={{ 
+                                            opacity: 0.6, 
+                                            background: 'rgba(255, 100, 100, 0.3)',
+                                            borderLeft: '4px solid #ff4444'
+                                        }}
+                                    >
+                                        <div className="player-rank">🚫</div>
+                                        <div className="player-name">
+                                            {isMe ? (player.name + ' (YOU)') : player.name}
+                                            <span style={{ color: '#ff6666', marginLeft: '8px' }}>ELIMINATED</span>
+                                        </div>
+                                        <div className="player-score">{player.score} pts</div>
+                                    </div>
+                                );
+                            })}
+
+                            {/* Disconnected players */}
+                            {disconnectedPlayers.filter(dp => 
+                                !playerList.some(p => Number(p.id) === Number(dp.id)) &&
+                                !eliminatedPlayers.some(p => Number(p.id) === Number(dp.id))
+                            ).map((player) => (
                                 <div
                                     key={'dc-' + player.id}
                                     className="player-row disconnected"
                                     style={{ opacity: 0.5, background: '#ffcccc' }}
                                 >
-                                    <div className="player-rank">❌</div>
+                                    <div className="player-rank">🔌</div>
                                     <div className="player-name">{player.name} (DISCONNECTED)</div>
                                     <div className="player-score">--</div>
                                 </div>
@@ -674,8 +793,38 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
                     </div>
 
                     <button className="skip-btn" onClick={handleSkipToNextRound}>
-                        {hasEnoughPlayers ? 'CONTINUE TO ROUND 2 →' : 'END GAME'}
+                        {amIEliminated 
+                            ? 'SPECTATE NEXT ROUND →' 
+                            : hasEnoughPlayers 
+                                ? 'CONTINUE TO ROUND 2 →' 
+                                : 'END GAME'
+                        }
                     </button>
+                </div>
+            </div>
+        );
+    }
+
+    //==========================================================================
+    // RENDER: Eliminated player screen
+    //==========================================================================
+    if (gamePhase === 'eliminated') {
+        return (
+            <div className="round1-wrapper-quiz">
+                <div className="eliminated-content">
+                    <h1 className="eliminated-title">❌ ELIMINATED ❌</h1>
+                    <p className="eliminated-subtitle">You have been eliminated from the game</p>
+                    
+                    <div className="eliminated-info-box">
+                        <div className="eliminated-icon">😢</div>
+                        <h2>Better luck next time!</h2>
+                        <p>Your final score: <strong>{score} pts</strong></p>
+                    </div>
+
+                    <div className="eliminated-status">
+                        <p>Waiting for the game to finish...</p>
+                        <div className="connecting-spinner">⏳</div>
+                    </div>
                 </div>
             </div>
         );

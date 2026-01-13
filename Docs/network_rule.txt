@@ -1,0 +1,204 @@
+================================================================================
+NETWORK RULES - CODE OWNERSHIP & STATE MANAGEMENT
+================================================================================
+
+PROJECT: The Price Is Right - Multiplayer Game
+DOCUMENT: Development Rules & Code Standards
+VERSION: 1.0
+DATE: 2025-01-11
+ENFORCEMENT: MANDATORY - NO EXCEPTIONS
+
+================================================================================
+I. REAL-TIME STATE MANAGEMENT
+================================================================================
+
+1. DEFINITION OF REAL-TIME STATE
+   ─────────────────────────────
+   Real-time state = State that changes continuously during game execution
+   
+   Examples:
+   ✓ Account connection status (connected/disconnected)
+   ✓ Player game status (playing/idle/waiting)
+   ✓ Match status (running/paused/ended)
+   ✓ Round status (in_progress/completed)
+   ✓ Player scores (accumulating during game)
+   ✓ Room status (waiting/playing/closed)
+
+   MANDATORY RULES:
+   ────────────────
+
+   A. Server State is Source of Truth
+      ┌────────────────────────────────────────────────────────┐
+      │ ALL real-time state MUST be retrieved from server      │
+      │ memory (in-memory data structures)                     │
+      └────────────────────────────────────────────────────────┘
+      
+      ✓ CORRECT: Check g_match_state.status
+      ✗ WRONG:   Query DB: SELECT status FROM matches
+
+   B. No Database Queries for State
+      ┌────────────────────────────────────────────────────────┐
+      │ NEVER query database to check or modify real-time      │
+      │ state. Database is for persistence ONLY.               │
+      └────────────────────────────────────────────────────────┘
+      
+      ✓ CORRECT: if (player->connected) { ... }
+      ✗ WRONG:   SELECT connected FROM players WHERE id=X
+
+   C. Server is the Authority
+      ┌────────────────────────────────────────────────────────┐
+      │ Only the server has authority to determine game state. │
+      │ Clients must trust server's decisions.                 │
+      └────────────────────────────────────────────────────────┘
+      
+      Client requests → Server validates → Server decides
+      
+      Example:
+      Client: "I answered question 5"
+      Server: "Question 5 correct? Let me check... YES"
+      Server: "Your score: +150 points"
+      
+      ✗ Client CANNOT decide: "I got it right, add 150 to my score"
+
+================================================================================
+II. STATE OWNERSHIP & RESPONSIBILITY
+================================================================================
+
+2. PIC (PERSON IN CHARGE) SYSTEM
+   ──────────────────────────────
+
+   ┌────────────────────────────────────────────────────────────┐
+   │ CORE PRINCIPLE:                                            │
+   │ Each STATE object has ONE PIC who owns it completely       │
+   └────────────────────────────────────────────────────────────┘
+
+   OWNERSHIP RULES:
+   ────────────────
+
+   A. Exclusive Modification Rights
+      ┌────────────────────────────────────────────────────────┐
+      │ ONLY the PIC can define and modify their state         │
+      │ logic and structure.                                   │
+      └────────────────────────────────────────────────────────┘
+
+      Example:
+      State: MatchPlayerState
+      PIC: Thư
+      
+      ✓ Thư CAN:
+        - Define struct MatchPlayerState { ... }
+        - Modify player->score
+        - Change player->eliminated
+        - Update player->connected
+      
+      ✗ Other devs CANNOT:
+        - Modify MatchPlayerState structure
+        - Directly change score/eliminated/connected
+        - Add new fields without Thư's approval
+
+   B. Documentation Requirement
+      ┌────────────────────────────────────────────────────────┐
+      │ If a state exists in code, it MUST be documented in    │
+      │ State Definition for other developers to use.          │
+      └────────────────────────────────────────────────────────┘
+
+      Required Information:
+      - State name
+      - PIC name
+      - File location
+      - Field descriptions
+      - Usage examples
+      - API functions (if applicable)
+
+   C. State Hierarchy Example
+      ┌─────────────────────────────────────────────────────────┐
+      │ STATE              │ PIC    │ OWNED FIELDS              │
+      ├────────────────────┼────────┼──────────────────────────┤
+      │ UserSession        │ Khánh  │ socket_fd, account_id    │
+      │                    │        │ SessionState              │
+      ├────────────────────┼────────┼──────────────────────────┤
+      │ MatchState         │ Thư    │ match_id, status         │
+      │                    │        │ current_round_idx         │
+      ├────────────────────┼────────┼──────────────────────────┤
+      │ MatchPlayerState   │ Thư    │ score, eliminated        │
+      │                    │        │ connected, forfeited      │
+      ├────────────────────┼────────┼──────────────────────────┤
+      │ RoundState         │ Dũng   │ index, status            │
+      │                    │        │ current_question_idx      │
+      ├────────────────────┼────────┼──────────────────────────┤
+      │ RoomState          │ Duyên  │ room_id, host_id         │
+      │                    │        │ status, players           │
+      └────────────────────┴────────┴──────────────────────────┘
+
+================================================================================
+III. CODE USAGE RULES
+================================================================================
+
+3. HOW TO USE STATES IN CODE
+   ──────────────────────────
+
+   ┌────────────────────────────────────────────────────────────┐
+   │ THREE GOLDEN RULES FOR STATE USAGE:                        │
+   └────────────────────────────────────────────────────────────┘
+
+   RULE 1: Condition Check Only
+   ─────────────────────────────
+   ┌────────────────────────────────────────────────────────┐
+   │ Developers can ONLY check conditions (read state)     │
+   │ to execute their own logic.                           │
+   └────────────────────────────────────────────────────────┘
+
+   ✓ ALLOWED:
+   
+   // Round 1 handler (Dũng)
+   if (match_player->eliminated) {
+       // Don't allow eliminated player to answer
+       return ERROR;
+   }
+   
+   if (match_state->status != PLAYING) {
+       // Match not active
+       return ERROR;
+   }
+
+   ✗ FORBIDDEN:
+   
+   // Round 1 handler (Dũng) - VIOLATION!
+   match_player->eliminated = true;  // This is Thư's responsibility!
+   match_player->score += 150;       // This is Thư's responsibility!
+
+   RULE 2: No State Redefinition
+   ──────────────────────────────
+   ┌────────────────────────────────────────────────────────┐
+   │ NEVER redefine or duplicate an existing state         │
+   └────────────────────────────────────────────────────────┘
+
+   ✗ VIOLATION EXAMPLE:
+
+   // round1_handler.c
+   typedef struct {
+       int32_t account_id;
+       int     score;        // ← Already exists in MatchPlayerState!
+       bool    eliminated;   // ← Already exists in MatchPlayerState!
+       int     socket_fd;    // ← Already exists in UserSession!
+   } Round1Player;  // ← DUPLICATE STATE - FORBIDDEN!
+
+   ✓ CORRECT APPROACH:
+
+   // round1_handler.c
+   typedef struct {
+       int32_t account_id;           // Link to existing states
+       int     current_question;     // Round-specific data only
+       bool    finished_round;       // Round-specific data only
+   } Round1PlayerProgress;
+
+   // Use APIs to access other states:
+   int score = get_match_player_score(account_id);
+   bool eliminated = is_player_eliminated(account_id);
+   int fd = get_player_socket_fd(account_id);
+
+   RULE 3: No Duplicate Meaning
+   ─────────────────────────────
+   ┌────────────────────────────────────────────────────────┐
+   │ Do NOT create new states with the same meaning as     │
+   │ ex

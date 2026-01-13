@@ -52,3 +52,66 @@ db_error_t db_match_get_detail(
     uint32_t match_id,
     cJSON **out_json
 );
+
+//==============================================================================
+// Match Answer & Event Functions
+//==============================================================================
+
+/**
+ * Save a player's answer to the database
+ * @param match_question_id - ID from match_question table
+ * @param match_player_id   - ID from match_players table  
+ * @param answer_json       - Answer data as JSON (e.g., {"answer": 2, "is_correct": true})
+ * @param score_delta       - Points earned/lost
+ * @param action_idx        - Action index (default 0 for MCQ)
+ */
+db_error_t db_match_save_answer(
+    int32_t match_question_id,
+    int32_t match_player_id,
+    const char *answer_json,
+    int32_t score_delta,
+    int action_idx
+);
+
+/**
+ * Save elimination event to database
+ * @param match_id        - Match ID
+ * @param match_player_id - ID from match_players table
+ * @param round_no        - Round number where eliminated (1-based)
+ * @param question_idx    - Question index (0 for round-end elimination)
+ */
+db_error_t db_match_save_event(
+    uint32_t match_id,
+    int32_t match_player_id,
+    const char *event_type,
+    int round_no,
+    int question_idx
+);
+
+/**
+ * Create match_question record and return its ID
+ * @param match_id     - Match ID
+ * @param round_no     - Round number (1-based)
+ * @param round_type   - "MCQ", "BID", "WHEEL", "BONUS"
+ * @param question_idx - Question index within round (0-based)
+ * @param question_json - Question data snapshot
+ * @param out_id       - Output: created match_question.id
+ */
+db_error_t db_match_create_question(
+    uint32_t match_id,
+    int round_no,
+    const char *round_type,
+    int question_idx,
+    const char *question_json,
+    int32_t *out_id
+);
+
+/**
+ * Update match_players with final score and elimination status
+ */
+db_error_t db_match_update_player(
+    int32_t match_player_id,
+    int32_t final_score,
+    bool eliminated,
+    int eliminated_at_round
+);
