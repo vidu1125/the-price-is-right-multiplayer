@@ -314,32 +314,24 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
     printf("\n");
 
     // =========================================================================
-    // STEP 5: BROADCAST START ROUND 1
+    // STEP 5: BROADCAST NTF_GAME_START TO ALL PLAYERS
     // =========================================================================
-    // TODO: Create round start notification payload
-    // - Include round number, questions, timer, etc.
-    // - Use room_broadcast to send to all players
-    
-    // Example broadcast structure (needs actual payload implementation)
-    const char *round_start_msg = "{\"round\":1,\"status\":\"started\"}";
+    // This triggers the client to navigate to the game screen (Round 1)
+    char game_start_msg[256];
+    snprintf(game_start_msg, sizeof(game_start_msg), "{\"match_id\":%u}", match->runtime_match_id);
+
+    printf("[HANDLER] <startgame> Broadcasting NTF_GAME_START (match_id=%u) to room %u\n", 
+           match->runtime_match_id, room_id);
+
     room_broadcast(
         room_id,
-        0x0501, // TODO: Define NTF_ROUND_START in opcode.h
-        round_start_msg,
-        strlen(round_start_msg),
-        -1 // Send to all members
+        NTF_GAME_START, // 0x02C4 - Triggers navigateToRound1() in frontend
+        game_start_msg,
+        strlen(game_start_msg),
+        -1 // Send to ALL members including host
     );
 
-    printf("[HANDLER] <startgame> Step 6: Round 1 start broadcasted to room %u\n", room_id);
-    // =========================================================================
-    // STEP 6: SEND SUCCESS RESPONSE TO HOST
-    // =========================================================================
-    char resp_json[256];
-    // Frontend expects dummy header: "...\r\n\r\n{JSON}"
-    snprintf(resp_json, sizeof(resp_json), "HTTP/1.1 200 OK\r\n\r\n{\"success\":true,\"match_id\":%u}", match->runtime_match_id);
-    
-    forward_response(client_fd, req, RES_GAME_STARTED, resp_json, strlen(resp_json));
-    printf("[HANDLER] <startgame> Sent RES_GAME_STARTED to host (with dummy headers)\n");
+    printf("[HANDLER] <startgame> Game start broadcast complete. All clients should navigate now.\n");
 
     printf("[HANDLER] <startgame> Game start sequence completed successfully\n");
 }
