@@ -351,6 +351,7 @@ import Round2 from './Round/Round2';
 import Round3 from './Round/Round3';
 import RoundBonus from './Round/RoundBonus';
 import { sendForfeit } from '../../services/forfeitService';
+import { useNavigate } from 'react-router-dom';
 
 const GameContainer = () => {
     // ============ STATE MANAGEMENT ============
@@ -360,11 +361,21 @@ const GameContainer = () => {
     const [gameMode, setGameMode] = useState('SCORING');
     const [timeLeft, setTimeLeft] = useState(15);
 
+
     // ============ GET MATCH ID & PLAYER ID FROM URL ============
     const urlParams = new URLSearchParams(window.location.search);
-    const matchId = parseInt(urlParams.get('match_id') || '1');
-    const playerId = parseInt(urlParams.get('player_id') || '1');
-    const playerName = urlParams.get('name') || `PLAYER${playerId}`;
+    const matchId = parseInt(urlParams.get('match_id'));
+    const playerId = parseInt(urlParams.get('player_id'));
+    const playerName = urlParams.get('name') || `PLAYER${playerId || '?'}`;
+
+    // Validate match_id is required
+    const navigate = useNavigate();
+    useEffect(() => {
+        if (!matchId || isNaN(matchId)) {
+            console.error('[GameContainer] Invalid or missing match_id, redirecting to lobby');
+            navigate('/lobby');
+        }
+    }, [matchId, navigate]);
 
     // ============ LEADERBOARD DATA ============
     const [leaderboardData, setLeaderboardData] = useState([
