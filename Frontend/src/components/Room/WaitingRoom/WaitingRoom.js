@@ -137,8 +137,20 @@ export default function WaitingRoom() {
 
     // 6. NTF_GAME_START
     registerHandler(OPCODE.NTF_GAME_START || 0x02C4, (payload) => {
-      console.log("[NTF] Game Started! Navigating...");
-      navigate('/round', { state: { roomId: roomId, roomCode: roomCode, isHost: isHost } });
+      console.log("[NTF] Game Started! Parsing payload...");
+      try {
+        const text = new TextDecoder().decode(payload);
+        const data = JSON.parse(text);
+        const matchId = data.match_id;
+        console.log("[NTF] Match ID:", matchId);
+        navigate(`/round?match_id=${matchId}`, {
+          state: { roomId, roomCode, isHost, matchId }
+        });
+      } catch (e) {
+        console.error("[NTF] Failed to parse NTF_GAME_START:", e);
+        // Fallback without match_id
+        navigate('/round', { state: { roomId, roomCode, isHost } });
+      }
     });
 
     // Cleanup listeners? 

@@ -634,8 +634,51 @@ int match_repo_start(
     snprintf(
         out_buf,
         out_size,
-        "{\"success\":true,\"message\":\"game started\"}"
+        "{\\\"success\\\":true,\\\"message\\\":\\\"game started\\\"}"
     );
 
     return 0;
+}
+
+db_error_t db_match_event_insert(
+    int64_t db_match_id,
+    int32_t player_id,
+    const char *event_type,
+    int round_no,
+    int question_idx
+) {
+    if (db_match_id <= 0 || !event_type) {
+        printf("[MATCH_EVENT] Invalid parameters: db_match_id=%lld, event_type=%s\n",
+               (long long)db_match_id, event_type ? event_type : "NULL");
+        return DB_ERROR_INVALID_PARAM;
+    }
+
+    printf("[MATCH_EVENT] Inserting event: match_id=%lld, player_id=%d, type=%s, round=%d, q_idx=%d\n",
+           (long long)db_match_id, player_id, event_type, round_no, question_idx);
+
+    cJSON *payload = cJSON_CreateObject();
+    cJSON_AddNumberToObject(payload, "match_id", db_match_id);
+    cJSON_AddNumberToObject(payload, "player_id", player_id);
+    cJSON_AddStringToObject(payload, "event_type", event_type);
+    
+    if (round_no > 0) {
+        cJSON_AddNumberToObject(payload, "round_no", round_no);
+    }
+    if (question_idx >= 0) {
+        cJSON_AddNumberToObject(payload, "question_idx", question_idx);
+    }
+
+    cJSON *response = NULL;
+    db_error_t err = db_post("match_events", payload, &response);
+    cJSON_Delete(payload);
+
+    if (err != DB_SUCCESS) {
+        printf("[MATCH_EVENT] Failed to insert event: err=%d\n", err);
+        if (response) cJSON_Delete(response);
+        return err;
+    }
+
+    if (response) cJSON_Delete(response);
+    printf("[MATCH_EVENT] Event inserted successfully\n");
+    return DB_SUCCESS;
 }

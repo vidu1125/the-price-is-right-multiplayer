@@ -134,3 +134,17 @@ CREATE TABLE questions (
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
+
+CREATE TABLE match_events (
+    id SERIAL PRIMARY KEY,
+    match_id INT NOT NULL
+        REFERENCES matches(id)
+        ON DELETE CASCADE,
+    player_id INT
+        REFERENCES accounts(id)
+        ON DELETE SET NULL,
+    event_type VARCHAR(50) NOT NULL,
+    round_no INT,
+    question_idx INT,
+    created_at TIMESTAMP DEFAULT NOW()
+);

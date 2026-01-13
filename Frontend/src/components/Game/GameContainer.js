@@ -15,7 +15,7 @@
 //         currentQuestion: 1,
 //         totalQuestions: 15
 //     };
-    
+
 //     const [gameMode, setGameMode] = useState('SURVIVAL'); 
 
 //     const leaderboardData = [
@@ -42,7 +42,7 @@
 //     return (
 //         <div style={containerStyle}>
 //             <div className="game-overlay">
-                
+
 //                 <header className="game-header">
 //                     <div className="header-left">
 //                         <div className="round-badge-new">ROUND 1</div>
@@ -131,11 +131,11 @@
 //     const [score, setScore] = useState(0);
 //     const [pointsGained, setPointsGained] = useState(0);
 //     const [gameMode, setGameMode] = useState('SCORING'); // 'SCORING' or 'SURVIVAL'
-    
+
 //     // ============ GET MATCH ID ============
 //     const urlParams = new URLSearchParams(window.location.search);
 //     const matchId = urlParams.get('match_id') || 1; // Default test match
-    
+
 //     // ============ MOCK DATA ============
 //     const mockDataFromBackend = {
 //         questionText: "What is the price of iPhone 15?",
@@ -143,7 +143,7 @@
 //         currentQuestion: 1,
 //         totalQuestions: 15
 //     };
-    
+
 //     // ============ LEADERBOARD DATA ============
 //     const [leaderboardData, setLeaderboardData] = useState([
 //         { name: "PLAYER1", score: 0, isEliminated: false },
@@ -157,17 +157,17 @@
 //         const handleScoreUpdate = (e) => {
 //             const newScore = e.detail.score;
 //             const gained = e.detail.gained || 0;
-            
+
 //             setScore(newScore);
 //             setPointsGained(gained);
-            
+
 //             // Update leaderboard for PLAYER1 (YOU)
 //             setLeaderboardData(prev => prev.map(player => 
 //                 player.name === 'PLAYER1' 
 //                     ? { ...player, score: newScore }
 //                     : player
 //             ));
-            
+
 //             // Clear gained points animation after 2s
 //             if (gained > 0) {
 //                 setTimeout(() => setPointsGained(0), 2000);
@@ -182,12 +182,12 @@
 //     const handleRoundComplete = (nextRound, data) => {
 //         console.log(`[GameContainer] Round ${currentRound} complete, moving to round ${nextRound}`);
 //         console.log('[GameContainer] Data:', data);
-        
+
 //         // Update score if provided
 //         if (data.round1Score !== undefined) {
 //             setScore(data.round1Score);
 //         }
-        
+
 //         // Move to next round
 //         setCurrentRound(nextRound);
 //     };
@@ -202,7 +202,7 @@
 //                         onRoundComplete={handleRoundComplete}
 //                     />
 //                 );
-            
+
 //             case 2:
 //                 return (
 //                     <Round2
@@ -214,7 +214,7 @@
 //                         onRoundComplete={handleRoundComplete}
 //                     />
 //                 );
-            
+
 //             case 3:
 //                 return (
 //                     <Round3 
@@ -223,7 +223,7 @@
 //                         onRoundComplete={handleRoundComplete}
 //                     />
 //                 );
-            
+
 //             case 'bonus':
 //                 return (
 //                     <RoundBonus 
@@ -233,7 +233,7 @@
 //                         previousScore={score}
 //                     />
 //                 );
-            
+
 //             default:
 //                 return <Round1 matchId={matchId} onRoundComplete={handleRoundComplete} />;
 //         }
@@ -256,7 +256,7 @@
 //     return (
 //         <div style={containerStyle}>
 //             <div className="game-overlay">
-                
+
 //                 <header className="game-header">
 //                     <div className="header-left">
 //                         <div className="round-badge-new">
@@ -346,10 +346,11 @@
 
 import React, { useState, useEffect } from 'react';
 import './GameContainer.css';
-import Round1 from './Round/Round1'; 
-import Round2 from './Round/Round2'; 
+import Round1 from './Round/Round1';
+import Round2 from './Round/Round2';
 import Round3 from './Round/Round3';
 import RoundBonus from './Round/RoundBonus';
+import { sendForfeit } from '../../services/forfeitService';
 
 const GameContainer = () => {
     // ============ STATE MANAGEMENT ============
@@ -358,13 +359,13 @@ const GameContainer = () => {
     const [pointsGained, setPointsGained] = useState(0);
     const [gameMode, setGameMode] = useState('SCORING');
     const [timeLeft, setTimeLeft] = useState(15);
-    
+
     // ============ GET MATCH ID & PLAYER ID FROM URL ============
     const urlParams = new URLSearchParams(window.location.search);
     const matchId = parseInt(urlParams.get('match_id') || '1');
     const playerId = parseInt(urlParams.get('player_id') || '1');
     const playerName = urlParams.get('name') || `PLAYER${playerId}`;
-    
+
     // ============ LEADERBOARD DATA ============
     const [leaderboardData, setLeaderboardData] = useState([
         { id: 1, name: "PLAYER1", score: 0, isEliminated: false },
@@ -385,18 +386,18 @@ const GameContainer = () => {
     // ============ LISTEN TO SCORE UPDATES ============
     useEffect(() => {
         let hideTimeout = null;
-        
+
         const handleScoreUpdate = (e) => {
             const { score: addedScore, totalScore } = e.detail;
             setPointsGained(addedScore);
             setScore(totalScore);
-            
+
             // Tự động ẩn popup sau 3 giây
             if (hideTimeout) clearTimeout(hideTimeout);
             hideTimeout = setTimeout(() => {
                 setPointsGained(0);
             }, 3000);
-            
+
             // Update leaderboard for current player
             setLeaderboardData(prev => {
                 const updated = [...prev];
@@ -432,9 +433,17 @@ const GameContainer = () => {
     const handleRoundComplete = (nextRound, data) => {
         console.log(`[GameContainer] Round complete, moving to round ${nextRound}`, data);
         setCurrentRound(nextRound);
-        
+
         if (data?.score !== undefined) {
             setScore(data.score);
+        }
+    };
+
+    // ============ HANDLE FORFEIT ============
+    const handleForfeit = () => {
+        if (window.confirm("Are you sure you want to forfeit this match?")) {
+            sendForfeit(matchId);
+            window.history.back();
         }
     };
 
@@ -444,8 +453,8 @@ const GameContainer = () => {
             case 1:
                 return <Round1 matchId={matchId} playerId={playerId} onRoundComplete={handleRoundComplete} />;
             case 2:
-                return <Round2 
-                    matchId={matchId} 
+                return <Round2
+                    matchId={matchId}
                     playerId={playerId}
                     onRoundComplete={handleRoundComplete}
                     currentQuestion={1}
@@ -457,10 +466,10 @@ const GameContainer = () => {
                 return <Round3 totalPlayers={4} onRoundComplete={handleRoundComplete} />;
             case 4:
             case 'bonus':
-                return <RoundBonus 
-                    currentQuestion={1} 
-                    totalQuestions={1} 
-                    productImage="/bg/iphone15.jpg" 
+                return <RoundBonus
+                    currentQuestion={1}
+                    totalQuestions={1}
+                    productImage="/bg/iphone15.jpg"
                 />;
             default:
                 return <Round1 matchId={matchId} playerId={playerId} onRoundComplete={handleRoundComplete} />;
@@ -483,14 +492,14 @@ const GameContainer = () => {
         display: 'flex',
         flexDirection: 'column',
         fontFamily: "'Luckiest Guy', cursive, sans-serif",
-        overflow: 'hidden' 
+        overflow: 'hidden'
     };
 
     // ============ RENDER ============
     return (
         <div style={containerStyle}>
             <div className="game-overlay">
-                
+
                 <header className="game-header">
                     <div className="header-left">
                         <div className="round-badge-new">{getRoundLabel()}</div>
@@ -518,8 +527,8 @@ const GameContainer = () => {
                                 const isMe = player.id === playerId;
 
                                 return (
-                                    <div 
-                                        key={player.id} 
+                                    <div
+                                        key={player.id}
                                         className={`rank-item 
                                             ${isMe ? 'is-me' : ''} 
                                             ${isOut ? 'eliminated' : ''}`
@@ -536,7 +545,7 @@ const GameContainer = () => {
                             })}
                         </div>
 
-                        <button className="game-btn-exit forfeit-sidebar-btn" onClick={() => window.history.back()}>
+                        <button className="game-btn-exit forfeit-sidebar-btn" onClick={handleForfeit}>
                             FORFEIT
                         </button>
                     </aside>

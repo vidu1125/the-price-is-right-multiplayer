@@ -52,3 +52,12 @@ db_error_t db_match_get_detail(
     uint32_t match_id,
     cJSON **out_json
 );
+
+// Insert a match event (FORFEIT, ELIMINATED, etc.)
+db_error_t db_match_event_insert(
+    int64_t db_match_id,
+    int32_t player_id,
+    const char *event_type,
+    int round_no,
+    int question_idx
+);
