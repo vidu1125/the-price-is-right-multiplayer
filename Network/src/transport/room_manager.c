@@ -1,10 +1,12 @@
 #include "transport/room_manager.h"
 #include "protocol/protocol.h"
 #include "protocol/opcode.h"
+#include "db/core/db_client.h"
 #include <string.h>
 #include <stdio.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
+#include <cjson/cJSON.h>
 
 //==============================================================================
 // Global State
@@ -126,6 +128,73 @@ bool room_user_in_any_room(uint32_t account_id) {
     return false;
 }
 
+uint32_t room_find_by_player_fd(int client_fd) {
+    for (int i = 0; i < g_room_count; i++) {
+        for (int j = 0; j < g_rooms[i].member_count; j++) {
+            if (g_rooms[i].member_fds[j] == client_fd) {
+                return g_rooms[i].id;
+            }
+        }
+    }
+    return 0;
+}
+
+RoomState* room_get_state(uint32_t room_id) {
+    return find_room(room_id);
+}
+
+//==============================================================================
+// Room Cleanup Helper
+//==============================================================================
+
+void room_close_if_empty(uint32_t room_id) {
+    printf("[ROOM_CLOSE] Checking room %u...\n", room_id);
+    
+    RoomState *room = find_room(room_id);
+    if (!room) {
+        printf("[ROOM_CLOSE] ✗ Room %u not found in memory\n", room_id);
+        return;
+    }
+    
+    printf("[ROOM_CLOSE] Room state:\n");
+    printf("  - room_id: %u\n", room->id);
+    printf("  - room_name: %s\n", room->name);
+    printf("  - player_count: %d\n", room->player_count);
+    printf("  - member_count: %d\n", room->member_count);
+    
+    if (room->member_count > 0) {
+        printf("[ROOM_CLOSE] Room %u still has %d members, NOT closing\n", 
+               room_id, room->member_count);
+        return;
+    }
+    
+    printf("[ROOM_CLOSE] ⚠️  Room %u is EMPTY, closing...\n", room_id);
+    
+    // 1. Close in database
+    cJSON *payload = cJSON_CreateObject();
+    cJSON_AddStringToObject(payload, "status", "closed");
+    
+    char filter[64];
+    snprintf(filter, sizeof(filter), "id=eq.%u", room_id);
+    
+    cJSON *response = NULL;
+    db_error_t rc = db_patch("rooms", filter, payload, &response);
+    
+    if (rc == DB_OK) {
+        printf("[ROOM_CLOSE] ✓ Room %u status='closed' in DB\n", room_id);
+    } else {
+        printf("[ROOM_CLOSE] ✗ Failed to close room %u in DB: rc=%d\n", room_id, rc);
+    }
+    
+    cJSON_Delete(payload);
+    if (response) cJSON_Delete(response);
+    
+    // 2. Destroy in-memory state
+    printf("[ROOM_CLOSE] Destroying in-memory state...\n");
+    room_destroy(room_id);
+    printf("[ROOM_CLOSE] ✓ Room %u destroyed from memory\n", room_id);
+}
+
 //==============================================================================
 // Legacy API (kept for compatibility)
 //==============================================================================
@@ -172,14 +241,15 @@ void room_remove_member(int room_id, int client_fd) {
                 room->member_fds[j] = room->member_fds[j + 1];
             }
             room->member_count--;
-            printf("[ROOM] Removed fd=%d from room=%d (%d members left)\\n",
+            printf("[ROOM] Removed fd=%d from room=%d (%d members left)\n",
                    client_fd, room_id, room->member_count);
             
-            // Remove room if empty
+            // Close room if empty (with DB sync)
             if (room->member_count == 0) {
-                printf("[ROOM] Room %d is now empty, removing\\n", room_id);
-                room_destroy((uint32_t)room_id);
+                printf("[ROOM] Member count reached 0, calling room_close_if_empty()\n");
+                room_close_if_empty((uint32_t)room_id);
             }
+            
             return;
         }
     }

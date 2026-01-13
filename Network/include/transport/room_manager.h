@@ -88,6 +88,23 @@ bool room_has_player(uint32_t room_id, uint32_t account_id);
 bool room_user_in_any_room(uint32_t account_id);
 
 /**
+ * Find room ID by player's file descriptor
+ * Returns 0 if player not in any room
+ */
+uint32_t room_find_by_player_fd(int client_fd);
+
+/**
+ * Get room state by ID (alias for room_get for clarity)
+ */
+RoomState* room_get_state(uint32_t room_id);
+
+/**
+ * Close room if empty (updates DB and destroys in-memory state)
+ * Called automatically by room_remove_member when last player leaves
+ */
+void room_close_if_empty(uint32_t room_id);
+
+/**
  * Add a client to a room
  */
 void room_add_member(int room_id, int client_fd);

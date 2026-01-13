@@ -18,6 +18,7 @@
 #include "handlers/round1_handler.h"
 #include "handlers/session_manager.h"
 #include "handlers/match_manager.h"
+#include "handlers/room_disconnect_handler.h"
 
 // REMOVED: business / handler / db
 // #include "../include/handler/client_manager.h"
@@ -156,19 +157,69 @@ void handle_client_disconnect(int client_idx) {
     int fd = clients[client_idx].sockfd;
     if (fd == -1) return;
 
-    printf("[Socket] Client disconnected: fd=%d\n", fd);
+    printf("\n");
+    printf("╔════════════════════════════════════════╗\n");
+    printf("║   CLIENT DISCONNECT EVENT              ║\n");
+    printf("╚════════════════════════════════════════╝\n");
+    printf("[Socket] Client fd=%d disconnected\n", fd);
     
-    // Notify round1 handler about disconnect
-    handle_round1_disconnect(fd);
+    // Get session info before cleanup
+    UserSession *session = session_get_by_socket(fd);
     
-    // Remove from epoll - strictly speaking, closing the fd removes it from epoll automatically
-    // but explicit removal is good practice if structure pointer was used.
-    // Since we used fd in ev.data.fd, close() cleanups effectively.
+    if (session) {
+        uint32_t account_id = session->account_id;
+        SessionState state = session->state;
+        
+        printf("[Socket] Session found:\n");
+        printf("  - account_id: %u\n", account_id);
+        printf("  - session_state: %d ", state);
+        
+        // Print state name
+        switch(state) {
+            case SESSION_UNAUTHENTICATED:
+                printf("(UNAUTHENTICATED)\n");
+                break;
+            case SESSION_LOBBY:
+                printf("(LOBBY)\n");
+                break;
+            case SESSION_PLAYING:
+                printf("(PLAYING)\n");
+                break;
+            case SESSION_PLAYING_DISCONNECTED:
+                printf("(PLAYING_DISCONNECTED)\n");
+                break;
+            default:
+                printf("(UNKNOWN)\n");
+        }
+        
+        // Handle based on session state
+        if (state == SESSION_LOBBY || state == SESSION_UNAUTHENTICATED) {
+            printf("[Socket] → Calling room_handle_disconnect()\n");
+            room_handle_disconnect(fd, account_id);
+        } 
+        else if (state == SESSION_PLAYING) {
+            printf("[Socket] → Calling handle_round1_disconnect() [GAME]\n");
+            handle_round1_disconnect(fd);
+        }
+        
+        // Mark session disconnected (grace period for reconnect)
+        printf("[Socket] Marking session as disconnected (grace period enabled)\n");
+        session_mark_disconnected(session);
+    } else {
+        printf("[Socket] ⚠️  No session found for fd=%d\n", fd);
+        printf("[Socket] Attempting room cleanup anyway...\n");
+        room_handle_disconnect(fd, 0);
+    }
+    
+    // Socket cleanup
+    printf("[Socket] Cleaning up socket resources...\n");
     epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL);
-
     close(fd);
     clients[client_idx].sockfd = -1;
     clients[client_idx].buffer_len = 0;
+    
+    printf("[Socket] ✓ Disconnect handling complete\n");
+    printf("════════════════════════════════════════\n\n");
 }
 
 void handle_client_data(int client_idx) {
