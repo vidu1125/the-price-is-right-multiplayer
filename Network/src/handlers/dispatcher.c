@@ -7,6 +7,7 @@
 #include "handlers/profile_handler.h"
 #include "handlers/round1_handler.h"
 #include "handlers/start_game_handler.h"
+#include "handlers/forfeit_handler.h"
 #include "handlers/session_context.h"
 #include "handlers/auth_guard.h"
 #include "protocol/opcode.h"
@@ -88,6 +89,9 @@ void dispatch_command(
     // Match Management
     case CMD_START_GAME:
         handle_start_game(client_fd, header, payload);
+        break;
+    case CMD_FORFEIT:
+        handle_forfeit(client_fd, header, payload);
         break;
 
     // History
