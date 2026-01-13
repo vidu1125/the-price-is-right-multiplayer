@@ -68,6 +68,7 @@ RoomState {
 RoomPlayerState {
   uint32_t account_id;
   char name[64];         // Player's display name (fetched from DB on join, cached in memory)
+  char avatar[256];      // Player's avatar URL (fetched from DB on join, cached in memory)
 
   bool is_host;      // true nếu account_id == RoomState.host_id
   bool is_ready;     // REAL-TIME: player đã sẵn sàng chưa
@@ -132,6 +133,7 @@ Thông báo danh sách player hiện tại trong phòng (broadcast sau mọi tha
     {
       "account_id": 42,
       "name": "PlayerName",
+      "avatar": "",
       "is_host": true,
       "is_ready": false
     }
@@ -142,13 +144,14 @@ Thông báo danh sách player hiện tại trong phòng (broadcast sau mọi tha
 **Field descriptions:**
 - `account_id` (number): ID của player
 - `name` (string): Tên hiển thị của player (lấy từ `profiles.name` khi join, cached trong `RoomPlayerState.name`)
+- `avatar` (string): Avatar URL của player (lấy từ `profiles.avatar` khi join, cached trong `RoomPlayerState.avatar`)
 - `is_host` (boolean): Player có phải host không
 - `is_ready` (boolean): Player đã sẵn sàng chưa
 
 **Data flow:**
-1. Khi player join room, server query `profiles` table để lấy `name`
-2. `name` được lưu vào `RoomPlayerState.name` (in-memory cache)
-3. Khi broadcast `NTF_PLAYER_LIST`, server đọc từ `RoomPlayerState.name` (không query DB lại)
+1. Khi player join room, server query `profiles` table để lấy `name` và `avatar`
+2. `name` và `avatar` được lưu vào `RoomPlayerState` (in-memory cache)
+3. Khi broadcast `NTF_PLAYER_LIST`, server đọc từ `RoomPlayerState` (không query DB lại)
 
 **Max payload:** ~500 bytes cho 6 players (an toàn trong giới hạn 4096 bytes)
 
@@ -481,13 +484,15 @@ typedef struct PACKED {
 6. Add `RoomPlayerState` using `room_add_player()`:
 
    ```c
-   // Signature: int room_add_player(uint32_t room_id, uint32_t account_id, const char *name, int client_fd)
-   room_add_player(room_id, account_id, profile_name, client_fd);
+   // Signature: int room_add_player(uint32_t room_id, uint32_t account_id, 
+   //                                 const char *name, const char *avatar, int client_fd)
+   room_add_player(room_id, account_id, profile_name, profile_avatar, client_fd);
    // Player is automatically added with:
    // - is_host = false
    // - is_ready = false
    // - connected = true
    // - name = profile_name (cached)
+   // - avatar = profile_avatar (cached)
    ```
 7. Insert DB:
 
@@ -503,7 +508,44 @@ typedef struct PACKED {
 RES_ROOM_JOINED (0x00DD)
 ```
 
-Payload: empty
+**Payload:** JSON object (UTF-8 encoded) containing full room state
+
+```json
+{
+  "roomId": 123,
+  "roomCode": "ABC123",
+  "roomName": "My Room",
+  "hostId": 47,
+  "isHost": false,
+  "gameRules": {
+    "mode": "elimination",
+    "maxPlayers": 4,
+    "wagerMode": true,
+    "visibility": "public"
+  },
+  "players": [
+    {
+      "account_id": 47,
+      "name": "Host Player",
+      "avatar": "",
+      "is_host": true,
+      "is_ready": false
+    },
+    {
+      "account_id": 42,
+      "name": "Joining Player",
+      "avatar": "",
+      "is_host": false,
+      "is_ready": false
+    }
+  ]
+}
+```
+
+**Design rationale:**
+- Prevents race condition where `NTF_PLAYER_LIST` arrives before `WaitingRoom` mounts
+- Joiner receives complete room state immediately
+- Enables instant UI rendering without waiting for broadcasts
 
 ### Notifications (broadcast)
 
@@ -527,7 +569,7 @@ NTF_PLAYER_LIST   (0x02BE)
 
 # ==============================
 
-# USE CASE 3️⃣ – SET GAME RULE (FINAL – COMMIT)
+# USE CASE 3️⃣ – SET GAME RULE 
 
 # ==============================
 
