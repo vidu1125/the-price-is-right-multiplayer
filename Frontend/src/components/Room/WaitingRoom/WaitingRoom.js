@@ -30,12 +30,12 @@ export default function WaitingRoom() {
     code: roomCode,
     name: roomName || "My Room",
     hostId: hostId || profile.account_id || null,
-    players: isHost ? [{
+    players: (location.state && location.state.players) ? location.state.players : (isHost ? [{
       account_id: profile.account_id,
       name: profile.name || 'Host',
       is_host: true,
       is_ready: false
-    }] : [], // If host, add self to player list
+    }] : []),
     rules: passedRules || {
       maxPlayers: 5,
       mode: "scoring",

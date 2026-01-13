@@ -93,7 +93,8 @@ export default function RoomPanel() {
           roomName: roomData.roomName,
           hostId: roomData.hostId,
           isHost: roomData.isHost,
-          gameRules: roomData.gameRules
+          gameRules: roomData.gameRules,
+          players: roomData.players // Pass initial player list
         }
       });
     };

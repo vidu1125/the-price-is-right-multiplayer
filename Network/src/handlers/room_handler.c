@@ -427,6 +427,20 @@ void handle_join_room(int client_fd, MessageHeader *req, const char *payload) {
     cJSON_AddBoolToObject(rules, "wagerMode", room->wager_mode); // Add wager_mode
     cJSON_AddStringToObject(rules, "visibility", room->visibility == ROOM_PUBLIC ? "public" : "private");
     cJSON_AddItemToObject(resp, "gameRules", rules);
+
+    // Add current players (To fix race condition)
+    cJSON *players_array = cJSON_CreateArray();
+    for (int i = 0; i < room->player_count; i++) {
+        RoomPlayerState *p = &room->players[i];
+        cJSON *p_obj = cJSON_CreateObject();
+        cJSON_AddNumberToObject(p_obj, "account_id", p->account_id);
+        cJSON_AddStringToObject(p_obj, "name", p->name);
+        cJSON_AddStringToObject(p_obj, "avatar", p->avatar[0] ? p->avatar : "");
+        cJSON_AddBoolToObject(p_obj, "is_host", p->is_host);
+        cJSON_AddBoolToObject(p_obj, "is_ready", p->is_ready);
+        cJSON_AddItemToArray(players_array, p_obj);
+    }
+    cJSON_AddItemToObject(resp, "players", players_array);
     
     char *json_str = cJSON_PrintUnformatted(resp);
     forward_response(client_fd, req, RES_ROOM_JOINED, json_str, strlen(json_str));
