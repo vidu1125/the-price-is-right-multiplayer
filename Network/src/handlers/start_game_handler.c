@@ -157,6 +157,10 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
         printf("[HANDLER] <startgame> Match saved to database (db_match_id=%lld, mode=%s)\n", 
                (long long)db_match_id, mode_str);
     }
+    
+    // Initialize question category (default: all categories)
+    // TODO: Get this from room settings/advanced rules
+    match->question_category[0] = '\0'; // Empty = all categories
 
     // =========================================================================
     // STEP 2: ADD PLAYERS to MatchState
@@ -285,6 +289,7 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
             questions_per_round[r], 
             use_exclusion ? excluded_ids : NULL,
             use_exclusion ? excluded_count : 0,
+            use_exclusion ? match->question_category : NULL, // Only filter category for MCQ/BID
             &questions_json
         );
         

@@ -25,5 +25,6 @@ db_error_t question_get_random(
     int count,
     const int32_t *excluded_ids,
     int excluded_count,
+    const char *category,    // "lifestyle", "electronics", "furniture", or NULL/empty for all
     cJSON **out_json
 );

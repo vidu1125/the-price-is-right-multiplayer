@@ -110,6 +110,8 @@ typedef struct {
     int round_count;
 
     int current_round_idx;
+    
+    char question_category[32]; // "lifestyle", "electronics", "furniture", or "" for all
 
     time_t created_at;
 } MatchState;

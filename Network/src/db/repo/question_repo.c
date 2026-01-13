@@ -162,19 +162,28 @@ db_error_t question_get_excluded_ids(
 }
 
 // Fetch random questions from database filtered by round type
-db_error_t question_get_random(const char *round_type, int count, const int32_t *excluded_ids, int excluded_count, cJSON **out_json) {
+db_error_t question_get_random(const char *round_type, int count, const int32_t *excluded_ids, int excluded_count, const char *category, cJSON **out_json) {
     if (!out_json || count <= 0 || !round_type) {
         return DB_ERROR_INVALID_PARAM;
     }
 
     *out_json = NULL;
 
-    // Use PostgREST syntax instead of raw SQL
-    // Fetch all questions of this type, then shuffle in C
-    char query[256];
-    snprintf(query, sizeof(query), "select=*&type=eq.%s", round_type);
-
-    printf("[QUESTION_REPO] Fetching questions for type='%s' (excluding %d IDs)\n", round_type, excluded_count);
+    // Build query with optional category filter
+    // Questions table structure: { id, type (round type), data (JSONB with { type: "lifestyle/electronics/furniture", ... }) }
+    char query[512];
+    
+    if (category && strlen(category) > 0) {
+        // Filter by both round type AND category in data->type
+        snprintf(query, sizeof(query), "select=*&type=eq.%s&data->>type=eq.%s", round_type, category);
+        printf("[QUESTION_REPO] Fetching questions for type='%s', category='%s' (excluding %d IDs)\n", 
+               round_type, category, excluded_count);
+    } else {
+        // Only filter by round type (all categories)
+        snprintf(query, sizeof(query), "select=*&type=eq.%s", round_type);
+        printf("[QUESTION_REPO] Fetching questions for type='%s' (all categories, excluding %d IDs)\n", 
+               round_type, excluded_count);
+    }
 
     cJSON *result = NULL;
     db_error_t rc = db_get("questions", query, &result);
