@@ -38,9 +38,47 @@ typedef struct PACKED {
 
 ### Phản hồi: RES_ROOM_JOINED (0x00DD)
 
-**Payload:** Rỗng (0 bytes)
+**Payload:** JSON object (UTF-8 encoded)
 
-Thành công được thể hiện qua opcode.
+**🔧 CRITICAL FIX - Race Condition Prevention:**
+Để tránh race condition (gói tin `NTF_PLAYER_LIST` đến trước khi `WaitingRoom` component mount xong), response này bao gồm **toàn bộ thông tin phòng và danh sách người chơi hiện tại**.
+
+```json
+{
+  "roomId": 123,
+  "roomCode": "ABC123",
+  "roomName": "My Room",
+  "hostId": 47,
+  "isHost": false,
+  "gameRules": {
+    "mode": "elimination",
+    "maxPlayers": 4,
+    "wagerMode": true,
+    "visibility": "public"
+  },
+  "players": [
+    {
+      "account_id": 47,
+      "name": "Host Player",
+      "avatar": "https://...",
+      "is_host": true,
+      "is_ready": false
+    },
+    {
+      "account_id": 42,
+      "name": "Joining Player",
+      "avatar": "",
+      "is_host": false,
+      "is_ready": false
+    }
+  ]
+}
+```
+
+**Lý do thiết kế:**
+- Frontend nhận ngay đầy đủ thông tin để render UI
+- Không phụ thuộc vào timing của `NTF_PLAYER_LIST`
+- `NTF_PLAYER_LIST` vẫn được broadcast để cập nhật cho các client khác
 
 ### Thông báo (Broadcast)
 
@@ -197,11 +235,12 @@ void handle_join_room(int client_fd, MessageHeader *req, const char *payload) {
 
 ---
 
-#### BƯỚC 5: Lấy Tên Người Chơi Từ DB
+#### BƯỚC 5: Lấy Tên & Avatar Người Chơi Từ DB
 
 ```c
-    // 5.1 Query bảng profiles
-    char profile_name[64] = "Player";  // fallback mặc định
+    // 5.1 Query bảng profiles (lấy cả name và avatar)
+    char profile_name[64] = "Player";    // fallback mặc định
+    char profile_avatar[256] = "";       // fallback empty
     char query[128];
     snprintf(query, sizeof(query), "account_id=eq.%u", session->account_id);
     
@@ -216,6 +255,11 @@ void handle_join_room(int client_fd, MessageHeader *req, const char *payload) {
                 strncpy(profile_name, name_item->valuestring, sizeof(profile_name) - 1);
                 profile_name[sizeof(profile_name) - 1] = '\0';
             }
+            cJSON *avatar_item = cJSON_GetObjectItem(first, "avatar");
+            if (avatar_item && cJSON_IsString(avatar_item)) {
+                strncpy(profile_avatar, avatar_item->valuestring, sizeof(profile_avatar) - 1);
+                profile_avatar[sizeof(profile_avatar) - 1] = '\0';
+            }
         }
         cJSON_Delete(profile_response);
     }
@@ -228,8 +272,10 @@ void handle_join_room(int client_fd, MessageHeader *req, const char *payload) {
 #### BƯỚC 6: Thêm Người Chơi Vào Phòng
 
 ```c
-    // 6.1 Thêm vào room state trong memory
-    int rc = room_add_player(room->id, session->account_id, profile_name, client_fd);
+    // 6.1 Thêm vào room state trong memory (with avatar support)
+    // Signature: int room_add_player(uint32_t room_id, uint32_t account_id, 
+    //                                 const char *name, const char *avatar, int client_fd)
+    int rc = room_add_player(room->id, session->account_id, profile_name, profile_avatar, client_fd);
     
     if (rc != 0) {
         send_error(client_fd, req, ERR_SERVER_ERROR, "Failed to add player");
@@ -285,11 +331,45 @@ void handle_join_room(int client_fd, MessageHeader *req, const char *payload) {
 
 ---
 
-#### BƯỚC 8: Gửi Phản Hồi Cho Người Join
+#### BƯỚC 8: Gửi Phản Hồi Cho Người Join (JSON với Player List)
 
 ```c
-    // 8.1 Gửi RES_ROOM_JOINED (payload rỗng)
-    forward_response(client_fd, req, RES_ROOM_JOINED, NULL, 0);
+    // 8.1 Tạo JSON response với đầy đủ thông tin phòng
+    cJSON *resp = cJSON_CreateObject();
+    cJSON_AddNumberToObject(resp, "roomId", room->id);
+    cJSON_AddStringToObject(resp, "roomCode", room->code);
+    cJSON_AddStringToObject(resp, "roomName", room->name);
+    cJSON_AddNumberToObject(resp, "hostId", room->host_id);
+    cJSON_AddBoolToObject(resp, "isHost", false); // Joiner is never host
+    
+    // 8.2 Add game rules
+    cJSON *rules = cJSON_CreateObject();
+    cJSON_AddStringToObject(rules, "mode", room->mode == MODE_ELIMINATION ? "elimination" : "scoring");
+    cJSON_AddNumberToObject(rules, "maxPlayers", room->max_players);
+    cJSON_AddBoolToObject(rules, "wagerMode", room->wager_mode);
+    cJSON_AddStringToObject(rules, "visibility", room->visibility == ROOM_PUBLIC ? "public" : "private");
+    cJSON_AddItemToObject(resp, "gameRules", rules);
+
+    // 8.3 Add current players (CRITICAL: Prevents race condition)
+    cJSON *players_array = cJSON_CreateArray();
+    for (int i = 0; i < room->player_count; i++) {
+        RoomPlayerState *p = &room->players[i];
+        cJSON *p_obj = cJSON_CreateObject();
+        cJSON_AddNumberToObject(p_obj, "account_id", p->account_id);
+        cJSON_AddStringToObject(p_obj, "name", p->name);
+        cJSON_AddStringToObject(p_obj, "avatar", p->avatar[0] ? p->avatar : "");
+        cJSON_AddBoolToObject(p_obj, "is_host", p->is_host);
+        cJSON_AddBoolToObject(p_obj, "is_ready", p->is_ready);
+        cJSON_AddItemToArray(players_array, p_obj);
+    }
+    cJSON_AddItemToObject(resp, "players", players_array);
+    
+    // 8.4 Send JSON response
+    char *json_str = cJSON_PrintUnformatted(resp);
+    forward_response(client_fd, req, RES_ROOM_JOINED, json_str, strlen(json_str));
+    
+    free(json_str);
+    cJSON_Delete(resp);
     
     printf("[SERVER] [JOIN_ROOM] ✅ THÀNH CÔNG: người chơi %u join phòng %u\n",
            session->account_id, room->id);
@@ -346,7 +426,7 @@ RoomState* find_room_by_code(const char *code) {
 **Cập nhật [room_add_player()](file:///home/duyen/DAIHOC/NetworkProgramming/Final/the-price-is-right-multiplayer/Network/src/transport/room_manager.c#65-88) trong [room_manager.c](file:///home/duyen/DAIHOC/NetworkProgramming/Final/the-price-is-right-multiplayer/Network/src/transport/room_manager.c):**
 
 ```c
-int room_add_player(uint32_t room_id, uint32_t account_id, const char *name, int client_fd) {
+int room_add_player(uint32_t room_id, uint32_t account_id, const char *name, const char *avatar, int client_fd) {
     RoomState *room = find_room(room_id);
     if (!room) return -1;
     
@@ -360,8 +440,18 @@ int room_add_player(uint32_t room_id, uint32_t account_id, const char *name, int
     // Proceed with adding player...
     RoomPlayerState *player = &room->players[room->player_count];
     player->account_id = account_id;
+    
     strncpy(player->name, name ? name : "Player", sizeof(player->name) - 1);
     player->name[sizeof(player->name) - 1] = '\0';
+    
+    // Store avatar (added for profile display support)
+    if (avatar) {
+        strncpy(player->avatar, avatar, sizeof(player->avatar) - 1);
+        player->avatar[sizeof(player->avatar) - 1] = '\0';
+    } else {
+        player->avatar[0] = '\0';
+    }
+    
     player->is_host = false;
     player->is_ready = false;
     player->connected = true;
