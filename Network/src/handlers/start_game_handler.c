@@ -219,6 +219,40 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
            sessions_updated, match->player_count);
 
     // =========================================================================
+    // STEP 3.5: GET EXCLUDED QUESTION IDS FROM RECENT MATCHES
+    // =========================================================================
+    printf("[HANDLER] <startgame> Step 3.5: Getting excluded questions from recent matches...\n");
+    
+    // Collect player account IDs
+    int32_t *player_account_ids = malloc(match->player_count * sizeof(int32_t));
+    for (int i = 0; i < match->player_count; i++) {
+        player_account_ids[i] = match->players[i].account_id;
+    }
+
+    int32_t *excluded_ids = NULL;
+    int excluded_count = 0;
+    int recent_match_count = 1; // N = 1 (most recent match per player)
+
+    db_error_t excl_rc = question_get_excluded_ids(
+        player_account_ids,
+        match->player_count,
+        recent_match_count,
+        &excluded_ids,
+        &excluded_count
+    );
+
+    free(player_account_ids);
+
+    if (excl_rc != DB_OK) {
+        printf("[HANDLER] <startgame> WARNING: Failed to get excluded IDs (rc=%d), continuing without exclusions\n", excl_rc);
+        excluded_ids = NULL;
+        excluded_count = 0;
+    } else {
+        printf("[HANDLER] <startgame> Excluding %d questions from recent %d matches\n", 
+               excluded_count, recent_match_count);
+    }
+
+    // =========================================================================
     // STEP 4: CREATE 3 ROUNDS AND LOAD QUESTIONS
     // =========================================================================
     printf("[HANDLER] <startgame> Step 4: Creating rounds and loading questions...\n");
@@ -242,8 +276,17 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
         round->started_at = 0;
         round->ended_at = 0;
         
+        // Only apply exclusion to MCQ and BID rounds, not WHEEL
+        bool use_exclusion = (round_types[r] == ROUND_MCQ || round_types[r] == ROUND_BID);
+        
         cJSON *questions_json = NULL;
-        db_error_t db_rc = question_get_random(round_type_names[r], questions_per_round[r], &questions_json);
+        db_error_t db_rc = question_get_random(
+            round_type_names[r], 
+            questions_per_round[r], 
+            use_exclusion ? excluded_ids : NULL,
+            use_exclusion ? excluded_count : 0,
+            &questions_json
+        );
         
         if (db_rc != DB_OK || !questions_json) {
             printf("[HANDLER] <startgame> ERROR: Failed to load questions for round %d (rc=%d)\n", 
@@ -293,6 +336,11 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
     }
     
     match->current_round_idx = 0;
+
+    // Free excluded IDs memory
+    if (excluded_ids) {
+        free(excluded_ids);
+    }
 
     // =========================================================================
     // MATCH CREATION SUMMARY
