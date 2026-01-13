@@ -36,7 +36,7 @@ function AnimatedRoutes() {
   const location = useLocation();
 
   // ✅ ĐÚNG CHỖ
-  useAuthBootstrap(false);
+  useAuthBootstrap();
 
   const defaultRoute = isAuthenticated() ? "/lobby" : "/login";
 
