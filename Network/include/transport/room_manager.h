@@ -99,6 +99,12 @@ uint32_t room_find_by_player_fd(int client_fd);
 RoomState* room_get_state(uint32_t room_id);
 
 /**
+ * Find room by 6-character code
+ * Returns NULL if not found
+ */
+RoomState* find_room_by_code(const char *code);
+
+/**
  * Close room if empty (updates DB and destroys in-memory state)
  * Called automatically by room_remove_member when last player leaves
  */

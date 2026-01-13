@@ -66,6 +66,9 @@ void dispatch_command(
     case CMD_CREATE_ROOM:
         handle_create_room(client_fd, header, payload);
         break;
+    case CMD_JOIN_ROOM:
+        handle_join_room(client_fd, header, payload);
+        break;
     case CMD_LEAVE_ROOM:
         handle_leave_room(client_fd, header, payload);
         break;

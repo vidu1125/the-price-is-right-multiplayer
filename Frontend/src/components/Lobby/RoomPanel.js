@@ -2,6 +2,7 @@
 import "./RoomPanel.css";
 import RoomList from "./RoomList";
 import { createRoom } from "../../services/hostService";
+import JoinByCodeModal from "./JoinByCodeModal";
 import React, { useState, useEffect, useRef } from "react";
 import { registerHandler } from "../../network/receiver";
 import { OPCODE } from "../../network/opcode";
@@ -10,6 +11,7 @@ import { useNavigate } from "react-router-dom";
 export default function RoomPanel() {
   const navigate = useNavigate();
   const [showModal, setShowModal] = useState(false);
+  const [showFindModal, setShowFindModal] = useState(false);
 
   // Khởi tạo state form
   const [formData, setFormData] = useState({
@@ -79,6 +81,23 @@ export default function RoomPanel() {
     };
     window.addEventListener('room_created', onRoomCreated);
 
+    // Xử lý khi Join thành công (từ roomService)
+    const onRoomJoined = (e) => {
+      console.log("🚀 Event received: room_joined", e.detail);
+      const roomData = e.detail;
+
+      navigate('/waitingroom', {
+        state: {
+          roomId: roomData.roomId,
+          roomCode: roomData.roomCode,
+          roomName: roomData.roomName,
+          isHost: roomData.isHost,
+          gameRules: roomData.gameRules
+        }
+      });
+    };
+    window.addEventListener('room_joined', onRoomJoined);
+
     registerHandler(OPCODE.ERR_BAD_REQUEST, (payload) => {
       const text = new TextDecoder().decode(payload);
       try {
@@ -91,6 +110,7 @@ export default function RoomPanel() {
 
     return () => {
       window.removeEventListener('room_created', onRoomCreated);
+      window.removeEventListener('room_joined', onRoomJoined);
       // unregisterHandler(OPCODE.RES_ROOM_CREATED);
     };
   }, []); // Only run once on mount
@@ -107,7 +127,7 @@ export default function RoomPanel() {
       </div>
       <div className="room-actions">
         <button onClick={() => console.log("Reload")}>Reload</button>
-        <button onClick={() => console.log("Find room")}>Find room</button>
+        <button onClick={() => setShowFindModal(true)}>Find room</button>
         <button className="create-room-btn" onClick={() => setShowModal(true)}>
           + Create new room
         </button>
@@ -180,6 +200,11 @@ export default function RoomPanel() {
             </form>
           </div>
         </div>
+      )}
+
+      {/* FIND ROOM MODAL */}
+      {showFindModal && (
+        <JoinByCodeModal onClose={() => setShowFindModal(false)} />
       )}
     </div>
   );

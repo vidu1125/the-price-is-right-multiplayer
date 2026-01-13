@@ -14,6 +14,16 @@ void handle_create_room(
 );
 
 /**
+ * Handle CMD_JOIN_ROOM (0x0201)
+ * Player joins an existing room
+ */
+void handle_join_room(
+    int client_fd,
+    MessageHeader *req,
+    const char *payload
+);
+
+/**
  * Handle CMD_CLOSE_ROOM (0x0207)
  * Host closes the room (kicks all members)
  */

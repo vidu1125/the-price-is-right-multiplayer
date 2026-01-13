@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { registerHandler } from "../../network/receiver";
 import { sendPacket } from "../../network/dispatcher";
 import { OPCODE } from "../../network/opcode";
+import { joinRoom } from "../../services/roomService";
 
 export default function RoomList() {
   const [rooms, setRooms] = useState([]);
@@ -41,12 +42,13 @@ export default function RoomList() {
     return () => clearInterval(interval);
   }, []);
 
-  const handleJoin = (roomId) => {
-    console.log("Join room:", roomId);
-    // TODO: Connect this to joinRoom service call or parent handler
-    // Currently just logs. The parent RoomPanel typically uses this list
-    // But this component logic for join button is independent for now.
-    // Ideally use 'joinRoom' logic from service we implement later.
+  const handleJoin = async (roomId) => {
+    console.log("Join room clicked:", roomId);
+    try {
+      await joinRoom(roomId, null); // Join by ID
+    } catch (error) {
+      console.error("Join room failed:", error);
+    }
   };
 
   return (
