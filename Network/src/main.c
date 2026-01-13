@@ -102,6 +102,9 @@ int main(int argc, char *argv[]) {
     
     
     shutdown_server();
+    // =====================================================
+    // 🔹 CLEANUP DB CLIENT
+    // =====================================================
     db_client_cleanup();
 
     printf("\nServer stopped gracefully\n");
