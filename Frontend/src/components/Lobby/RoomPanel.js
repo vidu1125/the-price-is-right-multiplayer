@@ -2,7 +2,8 @@
 import "./RoomPanel.css";
 import RoomList from "./RoomList";
 import { createRoom } from "../../services/hostService";
-import { useState, useEffect } from "react";
+import JoinByCodeModal from "./JoinByCodeModal";
+import React, { useState, useEffect, useRef } from "react";
 import { registerHandler } from "../../network/receiver";
 import { OPCODE } from "../../network/opcode";
 import { useNavigate } from "react-router-dom";
@@ -10,6 +11,7 @@ import { useNavigate } from "react-router-dom";
 export default function RoomPanel() {
   const navigate = useNavigate();
   const [showModal, setShowModal] = useState(false);
+  const [showFindModal, setShowFindModal] = useState(false);
 
   // Khởi tạo state form
   const [formData, setFormData] = useState({
@@ -25,8 +27,8 @@ export default function RoomPanel() {
   const handleModeChange = (newMode) => {
     let newMax = formData.maxPlayers;
 
-    if (newMode === "eliminate") {
-      newMax = 4; // Eliminate cố định 4 người
+    if (newMode === "elimination") {
+      newMax = 4; // elimination cố định 4 người
     } else if (newMode === "scoring") {
       // Nếu chuyển sang Scoring, đảm bảo số người trong khoảng 4-6
       if (newMax < 4) newMax = 4;
@@ -40,32 +42,63 @@ export default function RoomPanel() {
     });
   };
 
-  useEffect(() => {
-    registerHandler(OPCODE.RES_ROOM_CREATED, (payload) => {
-      console.log("✅ Room created response received");
-      const text = new TextDecoder().decode(payload);
-      try {
-        let jsonStr = text;
-        const bodyStart = text.indexOf('\r\n\r\n');
-        if (bodyStart !== -1) {
-          jsonStr = text.substring(bodyStart + 4);
-        }
-        const data = JSON.parse(jsonStr);
-        const roomCode = data.room_code || data.room?.code || data.code;
-        const roomId = data.room_id || data.room?.id;
+  // Use ref to keep track of latest formData without re-binding event listener
+  const formDataRef = useRef(formData);
 
-        setShowModal(false);
-        navigate('/waitingroom', {
-          state: {
-            roomId: roomId,
-            roomCode: roomCode,
-            isHost: true
+  useEffect(() => {
+    formDataRef.current = formData;
+  }, [formData]);
+
+  useEffect(() => {
+    // Handler for RES_ROOM_CREATED moved to hostService.js to handle binary payload correctly
+    // and centralised logic.
+    /*
+    registerHandler(OPCODE.RES_ROOM_CREATED, (payload) => { ... }); 
+    */
+
+    // Listen for room creation success from hostService.js
+    const onRoomCreated = (e) => {
+      const { roomId, roomCode } = e.detail;
+      console.log("🚀 Event received: room_created", e.detail);
+      console.log("👉 Current Form Data:", formDataRef.current); // Debug log
+
+      setShowModal(false);
+      navigate('/waitingroom', {
+        state: {
+          roomId,
+          roomCode,
+          roomName: formDataRef.current.name, // Pass room name from ref
+          isHost: true,
+          gameRules: {
+            maxPlayers: formDataRef.current.maxPlayers,
+            mode: formDataRef.current.mode,
+            wagerMode: formDataRef.current.wagerEnabled,
+            roundTime: formDataRef.current.roundTime || 15,
+            visibility: formDataRef.current.visibility || "public"
           }
-        });
-      } catch (err) {
-        console.error("Parse error:", err);
-      }
-    });
+        }
+      });
+    };
+    window.addEventListener('room_created', onRoomCreated);
+
+    // Xử lý khi Join thành công (từ roomService)
+    const onRoomJoined = (e) => {
+      console.log("🚀 Event received: room_joined", e.detail);
+      const roomData = e.detail;
+
+      navigate('/waitingroom', {
+        state: {
+          roomId: roomData.roomId,
+          roomCode: roomData.roomCode,
+          roomName: roomData.roomName,
+          hostId: roomData.hostId,
+          isHost: roomData.isHost,
+          gameRules: roomData.gameRules,
+          players: roomData.players // Pass initial player list
+        }
+      });
+    };
+    window.addEventListener('room_joined', onRoomJoined);
 
     registerHandler(OPCODE.ERR_BAD_REQUEST, (payload) => {
       const text = new TextDecoder().decode(payload);
@@ -76,7 +109,13 @@ export default function RoomPanel() {
         alert(`❌ Error: ${text}`);
       }
     });
-  }, [navigate]);
+
+    return () => {
+      window.removeEventListener('room_created', onRoomCreated);
+      window.removeEventListener('room_joined', onRoomJoined);
+      // unregisterHandler(OPCODE.RES_ROOM_CREATED);
+    };
+  }, []); // Only run once on mount
 
   const handleCreateRoom = () => {
     createRoom(formData);
@@ -90,7 +129,7 @@ export default function RoomPanel() {
       </div>
       <div className="room-actions">
         <button onClick={() => console.log("Reload")}>Reload</button>
-        <button onClick={() => console.log("Find room")}>Find room</button>
+        <button onClick={() => setShowFindModal(true)}>Find room</button>
         <button className="create-room-btn" onClick={() => setShowModal(true)}>
           + Create new room
         </button>
@@ -126,7 +165,7 @@ export default function RoomPanel() {
                 Game Mode:
                 <select value={formData.mode} onChange={(e) => handleModeChange(e.target.value)}>
                   <option value="scoring">Scoring</option>
-                  <option value="eliminate">Eliminate</option>
+                  <option value="elimination">Elimination</option>
                 </select>
               </label>
 
@@ -138,8 +177,8 @@ export default function RoomPanel() {
                   value={formData.maxPlayers}
                   onChange={(e) => setFormData({ ...formData, maxPlayers: parseInt(e.target.value) })}
                   min={4}
-                  max={formData.mode === "eliminate" ? 4 : 6}
-                  disabled={formData.mode === "eliminate"} /* Khóa input nếu là Eliminate */
+                  max={formData.mode === "elimination" ? 4 : 6}
+                  disabled={formData.mode === "elimination"} /* Khóa input nếu là elimination */
                   required
                 />
               </label>
@@ -163,6 +202,11 @@ export default function RoomPanel() {
             </form>
           </div>
         </div>
+      )}
+
+      {/* FIND ROOM MODAL */}
+      {showFindModal && (
+        <JoinByCodeModal onClose={() => setShowFindModal(false)} />
       )}
     </div>
   );

@@ -3,6 +3,7 @@
 #include <stddef.h>
 
 int room_repo_create(
+    uint32_t account_id,
     const char *name,
     uint8_t visibility,
     uint8_t mode,

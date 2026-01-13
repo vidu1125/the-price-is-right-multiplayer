@@ -28,12 +28,6 @@ Người chơi có thể kích hoạt **cược x2** trước khi đưa ra câu 
 - Đoán **sai** → Bị trừ **x2 điểm**
 - Điểm số không giảm xuống dưới 0
 
----
-
-### 🎯 Đoán chính xác tuyệt đối (Perfect Guess)
-- Áp dụng ở **Vòng 2 – Đấu giá**
-- Nếu người chơi đoán **chính xác giá sản phẩm**  
-→ Nhận **x2 điểm thưởng** của câu hỏi đó
 
 ---
 
@@ -119,32 +113,74 @@ Người chơi có thể kích hoạt **cược x2** trước khi đưa ra câu 
 
 ---
 
-## ⚔️ Vòng đấu phụ: Bonus Duel (Sudden Death)
+## ⚔️ Vòng đấu phụ: Rút Thăm Sinh Tử (Sudden Draw)
 
-**Bonus Duel** được sử dụng để phân định thắng thua trong các trường hợp **hòa điểm**, áp dụng cho cả hai chế độ chơi.
+**Rút Thăm Sinh Tử** là cơ chế phân định kết quả **chỉ áp dụng trong Elimination Mode**,  
+được sử dụng khi xảy ra **hòa điểm ở vị trí cần loại người chơi**.
 
-### Khi nào diễn ra?
-- Khi có **từ hai người chơi trở lên có cùng điểm số** ở vị trí cần phân định:
-  - Người bị loại
-  - Hoặc người chiến thắng cuối cùng
 
-### Luật chơi
-- Trò chơi đưa ra:
-  - Một **sản phẩm**
-  - Một **giá tham khảo**
+### ⏰ Khi nào diễn ra?
 
-- Người chơi phải lựa chọn:
-  - **CAO HƠN**
-  - hoặc **THẤP HƠN**  
-  so với **giá thực tế của sản phẩm**.
+Vòng **Rút Thăm Sinh Tử** được kích hoạt khi:
 
-### Điều kiện thắng
-- Người trả lời **ĐÚNG và NHANH NHẤT** sẽ chiến thắng vòng đấu.
-- Người trả lời **SAI** sẽ **bị loại ngay lập tức**.
+- Trò chơi đang ở **Elimination Mode**
+- Có **từ hai người chơi trở lên** có **cùng tổng điểm thấp nhất** sau một vòng chơi
+- Cần xác định **duy nhất một người bị loại**
 
-### Kết thúc
-- Bonus Duel kết thúc khi:
-  - Chỉ còn **một người chơi duy nhất**.
+
+### 📜 Luật chơi
+
+Trò chơi chuẩn bị:
+
+- **N lá thăm úp** *(N = số người chơi tham gia vòng rút thăm)*  
+- Trong đó:
+  - **1 lá thăm “BỊ LOẠI”**
+  - Các lá còn lại là **AN TOÀN**
+
+Mỗi người chơi tham gia vòng rút thăm:
+
+- **Tự tay rút 1 lá thăm**
+- Chỉ được rút **một lần duy nhất**
+- **Không được đổi**, **không được rút lại**
+
+
+### ⚙️ Cách rút thăm
+
+- Người chơi nhấn nút **“RÚT THĂM”**
+- Lá thăm được **phân phối ngẫu nhiên** và **khóa ngay tại thời điểm rút**
+- Kết quả chỉ được mở khi người chơi **tự lật thăm**
+
+> 👉 Việc rút thăm có thể diễn ra **đồng thời hoặc theo lượt**,  
+> nhưng **mỗi lá thăm chỉ thuộc về một người chơi duy nhất**.
+
+
+### ☠️ Điều kiện bị loại
+
+- Người rút trúng lá **“BỊ LOẠI”**:
+  - **Bị loại ngay lập tức** khỏi ván chơi
+
+> 👉 Cơ chế này luôn đảm bảo:
+> - **Chỉ có đúng 1 người bị loại**
+> - **Không xảy ra hòa**
+> - **Không có vòng lặp lại**
+
+
+### 🏁 Kết thúc vòng
+
+Vòng **Rút Thăm Sinh Tử** kết thúc ngay khi:
+
+- Đã xác định được **người chơi bị loại** trong vòng đấu hiện tại
+
+Trò chơi sau đó tiếp tục sang **vòng Elimination tiếp theo**.
+
+---
+
+### 🧠 Ghi chú
+
+- Lá thăm được **phân phối ngẫu nhiên** và **khóa ngay khi người chơi rút**
+- Kết quả rút thăm là **quyết định cuối cùng**
+- Mọi người chơi tham gia rút thăm có **xác suất như nhau**
+
 
 ---
 
