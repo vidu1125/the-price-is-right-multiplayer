@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <time.h>
 #include "protocol/protocol.h"
-#include "transport/room_manager.h"
+#include "transport/room_manager.h"  // For GameMode enum
 
 #define MAX_MATCH_PLAYERS 8
 #define MAX_MATCH_ROUNDS 6
@@ -24,12 +24,6 @@ typedef enum {
     MATCH_PLAYING = 1,
     MATCH_ENDED   = 2
 } MatchStatus;
-
-typedef enum {
-    MODE_ELIMINATION = 0,  // Loại người điểm thấp nhất mỗi round
-    MODE_SCORING = 1       // Chỉ tính điểm, không loại ai
-} GameMode;
-
 
 typedef enum {
     ROUND_MCQ   = 1,   // round 1

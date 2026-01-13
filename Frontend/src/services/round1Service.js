@@ -3,7 +3,6 @@ import { registerHandler } from "../network/receiver";
 
 // Opcodes (MUST match C header)
 const OPCODE = {
-    CMD_TEST_LOGIN: 0x0002,        // Test login (bypass auth)
     C2S_ROUND1_READY: 0x0601,
     S2C_ROUND1_START: 0x0611,
     C2S_ROUND1_GET_QUESTION: 0x0602,
@@ -23,31 +22,6 @@ const OPCODE = {
     NTF_PLAYER_LEFT: 0x02BD,       // 701 decimal - player disconnected
     NTF_PLAYER_RECONNECTED: 0x02BE // 702 decimal - player reconnected
 };
-
-//==============================================================================
-// 0. TEST LOGIN (bypass auth for testing)
-//==============================================================================
-export function testLogin(playerId) {
-    const buffer = new ArrayBuffer(4);
-    const view = new DataView(buffer);
-    
-    view.setUint32(0, playerId, false);  // big-endian
-    
-    console.log('[Round1] Test login for player', playerId);
-    sendPacket(OPCODE.CMD_TEST_LOGIN, buffer);
-}
-
-// Test login response handler (server responds with CMD_TEST_LOGIN)
-registerHandler(OPCODE.CMD_TEST_LOGIN, (payload) => {
-    const text = new TextDecoder().decode(payload);
-    console.log('[Round1] Test login response:', text);
-    try {
-        const data = JSON.parse(text);
-        window.dispatchEvent(new CustomEvent('ws:testLoginResponse', { detail: JSON.stringify(data) }));
-    } catch (e) {
-        console.error('[Round1] Test login parse error:', e);
-    }
-});
 
 //==============================================================================
 // 1. START ROUND

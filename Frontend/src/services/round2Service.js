@@ -76,19 +76,6 @@ export const round2Events = {
     [OPCODE.OP_S2C_ROUND2_ALL_FINISHED]: 'round2AllFinished',
 };
 
-/**
- * Test login for UI testing (bypass auth)
- * @param {number} playerId - Test player ID (1, 2, or 3)
- */
-export function testLogin(playerId) {
-    const buffer = new ArrayBuffer(4);
-    const view = new DataView(buffer);
-    view.setUint32(0, playerId, false);
-    
-    console.log('[Round2] Test login for player', playerId);
-    sendBinaryCommand(OPCODE.CMD_TEST_LOGIN, buffer);
-}
-
 //==============================================================================
 // REGISTER HANDLERS
 // Parse server responses and dispatch as window events
@@ -164,6 +151,5 @@ export default {
     playerReady,
     getProduct,
     submitBid,
-    testLogin,
     round2Events,
 };

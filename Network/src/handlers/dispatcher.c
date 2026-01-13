@@ -8,7 +8,6 @@
 #include "handlers/profile_handler.h"
 #include "handlers/round1_handler.h"
 #include "handlers/round2_handler.h"
-#include "handlers/round1_test_setup.h"  // [TEST ENABLED]
 #include "handlers/start_game_handler.h"
 #include "handlers/session_context.h"
 #include "handlers/auth_guard.h"
@@ -26,7 +25,7 @@ void dispatch_command(
     uint16_t cmd = header->command;
 
     printf("[DISPATCH] Receiving: cmd=0x%04x len=%u\n", cmd, header->length);
-    bool is_auth_cmd = (cmd == CMD_LOGIN_REQ || cmd == CMD_REGISTER_REQ || cmd == CMD_RECONNECT || cmd == CMD_LOGOUT_REQ || cmd == CMD_TEST_LOGIN);
+    bool is_auth_cmd = (cmd == CMD_LOGIN_REQ || cmd == CMD_REGISTER_REQ || cmd == CMD_RECONNECT || cmd == CMD_LOGOUT_REQ);
     
     if (!is_auth_cmd) {
         if (!require_auth(client_fd, header)) return;
@@ -55,10 +54,6 @@ void dispatch_command(
         break;
     case CMD_RECONNECT:
         handle_reconnect(client_fd, header, payload);
-        break;
-    // [ENABLED] Test login for UI testing
-    case CMD_TEST_LOGIN:
-        handle_test_login(client_fd, header, payload);
         break;
 
     // Profile / Player

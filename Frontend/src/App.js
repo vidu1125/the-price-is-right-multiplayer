@@ -23,8 +23,6 @@ import GameLayout from "./layout/layout3";
 
 import { initSocket } from "./network/socketClient";
 import MatchDetailPage from "./components/History/MatchDetailPage";
-import Round1TestWrapper from "./components/Game/Round1TestWrapper"; // [TEST] - Uses production Round1.js
-import Round2Test from "./components/Game/Round2Test"; // [TEST]
 import {
   isAuthenticated,
   RequireAuth,
@@ -103,9 +101,6 @@ function AnimatedRoutes() {
           <Route path="/round" element={<GameContainer />} />
         </Route>
 
-        {/* ===== TEST MODE (No Auth Required) ===== */}
-        <Route path="/test" element={<Round1TestWrapper />} />
-        <Route path="/test-round2" element={<Round2Test />} />
 
         {/* ===== FALLBACK ===== */}
         <Route path="*" element={<Navigate to="/" replace />} />

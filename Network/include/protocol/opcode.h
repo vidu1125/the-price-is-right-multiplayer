@@ -40,7 +40,6 @@
 
 // System
 #define CMD_HEARTBEAT       0x0001
-#define CMD_TEST_LOGIN      0x0002  // Test mode: bypass auth
 
 //==============================================================================
 // RESPONSE CODES
