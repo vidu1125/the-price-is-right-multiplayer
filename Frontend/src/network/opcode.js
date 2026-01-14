@@ -9,6 +9,7 @@ export const OPCODE = {
     // Profile
     CMD_UPDATE_PROFILE: 0x0104,
     CMD_GET_PROFILE: 0x0105,
+    CMD_CHANGE_PASSWORD: 0x0106,
 
     // Lobby
     CMD_CREATE_ROOM: 0x0200,
@@ -53,6 +54,7 @@ export const OPCODE = {
     RES_GAME_STARTED: 0x012D, // 301
     RES_PROFILE_UPDATED: 0x00E2, // 226
     RES_PROFILE_FOUND: 0x00E3, // 227
+    RES_PASSWORD_CHANGED: 0x00E5, // 229
 
     // Notifications
     NTF_PLAYER_JOINED: 0x02BC, // 700

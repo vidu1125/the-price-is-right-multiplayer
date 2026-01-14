@@ -10,6 +10,7 @@
 // Profile / Player Settings
 #define CMD_UPDATE_PROFILE   0x0104
 #define CMD_GET_PROFILE      0x0105
+#define CMD_CHANGE_PASSWORD  0x0106
 
 // Lobby (Room Management)
 #define CMD_CREATE_ROOM     0x0200
@@ -60,6 +61,7 @@
 // Profile
 #define RES_PROFILE_UPDATED 0x00E2  // 226
 #define RES_PROFILE_FOUND   0x00E3  // 227
+#define RES_PASSWORD_CHANGED 0x00E5 // 229
 
 // Error
 #define ERR_BAD_REQUEST     0x0190  // 400
