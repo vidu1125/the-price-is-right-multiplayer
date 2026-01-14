@@ -298,9 +298,9 @@ db_error_t db_match_get_history(
         cJSON *winner_json = cJSON_GetObjectItem(item, "winner");
         cJSON *mid_json    = cJSON_GetObjectItem(item, "match_id");
 
-        cJSON *matches_obj = cJSON_GetObjectItem(item, "matches");
-        cJSON *mode_json   = matches_obj ? cJSON_GetObjectItem(matches_obj, "mode") : NULL;
-        cJSON *date_json   = matches_obj ? cJSON_GetObjectItem(matches_obj, "ended_at") : NULL;
+        // Flat JSON from SQL query, no nested objects
+        cJSON *mode_json   = cJSON_GetObjectItem(item, "mode");
+        cJSON *date_json   = cJSON_GetObjectItem(item, "ended_at");
 
         if (mid_json && cJSON_IsNumber(mid_json))
             records[i].match_id = mid_json->valueint;
@@ -315,9 +315,10 @@ db_error_t db_match_get_history(
         records[i].mode = 0;
         if (mode_json && cJSON_IsString(mode_json)) {
             const char *m = mode_json->valuestring;
-            if (strcasecmp(m, "Scoring") == 0)
+            // Support multiple variations of mode strings
+            if (strcasecmp(m, "Scoring") == 0 || strcasecmp(m, "scoring") == 0)
                 records[i].mode = 1;
-            else if (strcasecmp(m, "Eliminated") == 0)
+            else if (strcasecmp(m, "Eliminated") == 0 || strcasecmp(m, "Elimination") == 0 || strcasecmp(m, "elimination") == 0)
                 records[i].mode = 2;
         }
 
