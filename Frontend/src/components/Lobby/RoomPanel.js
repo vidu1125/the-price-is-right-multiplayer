@@ -5,6 +5,7 @@ import { createRoom } from "../../services/hostService";
 import JoinByCodeModal from "./JoinByCodeModal";
 import React, { useState, useEffect, useRef } from "react";
 import { registerHandler } from "../../network/receiver";
+import { sendPacket } from "../../network/dispatcher";
 import { OPCODE } from "../../network/opcode";
 import { useNavigate } from "react-router-dom";
 
@@ -128,7 +129,10 @@ export default function RoomPanel() {
         <RoomList />
       </div>
       <div className="room-actions">
-        <button onClick={() => console.log("Reload")}>Reload</button>
+        <button onClick={() => {
+          console.log("[RoomPanel] Reloading room list...");
+          sendPacket(OPCODE.CMD_GET_ROOM_LIST);
+        }}>Reload</button>
         <button onClick={() => setShowFindModal(true)}>Find room</button>
         <button className="create-room-btn" onClick={() => setShowModal(true)}>
           + Create new room

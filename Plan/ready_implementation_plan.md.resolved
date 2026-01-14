@@ -1,0 +1,588 @@
+# KẾ HOẠCH TRIỂN KHAI: USE CASE READY
+
+**Ngày:** 2026-01-14  
+**Use Case:** Player toggle ready state  
+**Độ ưu tiên:** Cao (cần thiết để start game)
+
+---
+
+## 📋 **TÓM TẮT**
+
+**Mục tiêu:** Player có thể toggle trạng thái "ready" để báo hiệu sẵn sàng chơi game.
+
+**Đặc điểm:**
+- ✅ Toggle state: `is_ready = !is_ready` (bấm 1 lần ready, bấm lại lần nữa unready)
+- ✅ Real-time only (KHÔNG lưu DB)
+- ✅ Broadcast cho tất cả players trong room
+- ✅ Đơn giản nhất trong các use case
+
+---
+
+## 🎯 **YÊU CẦU CHỨC NĂNG**
+
+### **1. Giao Thức (Protocol)**
+
+**Client → Server:**
+```
+CMD_READY (0x0203)
+Payload: EMPTY (0 bytes)
+```
+
+**Server → Client:**
+```
+NTF_PLAYER_READY (0x02C8)
+Payload: JSON
+{
+  "account_id": 123,
+  "is_ready": true
+}
+```
+
+### **2. Business Logic**
+
+```
+1. Player bấm nút "Ready" trên UI
+2. Frontend gửi CMD_READY (không có payload)
+3. Backend:
+   - Validate session
+   - Tìm player trong RoomState
+   - Toggle is_ready: true ↔ false
+   - Broadcast NTF_PLAYER_READY cho tất cả players
+4. Frontend nhận notification:
+   - Update UI (button color, text)
+   - Hiển thị trạng thái ready của player
+```
+
+### **3. State Machine**
+
+```
+[Player in ROOM_WAITING]
+    ↓ Click "Ready" button
+    ↓ Send CMD_READY
+    ↓ Server toggle is_ready
+    ↓ Broadcast NTF_PLAYER_READY
+    ↓ All clients update UI
+```
+
+---
+
+## 🏗️ **THIẾT KẾ BACKEND**
+
+### **File 1: [room_handler.c](file:///home/duyen/DAIHOC/NetworkProgramming/Final/the-price-is-right-multiplayer/Network/src/handlers/room_handler.c)** (NEW HANDLER)
+
+```c
+void handle_ready(int client_fd, MessageHeader *req, const char *payload) {
+    printf("[HANDLER] <READY> Request from fd=%d\n", client_fd);
+    
+    // STEP 1: Validate session
+    UserSession *session = session_get_by_socket(client_fd);
+    if (!session || session->state != SESSION_LOBBY) {
+        send_error(client_fd, req, ERR_NOT_LOGGED_IN, "Not logged in or not in lobby");
+        return;
+    }
+    
+    // STEP 2: Find room
+    uint32_t room_id = room_find_by_player_account(session->account_id);
+    if (room_id == 0) {
+        send_error(client_fd, req, ERR_BAD_REQUEST, "Not in any room");
+        return;
+    }
+    
+    RoomState *room = room_get_state(room_id);
+    if (!room) {
+        send_error(client_fd, req, ERR_BAD_REQUEST, "Room not found");
+        return;
+    }
+    
+    // STEP 3: Find player in RoomPlayerState array
+    RoomPlayerState *player = NULL;
+    int player_index = -1;
+    for (int i = 0; i < room->player_count; i++) {
+        if (room->players[i].account_id == session->account_id) {
+            player = &room->players[i];
+            player_index = i;
+            break;
+        }
+    }
+    
+    if (!player) {
+        send_error(client_fd, req, ERR_BAD_REQUEST, "Player not found in room");
+        return;
+    }
+    
+    // STEP 4: Log BEFORE state
+    printf("[Ready] BEFORE toggle:\n");
+    printf("  - Player: %s (id=%u, index=%d)\n", player->name, player->account_id, player_index);
+    printf("  - Current is_ready: %s\n", player->is_ready ? "true" : "false");
+    
+    // STEP 5: Toggle ready state in RoomPlayerState
+    bool old_state = player->is_ready;
+    player->is_ready = !player->is_ready;
+    
+    printf("[Ready] AFTER toggle:\n");
+    printf("  - New is_ready: %s\n", player->is_ready ? "true" : "false");
+    printf("  - Change: %s -> %s\n", 
+           old_state ? "true" : "false",
+           player->is_ready ? "true" : "false");
+    
+    // STEP 6: Log ALL players' ready status
+    printf("[Ready] Current ready status of ALL players in room %u:\n", room_id);
+    int ready_count = 0;
+    for (int i = 0; i < room->player_count; i++) {
+        printf("  [%d] %s (id=%u): %s%s\n",
+               i,
+               room->players[i].name,
+               room->players[i].account_id,
+               room->players[i].is_ready ? "✅ READY" : "❌ NOT READY",
+               room->players[i].is_host ? " (HOST)" : "");
+        if (room->players[i].is_ready) ready_count++;
+    }
+    printf("[Ready] Summary: %d/%d players ready\n", ready_count, room->player_count);
+    
+    // STEP 7: Send response (empty payload)
+    forward_response(client_fd, req, RES_READY_OK, "", 0);
+    
+    // STEP 8: Broadcast NTF_PLAYER_READY
+    cJSON *notif = cJSON_CreateObject();
+    cJSON_AddNumberToObject(notif, "account_id", session->account_id);
+    cJSON_AddBoolToObject(notif, "is_ready", player->is_ready);
+    
+    char *notif_str = cJSON_PrintUnformatted(notif);
+    printf("[Ready] Broadcasting NTF_PLAYER_READY: %s\n", notif_str);
+    room_broadcast(room_id, NTF_PLAYER_READY, notif_str, strlen(notif_str), -1);
+    free(notif_str);
+    cJSON_Delete(notif);
+    
+    printf("[Ready] ✅ SUCCESS: room_id=%u, account_id=%u, is_ready=%s\n",
+           room_id, session->account_id, player->is_ready ? "true" : "false");
+}
+```
+
+### **File 2: [dispatcher.c](file:///home/duyen/DAIHOC/NetworkProgramming/Final/the-price-is-right-multiplayer/Network/src/handlers/dispatcher.c)** (REGISTER HANDLER)
+
+```c
+case CMD_READY:
+    handle_ready(client_fd, header, payload);
+    break;
+```
+
+### **File 3: [opcode.h](file:///home/duyen/DAIHOC/NetworkProgramming/Final/the-price-is-right-multiplayer/Network/include/protocol/opcode.h)** (CHECK OPCODES)
+
+```c
+// Request
+#define CMD_READY       0x0203
+
+// Response
+#define RES_READY_OK    0x00E3  // Cần define nếu chưa có
+
+// Notification
+#define NTF_PLAYER_READY 0x02C8
+```
+
+---
+
+## 🎨 **THIẾT KẾ FRONTEND**
+
+### **File 1: [roomService.js](file:///home/duyen/DAIHOC/NetworkProgramming/Final/the-price-is-right-multiplayer/Frontend/src/services/roomService.js)** (NEW SERVICE)
+
+```javascript
+// Frontend/src/services/roomService.js
+
+import { sendPacket } from '../network/dispatcher';
+import { registerHandler } from '../network/receiver';
+import { OPCODE } from '../network/opcode';
+
+/**
+ * Toggle ready state
+ */
+export function toggleReady() {
+    console.log('[ROOM_SERVICE] Toggling ready state');
+    
+    // Send packet with EMPTY payload
+    sendPacket(OPCODE.CMD_READY, new Uint8Array(0));
+}
+
+// Register handler for RES_READY_OK
+registerHandler(OPCODE.RES_READY_OK, (payload) => {
+    console.log('[ROOM_SERVICE] ✅ Ready state updated');
+    // UI will be updated via NTF_PLAYER_READY
+});
+```
+
+### **File 2: [WaitingRoom.js](file:///home/duyen/DAIHOC/NetworkProgramming/Final/the-price-is-right-multiplayer/Frontend/src/components/Room/WaitingRoom/WaitingRoom.js)** (HANDLE NOTIFICATION)
+
+```javascript
+// Add to useEffect in WaitingRoom.js
+
+// Handle NTF_PLAYER_READY
+registerHandler(OPCODE.NTF_PLAYER_READY, (payload) => {
+    console.log('[WaitingRoom] Player ready notification');
+    const data = JSON.parse(new TextDecoder().decode(payload));
+    
+    setRoom(prev => ({
+        ...prev,
+        players: prev.players.map(p => 
+            p.account_id === data.account_id
+                ? { ...p, is_ready: data.is_ready }
+                : p
+        )
+    }));
+    
+    console.log(`🔔 Player ${data.account_id} is now ${data.is_ready ? 'READY' : 'NOT READY'}`);
+});
+```
+
+### **File 3: [MemberListPanel.js](file:///home/duyen/DAIHOC/NetworkProgramming/Final/the-price-is-right-multiplayer/Frontend/src/components/Room/WaitingRoom/MemberListPanel.js)** (ADD READY BUTTON)
+
+```javascript
+// Update MemberListPanel.js to add READY button for each player
+
+import { toggleReady } from '../../../services/roomService';
+
+export default function MemberListPanel({ members, currentUserId }) {
+    
+    const handleReadyClick = (playerId) => {
+        // Only allow current user to toggle their own ready state
+        if (playerId === currentUserId) {
+            toggleReady();
+        }
+    };
+    
+    return (
+        <div className="member-list-panel">
+            <h3>PLAYERS</h3>
+            <div className="member-list">
+                {members.map((member, index) => (
+                    <div key={member.account_id} className="member-item">
+                        <div className="member-info">
+                            <span className="member-name">
+                                {member.name}
+                                {member.is_host && <span className="host-badge">HOST</span>}
+                            </span>
+                        </div>
+                        
+                        {/* READY BUTTON - NEW */}
+                        <button
+                            className={`ready-btn ${member.is_ready ? 'ready' : 'not-ready'}`}
+                            onClick={() => handleReadyClick(member.account_id)}
+                            disabled={member.account_id !== currentUserId}
+                        >
+                            {member.is_ready ? '✅ READY' : '❌ NOT READY'}
+                        </button>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+```
+
+### **File 4: [WaitingRoom.css](file:///home/duyen/DAIHOC/NetworkProgramming/Final/the-price-is-right-multiplayer/Frontend/src/components/Room/WaitingRoom/WaitingRoom.css)** (ADD READY BUTTON STYLES)
+
+```css
+/* Ready button styles */
+.ready-btn {
+    padding: 8px 16px;
+    border-radius: 8px;
+    border: 2px solid #1F2A44;
+    font-family: 'Luckiest Guy', cursive;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.3s;
+    min-width: 120px;
+}
+
+.ready-btn.ready {
+    background: #8BC34A;  /* Green */
+    color: white;
+    box-shadow: 0 4px 0 #558b2f;
+}
+
+.ready-btn.not-ready {
+    background: #FF5252;  /* Red */
+    color: white;
+    box-shadow: 0 4px 0 #c62828;
+}
+
+.ready-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.ready-btn:not(:disabled):hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 0 #558b2f;
+}
+
+.ready-btn:not(:disabled):active {
+    transform: translateY(2px);
+    box-shadow: 0 2px 0 #558b2f;
+}
+
+.host-badge {
+    margin-left: 8px;
+    padding: 2px 8px;
+    background: #FFEB3B;
+    color: #1F2A44;
+    border-radius: 4px;
+    font-size: 10px;
+}
+```
+
+---
+
+## ✅ **VALIDATION RULES**
+
+| Điều kiện | Xử lý |
+|-----------|-------|
+| User không login | `ERR_NOT_LOGGED_IN (401)` |
+| User không ở trong room | `ERR_BAD_REQUEST (400)` |
+| Room không tồn tại | `ERR_BAD_REQUEST (400)` |
+| Player không trong RoomState | `ERR_BAD_REQUEST (400)` |
+
+**Không cần validate:**
+- ❌ Room status (có thể ready ngay cả khi game đang chơi - tùy design)
+- ❌ Host/non-host (tất cả đều có thể ready)
+- ❌ Số lượng players ready (logic start game sẽ check)
+
+---
+
+## 🧪 **TEST CASES**
+
+### **TC-1: Player Toggle Ready Thành Công**
+
+**Precondition:**
+- User A đã join vào room
+- `is_ready = false`
+
+**Steps:**
+1. User A click nút "Ready"
+
+**Expected:**
+- ✅ Server update `player.is_ready = true`
+- ✅ User A nhận `RES_READY_OK`
+- ✅ Tất cả players nhận `NTF_PLAYER_READY`:
+  ```json
+  {
+    "account_id": 123,
+    "is_ready": true
+  }
+  ```
+- ✅ UI button đổi màu: red → green
+- ✅ UI text đổi: "NOT READY" → "READY"
+
+---
+
+### **TC-2: Player Toggle Unready**
+
+**Precondition:**
+- User A đã ready (`is_ready = true`)
+
+**Steps:**
+1. User A click nút "Ready" lần nữa
+
+**Expected:**
+- ✅ Server update `player.is_ready = false`
+- ✅ Broadcast `NTF_PLAYER_READY` với `is_ready: false`
+- ✅ UI button đổi: green → red
+- ✅ UI text đổi: "READY" → "NOT READY"
+
+---
+
+### **TC-3: Multiple Players Ready**
+
+**Precondition:**
+- Room có 3 players: A, B, C
+- Tất cả đều `is_ready = false`
+
+**Steps:**
+1. Player A ready
+2. Player B ready
+3. Player C ready
+
+**Expected:**
+- ✅ Mỗi lần ready trigger 1 broadcast
+- ✅ Tất cả players thấy trạng thái ready của nhau
+- ✅ Server logs:
+  ```
+  [READY] Player Alice (id=7): ready false -> true
+  [READY] Player Bob (id=8): ready false -> true
+  [READY] Player Charlie (id=9): ready false -> true
+  ```
+
+---
+
+### **TC-4: Player Not In Room**
+
+**Steps:**
+1. User A (không ở trong room nào) gửi `CMD_READY`
+
+**Expected:**
+- ✅ `ERR_BAD_REQUEST (400)`
+- ✅ Message: "Not in any room"
+
+---
+
+## ⚠️ **EDGE CASES**
+
+### **1. Ready State Reset Khi Rules Thay Đổi**
+
+**Scenario:**
+```
+T=0s: Player A ready (is_ready = true)
+T=1s: Host đổi rules
+T=2s: Server reset all is_ready = false (đã implement trong SET_RULE)
+T=3s: Player A phải ready lại
+```
+
+**Xử lý:** ✅ Đã handle trong [handle_set_rule()](file:///home/duyen/DAIHOC/NetworkProgramming/Final/the-price-is-right-multiplayer/Network/src/handlers/room_handler.c#730-866) (STEP 7)
+
+---
+
+### **2. Player Disconnect Khi Đang Ready**
+
+**Scenario:**
+```
+T=0s: Player A ready (is_ready = true)
+T=1s: Player A disconnect
+T=2s: Player A reconnect
+```
+
+**Xử lý:**
+- ✅ Disconnect → Remove player → `is_ready` state mất
+- ✅ Reconnect → Join lại room → `is_ready = false` (default)
+- ✅ Player phải ready lại
+
+---
+
+### **3. Host Ready vs Non-Host Ready**
+
+**Design Decision:** Tất cả players (bao gồm host) đều có thể ready.
+
+**Lý do:**
+- ✅ Host cũng là player
+- ✅ Game chỉ start khi **TẤT CẢ** players ready (bao gồm host)
+
+---
+
+### **4. Start Game Logic (Không Implement Trong Use Case Này)**
+
+**Điều kiện start game:**
+```c
+bool can_start_game(RoomState *room) {
+    if (room->player_count < 4) return false;  // Tối thiểu 4 players
+    
+    for (int i = 0; i < room->player_count; i++) {
+        if (!room->players[i].is_ready) {
+            return false;  // Tất cả phải ready
+        }
+    }
+    
+    return true;
+}
+```
+
+**Note:** Logic này sẽ implement trong use case `START_GAME`, không phải `READY`.
+
+---
+
+## 📊 **SO SÁNH VỚI CÁC USE CASE KHÁC**
+
+| Feature | CREATE_ROOM | SET_RULE | READY | JOIN_ROOM |
+|---------|-------------|----------|-------|-----------|
+| Payload size | 36 bytes | 4 bytes | **0 bytes** | 16 bytes |
+| DB update | ✅ | ✅ | **❌** | ✅ |
+| Broadcast | ✅ | ✅ | ✅ | ✅ |
+| Validation | Complex | Medium | **Simple** | Medium |
+| State change | Create new | Update existing | **Toggle bool** | Add player |
+
+**READY là use case đơn giản nhất!**
+
+---
+
+## 🚀 **ROLLOUT PLAN**
+
+### **Phase 1: Backend (30 phút)**
+1. ✅ Add `handle_ready()` to [room_handler.c](file:///home/duyen/DAIHOC/NetworkProgramming/Final/the-price-is-right-multiplayer/Network/src/handlers/room_handler.c)
+2. ✅ Register handler in [dispatcher.c](file:///home/duyen/DAIHOC/NetworkProgramming/Final/the-price-is-right-multiplayer/Network/src/handlers/dispatcher.c)
+3. ✅ Define `RES_READY_OK` in [opcode.h](file:///home/duyen/DAIHOC/NetworkProgramming/Final/the-price-is-right-multiplayer/Network/include/protocol/opcode.h) (nếu chưa có)
+4. ✅ Test với Postman/curl
+
+### **Phase 2: Frontend (30 phút)**
+1. ✅ Create [roomService.js](file:///home/duyen/DAIHOC/NetworkProgramming/Final/the-price-is-right-multiplayer/Frontend/src/services/roomService.js) với `toggleReady()`
+2. ✅ Add `NTF_PLAYER_READY` handler to [WaitingRoom.js](file:///home/duyen/DAIHOC/NetworkProgramming/Final/the-price-is-right-multiplayer/Frontend/src/components/Room/WaitingRoom/WaitingRoom.js)
+3. ✅ Update [MemberListPanel.js](file:///home/duyen/DAIHOC/NetworkProgramming/Final/the-price-is-right-multiplayer/Frontend/src/components/Room/WaitingRoom/MemberListPanel.js) ready button
+
+### **Phase 3: Testing (15 phút)**
+1. ✅ Test TC-1, TC-2, TC-3, TC-4
+2. ✅ Verify broadcast to all players
+3. ✅ Verify UI updates correctly
+
+**Tổng thời gian:** ~1.5 giờ
+
+---
+
+## 📝 **CHECKLIST TRIỂN KHAI**
+
+### **Backend:**
+- [ ] Define `RES_READY_OK` opcode
+- [ ] Implement `handle_ready()` in [room_handler.c](file:///home/duyen/DAIHOC/NetworkProgramming/Final/the-price-is-right-multiplayer/Network/src/handlers/room_handler.c)
+- [ ] Register in [dispatcher.c](file:///home/duyen/DAIHOC/NetworkProgramming/Final/the-price-is-right-multiplayer/Network/src/handlers/dispatcher.c)
+- [ ] Add logging với prefix `[READY]`
+- [ ] Test với Postman
+
+### **Frontend:**
+- [ ] Create [roomService.js](file:///home/duyen/DAIHOC/NetworkProgramming/Final/the-price-is-right-multiplayer/Frontend/src/services/roomService.js)
+- [ ] Implement `toggleReady()` function
+- [ ] Add `NTF_PLAYER_READY` handler
+- [ ] Update [MemberListPanel.js](file:///home/duyen/DAIHOC/NetworkProgramming/Final/the-price-is-right-multiplayer/Frontend/src/components/Room/WaitingRoom/MemberListPanel.js) UI
+- [ ] Add CSS for ready/not-ready states
+
+### **Testing:**
+- [ ] Test toggle ready/unready
+- [ ] Test multiple players ready
+- [ ] Test broadcast to all
+- [ ] Test error cases
+- [ ] Verify UI updates
+
+---
+
+## 🎯 **SUCCESS CRITERIA**
+
+- ✅ Player có thể toggle ready state
+- ✅ Tất cả players thấy trạng thái ready của nhau real-time
+- ✅ UI cập nhật ngay lập tức
+- ✅ Không có DB writes (performance tốt)
+- ✅ Broadcast hoạt động đúng
+
+---
+
+## 💡 **GHI CHÚ THIẾT KẾ**
+
+### **Tại sao KHÔNG lưu DB?**
+- ✅ Ready state là **transient** (tạm thời)
+- ✅ Mất khi disconnect/reconnect (đúng behavior)
+- ✅ Không cần persist vì game chưa bắt đầu
+- ✅ Performance: Giảm DB writes
+
+### **Tại sao dùng Toggle thay vì Set?**
+- ✅ UX tốt hơn: 1 button cho cả ready/unready
+- ✅ Đơn giản hơn: Không cần payload
+- ✅ Ít lỗi hơn: Server tự toggle, không cần client gửi state
+
+### **Tại sao Broadcast cho tất cả (bao gồm sender)?**
+- ✅ Consistency: Tất cả clients thấy cùng 1 state
+- ✅ Đơn giản: Không cần logic đặc biệt cho sender
+- ✅ Reliable: Server là source of truth
+
+---
+
+## 📚 **TÀI LIỆU THAM KHẢO**
+
+- [room_usecase.md](file:///home/duyen/DAIHOC/NetworkProgramming/Final/the-price-is-right-multiplayer/Plan/room_usecase.md#L689-L747) - Use case specification
+- [Workflow.txt](file:///home/duyen/DAIHOC/NetworkProgramming/Final/the-price-is-right-multiplayer/Docs/Workflow.txt) - Architecture guidelines
+- [APPLICATION DESIGN.txt](file:///home/duyen/DAIHOC/NetworkProgramming/Final/the-price-is-right-multiplayer/Docs/APPLICATION%20DESIGN.txt) - Protocol specification
+
+---
+
+**Kế hoạch này đã sẵn sàng để review và triển khai!**
