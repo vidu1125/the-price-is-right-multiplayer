@@ -38,7 +38,9 @@ class _RoomCardState extends State<RoomCard> {
 
   void _startPolling() {
     _pollingTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
-      _fetchRooms(silent: true);
+      if (mounted && ModalRoute.of(context)?.isCurrent == true) {
+        _fetchRooms(silent: true);
+      }
     });
   }
 

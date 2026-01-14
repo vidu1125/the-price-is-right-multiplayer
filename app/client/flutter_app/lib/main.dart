@@ -9,6 +9,7 @@ import 'ui/screens/register_screen.dart';
 import 'ui/screens/tutorial_screen.dart';
 import 'ui/screens/settings_screen.dart';
 import 'ui/screens/room_screen.dart';
+import 'ui/screens/game_container_screen.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -75,6 +76,7 @@ class MyApp extends StatelessWidget {
         '/history': (context) => const HistoryScreen(),
         '/tutorial': (context) => const TutorialPage(),
         '/settings': (context) => const PlayerSettingsPage(),
+        '/game': (context) => const GameContainerScreen(),
         '/room': (context) {
            final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
            return RoomScreen(

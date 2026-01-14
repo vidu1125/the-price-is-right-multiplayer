@@ -38,6 +38,22 @@ class GameService {
     }
   }
 
+  Future<Map<String, dynamic>> forfeit(int matchId) async {
+    final buffer = ByteData(4);
+    buffer.setUint32(0, matchId);
+
+    try {
+      final response = await client.request(Command.forfeit, payload: buffer.buffer.asUint8List());
+      if (response.command == Command.resSuccess) {
+        return {"success": true};
+      } else {
+        return {"success": false, "error": "Unexpected response: ${response.command}"};
+      }
+    } catch (e) {
+      return {"success": false, "error": e.toString()};
+    }
+  }
+
   Future<void> endMatch(int matchId) async {
       // TODO: Implement end match
       print("[GameService] End match $matchId not implemented");

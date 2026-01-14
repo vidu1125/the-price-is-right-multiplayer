@@ -88,9 +88,13 @@ class _RoomScreenState extends State<RoomScreen> {
         _showExitDialog("Room Closed", "The host has closed the room.");
         break;
       case RoomEventType.gameStarted:
-         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Game Starting!")),
-        );
+        // Navigate to the Game Container Screen
+        final data = event.data as Map<String, dynamic>?;
+        final matchId = data?['match_id'] ?? 1; // Default to 1 if missing for testing
+        Navigator.pushNamed(context, '/game', arguments: {
+          'room': _room,
+          'matchId': matchId,
+        });
         break;
       default: break;
     }
