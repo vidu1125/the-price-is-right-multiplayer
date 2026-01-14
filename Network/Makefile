@@ -36,7 +36,7 @@ TARGET := network_server
 .PHONY: all clean run
 
 all: $(TARGET)
-LIBS := -lcurl -lcjson -lcrypt -luuid
+LIBS := -lcurl -lcjson -lcrypt -luuid -lpthread
 
 $(TARGET): $(OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LIBS)

@@ -143,8 +143,15 @@ export default function WaitingRoom() {
         const data = JSON.parse(text);
         const matchId = data.match_id;
         console.log("[NTF] Match ID:", matchId);
-        navigate(`/round?match_id=${matchId}`, {
-          state: { roomId, roomCode, isHost, matchId }
+        
+        // Get player_id from profile in localStorage
+        const profile = JSON.parse(localStorage.getItem('profile') || '{}');
+        const playerId = profile.account_id;
+        const playerName = profile.name || `Player${playerId}`;
+        
+        console.log("[NTF] Player ID:", playerId, "Name:", playerName);
+        navigate(`/round?match_id=${matchId}&player_id=${playerId}&name=${encodeURIComponent(playerName)}`, {
+          state: { roomId, roomCode, isHost, matchId, playerId, playerName }
         });
       } catch (e) {
         console.error("[NTF] Failed to parse NTF_GAME_START:", e);
