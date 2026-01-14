@@ -379,7 +379,17 @@ void handle_register(
 
     send_response(client_fd, header, RES_SUCCESS, response);
 
-    // Bind session to this connection for downstream commands
+    // Enforce session exclusivity and bind mapping per session rule
+    UserSession *bound = session_bind_after_login(client_fd, account->id, session->session_id, header);
+    if (!bound) {
+        cJSON_Delete(json);
+        account_free(account);
+        session_free(session);
+        profile_free(profile);
+        return;
+    }
+
+    // Bind legacy mapping for other handlers
     set_client_session(client_fd, session->session_id, account->id);
 
     printf("[AUTH] Registration successful: account_id=%d, email=%s\n", 
