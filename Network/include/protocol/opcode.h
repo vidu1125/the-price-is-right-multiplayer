@@ -67,6 +67,7 @@
 #define RES_MEMBER_KICKED   0x00E1  // 225
 #define RES_ROOM_LIST       0x00E4  // 228
 #define RES_GAME_STARTED    0x012D  // 301
+#define RES_READY_OK        0x00EC  // 236
 // Profile
 #define RES_PROFILE_UPDATED 0x00E2  // 226
 #define RES_PROFILE_FOUND   0x00E3  // 227
