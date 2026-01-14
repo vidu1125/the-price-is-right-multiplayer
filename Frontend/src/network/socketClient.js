@@ -69,6 +69,14 @@ export function isConnected() {
 }
 
 
+export async function ensureConnected() {
+  if (isConnected()) {
+    return socket;
+  }
+  return initSocket();
+}
+
+
 export function waitForConnection(timeout = 5000) {
   return new Promise((resolve, reject) => {
     if (isConnected()) {

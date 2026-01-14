@@ -44,3 +44,52 @@ export function sendPacket(command, payload = null) {
   sendRaw(buffer);
   return true;
 }
+
+// ============================================================================
+// FRIEND HELPER FUNCTIONS
+// ============================================================================
+
+function jsonToPayload(jsonObj) {
+  const jsonStr = JSON.stringify(jsonObj);
+  const encoder = new TextEncoder();
+  return encoder.encode(jsonStr).buffer;
+}
+
+export function sendFriendAdd(friendId = null, friendEmail = null) {
+  const payload = {};
+  if (friendId !== null) {
+    payload.friend_id = friendId;
+  }
+  if (friendEmail !== null) {
+    payload.friend_email = friendEmail;
+  }
+  return sendPacket(OPCODE.CMD_FRIEND_ADD, jsonToPayload(payload));
+}
+
+export function sendFriendAccept(requestId) {
+  const payload = { request_id: requestId };
+  return sendPacket(OPCODE.CMD_FRIEND_ACCEPT, jsonToPayload(payload));
+}
+
+export function sendFriendReject(requestId) {
+  const payload = { request_id: requestId };
+  return sendPacket(OPCODE.CMD_FRIEND_REJECT, jsonToPayload(payload));
+}
+
+export function sendFriendRemove(friendId) {
+  const payload = { friend_id: friendId };
+  return sendPacket(OPCODE.CMD_FRIEND_REMOVE, jsonToPayload(payload));
+}
+
+export function sendFriendList() {
+  return sendPacket(OPCODE.CMD_FRIEND_LIST, null);
+}
+
+export function sendFriendRequests() {
+  return sendPacket(OPCODE.CMD_FRIEND_REQUESTS, null);
+}
+
+export function sendSearchUser(query) {
+  const payload = { query: query };
+  return sendPacket(OPCODE.CMD_SEARCH_USER, jsonToPayload(payload));
+}

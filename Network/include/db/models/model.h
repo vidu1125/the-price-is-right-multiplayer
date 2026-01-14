@@ -170,3 +170,49 @@ typedef struct {
     time_t created_at;
     time_t updated_at;
 } question_t;
+
+///////////////////////////////////////////////////////////////
+// FRIEND REQUESTS (Social)
+///////////////////////////////////////////////////////////////
+typedef struct {
+    int32_t id;
+    int32_t sender_id;
+    int32_t receiver_id;
+    
+    char *status;          // PENDING | ACCEPTED | REJECTED
+    
+    time_t created_at;
+    time_t updated_at;
+} friend_request_t;
+
+///////////////////////////////////////////////////////////////
+// PRESENCE STATUS (In-Memory Only)
+///////////////////////////////////////////////////////////////
+typedef enum {
+    PRESENCE_OFFLINE = 0,
+    PRESENCE_ONLINE_IDLE = 1,
+    PRESENCE_PLAYING = 2
+} presence_status_t;
+
+typedef struct {
+    int32_t account_id;
+    int32_t client_fd;
+    presence_status_t status;
+    
+    int32_t current_room_id;      // Non-zero if in a room
+    int32_t *friend_ids;          // Array of friend account IDs
+    int32_t friend_count;
+    
+    time_t last_heartbeat;
+} online_user_t;
+
+///////////////////////////////////////////////////////////////
+// FRIEND WITH PRESENCE STATUS
+///////////////////////////////////////////////////////////////
+typedef struct {
+    int32_t friend_id;
+    char *friend_name;
+    char *friend_avatar;
+    presence_status_t status;     // Current online status
+    int32_t current_room_id;      // Room ID if PLAYING, 0 if ONLINE_IDLE
+} friend_presence_t;
