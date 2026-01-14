@@ -1055,7 +1055,7 @@ static void handle_player_ready(int fd, MessageHeader *req, const char *payload)
     free(json);
     
     // Check if all ready
-    // ⭐ HARDCODE FOR TESTING: Start with 1+ player ready
+    // Calculate expected players (non-eliminated)
     int expected = 0;
     for (int i = 0; i < match->player_count; i++) {
         if (!match->players[i].eliminated) expected++;

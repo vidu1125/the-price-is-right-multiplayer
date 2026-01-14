@@ -70,11 +70,10 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
     // =========================================================================
     uint8_t player_count = room->player_count;
     
-    // ⭐ HARDCODE FOR TESTING: Require 2 players
-    printf("[HANDLER] <startgame> TEST MODE: Starting with %d player(s)\n", player_count);
+    printf("[HANDLER] <startgame> Starting with %d player(s)\n", player_count);
     
     if (player_count < 2) {
-        forward_response(client_fd, req, ERR_BAD_REQUEST, "Need 2 players to start", 23);
+        forward_response(client_fd, req, ERR_BAD_REQUEST, "Need at least 2 players to start", 32);
         return;
     }
 
@@ -104,7 +103,7 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
         printf("[HANDLER] <startgame> Failed to create match\n");
         return;
     }
-    
+
     // ⭐ IMPORTANT: Copy game mode from room to match
     match->mode = room->mode;
 
@@ -195,11 +194,11 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
     for (int i = 0; i < match->player_count; i++) {
         player_account_ids[i] = match->players[i].account_id;
     }
-    
+
     // Get excluded question IDs from recent matches (last 3 matches)
     int32_t *excluded_ids = NULL;
     int excluded_count = 0;
-    
+
     db_error_t excl_rc = question_get_excluded_ids(
         player_account_ids,
         match->player_count,
@@ -207,7 +206,7 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
         &excluded_ids,
         &excluded_count
     );
-    
+
     if (excl_rc != DB_OK) {
         printf("[HANDLER] <startgame> WARN: Failed to get excluded IDs (rc=%d), continuing without exclusions\n", excl_rc);
         excluded_ids = NULL;

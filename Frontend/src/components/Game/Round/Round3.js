@@ -39,7 +39,7 @@ const Round3 = ({ matchId = 1, playerId = 1, previousScore = 0, onRoundComplete 
     
     // Wheel values as specified
     const wheelValues = ["100", "200", "500", "0", "1000", "LOSE"];
-    
+
     // Map server spin result (5-100) to wheel value index
     const mapSpinToWheelValue = (spinResult) => {
         // Map 5-100 to 0-5 index
@@ -282,13 +282,13 @@ const Round3 = ({ matchId = 1, playerId = 1, previousScore = 0, onRoundComplete 
     //==========================================================================
     const handleSpin = () => {
         if (isSpinning || spinCount >= 2) return;
-        
+
         setIsSpinning(true);
         
         // Quay ít nhất 5 vòng (1800deg) + góc ngẫu nhiên (như code mẫu)
         const newRotation = rotation + 1800 + Math.floor(Math.random() * 360);
         setRotation(newRotation);
-        
+
         // Sau 4 giây (khi animation hoàn thành), tính toán kết quả
         setTimeout(() => {
             setIsSpinning(false);
@@ -628,7 +628,7 @@ const Round3 = ({ matchId = 1, playerId = 1, previousScore = 0, onRoundComplete 
                     <div className="turn-indicator">SPIN {spinCount + 1} / 2</div>
                     <div className="bonus-score-badge">💰 BONUS: {bonus}</div>
                 </div>
-                
+
                 <div className="wheel-section">
                     <div className="wheel-container">
                         <div className="wheel-pointer"></div>
@@ -652,7 +652,7 @@ const Round3 = ({ matchId = 1, playerId = 1, previousScore = 0, onRoundComplete 
                             })}
                         </div>
                     </div>
-                    
+
                     <button 
                         className={`spin-btn ${isSpinning ? 'disabled' : ''}`} 
                         onClick={handleSpin}

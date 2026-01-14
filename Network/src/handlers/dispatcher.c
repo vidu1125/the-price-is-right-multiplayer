@@ -7,6 +7,8 @@
 #include "handlers/room_handler.h"
 #include "handlers/profile_handler.h"
 #include "handlers/round1_handler.h"
+#include "handlers/round2_handler.h"
+#include "handlers/round3_handler.h"
 #include "handlers/social_handler.h"
 #include "handlers/presence_handler.h"
 #include "handlers/friend_handler.h"
@@ -127,6 +129,22 @@ void dispatch_command(
         handle_round1(client_fd, header, payload);
         break;
 
+    // Round 2 - Bid
+    case OP_C2S_ROUND2_READY:
+    case OP_C2S_ROUND2_PLAYER_READY:
+    case OP_C2S_ROUND2_GET_PRODUCT:
+    case OP_C2S_ROUND2_BID:
+        handle_round2(client_fd, header, payload);
+        break;
+
+    // Round 3 - Bonus Wheel
+    case OP_C2S_ROUND3_READY:
+    case OP_C2S_ROUND3_PLAYER_READY:
+    case OP_C2S_ROUND3_SPIN:
+    case OP_C2S_ROUND3_DECISION:
+        handle_round3(client_fd, header, payload);
+        break;        
+    
     case CMD_REPLAY:
         printf("[DISPATCH] Parsing to replayHandler\n");       
         handle_replay(client_fd, header, payload, account_id);

@@ -131,7 +131,7 @@ static void* question_timer_thread(void *arg) {
         if (!still_running || !same_question) {
             printf("[Round1-Timer] Cancelled (question already advanced)\n");
             return NULL;
-        }
+}
     }
     
     // Check if we should still advance
@@ -144,7 +144,7 @@ static void* question_timer_thread(void *arg) {
     
     if (should_advance) {
         printf("[Round1-Timer] ⏰ TIMEOUT! Auto-advancing from question %d\n", target_q_idx);
-        
+  
         // Mark all non-answered players as having answered (with 0 score)
         for (int i = 0; i < g_r1.player_count; i++) {
             if (!g_r1.players[i].answered_current) {
@@ -160,7 +160,7 @@ static void* question_timer_thread(void *arg) {
     }
     
     return NULL;
-}
+    }
 
 static void start_question_timer(int q_idx) {
     pthread_mutex_lock(&g_r1_mutex);
@@ -223,7 +223,7 @@ static RoundState* get_round(void) {
 static MatchPlayerState* get_match_player(int32_t account_id) {
     MatchState *match = get_match();
     if (!match) return NULL;
-    
+  
     for (int i = 0; i < match->player_count; i++) {
         if (match->players[i].account_id == account_id) {
             return &match->players[i];
@@ -388,8 +388,8 @@ static int get_correct_index(int q_idx) {
                                 correct = j;
                                 printf("[Round1] Q%d: correct_answer (string match) = %d\n", q_idx, correct);
                                 break;
-                            }
-                        }
+    }
+  }
                     }
                 }
             }
@@ -429,7 +429,7 @@ static char* build_question_json(int q_idx) {
     
     MatchQuestion *mq = &round->question_data[q_idx];
     if (!mq->json_data) return NULL;
-    
+  
     cJSON *root = cJSON_Parse(mq->json_data);
     if (!root) return NULL;
     
@@ -446,7 +446,7 @@ static char* build_question_json(int q_idx) {
     cJSON_AddNumberToObject(obj, "question_idx", q_idx);
     cJSON_AddNumberToObject(obj, "total_questions", round->question_count);
     cJSON_AddNumberToObject(obj, "time_limit_ms", TIME_PER_QUESTION);
-    
+      
     // Copy from question data - try both "question" and "content"
     cJSON *text = cJSON_GetObjectItem(data, "question");
     if (!text) text = cJSON_GetObjectItem(data, "content");
@@ -464,7 +464,7 @@ static char* build_question_json(int q_idx) {
     if (img && cJSON_IsString(img)) {
         cJSON_AddStringToObject(obj, "product_image", img->valuestring);
     }
-    
+  
     char *json = cJSON_PrintUnformatted(obj);
     cJSON_Delete(obj);
     cJSON_Delete(root);
@@ -490,7 +490,7 @@ static void eliminate_player(MatchPlayerState *mp, const char *reason) {
     
     mp->eliminated = 1;
     mp->eliminated_at_round = g_r1.round_index + 1;
-    
+
     printf("[Round1] Player %d ELIMINATED at round %d (reason: %s, score=%d)\n", 
            mp->account_id, g_r1.round_index + 1, reason, mp->score);
     
@@ -522,13 +522,13 @@ static void eliminate_player(MatchPlayerState *mp, const char *reason) {
             send(elim_fd, ntf_json, strlen(ntf_json), 0);
             printf("[Round1] Sent NTF_ELIMINATION to player %d\n", mp->account_id);
             free(ntf_json);
-        }
+    }
         
         // Change session state back to LOBBY so player can join new games
         session_mark_lobby(elim_session);
         printf("[Round1] Changed player %d session state to LOBBY\n", mp->account_id);
-    }
-    
+  }
+
     // =========================================================================
     // Save elimination event to database
     // =========================================================================
@@ -561,7 +561,7 @@ static void eliminate_player(MatchPlayerState *mp, const char *reason) {
         cJSON_Delete(player_payload);
         if (player_result) cJSON_Delete(player_result);
     }
-}
+    }
 
 // NOTE: forfeited field is reserved for player-initiated forfeit (FORFEIT button)
 // Disconnect handling uses eliminated for BOTH modes
@@ -629,7 +629,7 @@ static void perform_elimination(void) {
     if (count < 2) {
         printf("[Round1] Only %d connected players remaining, no further elimination\n", count);
         return;
-    }
+      }
     
     // STEP 3: Sort ascending by score
     for (int i = 0; i < count - 1; i++) {
@@ -654,7 +654,7 @@ static void perform_elimination(void) {
         printf("[Round1] %d players tied at lowest (%d), need bonus round\n", tie_count, lowest);
         return;
     }
-    
+
     // STEP 5: Eliminate lowest scorer
     MatchPlayerState *elim_player = get_match_player(scores[0].account_id);
     if (elim_player) {
@@ -709,7 +709,7 @@ static char* build_round_end_json(void) {
             scores[count].account_id = mp->account_id;
             scores[count].score = mp->score;
             count++;
-        }
+      }
     }
     
     // Sort ascending to find lowest
@@ -842,7 +842,7 @@ void advance_to_next_question(MessageHeader *req) {
         
         // Perform elimination - UPDATE MatchPlayerState.eliminated
         perform_elimination();
-        
+
         // Advance to next round in MatchState
         MatchState *match = get_match();
         if (match && match->current_round_idx < match->round_count - 1) {
@@ -892,14 +892,14 @@ static void handle_player_ready(int fd, MessageHeader *req, const char *payload)
     int32_t account_id = session ? session->account_id : (int32_t)player_id;
     
     printf("[Round1] Player ready: match=%u account=%d\n", match_id, account_id);
-    
+
     // Verify match exists
     MatchState *match = match_get_by_id(match_id);
     if (!match) {
         send_json(fd, req, ERR_BAD_REQUEST, "{\"success\":false,\"error\":\"Match not found\"}");
         return;
-    }
-    
+  }
+
     // Check player is in match and not eliminated
     MatchPlayerState *mp = NULL;
     for (int i = 0; i < match->player_count; i++) {
@@ -948,7 +948,7 @@ static void handle_player_ready(int fd, MessageHeader *req, const char *payload)
         cJSON_Delete(obj);
         send_json(fd, req, OP_S2C_ROUND1_READY_STATUS, json);
         free(json);
-        
+      
         // Also send current question
         char *q_json = build_question_json(round->current_question_idx);
         if (q_json) {
@@ -984,13 +984,19 @@ static void handle_player_ready(int fd, MessageHeader *req, const char *payload)
     cJSON_Delete(status);
     broadcast_json(req, OP_S2C_ROUND1_READY_STATUS, json);
     free(json);
-    
+
     // All ready → start round
-    // ⭐ HARDCODE FOR TESTING: Start with 1+ player ready
-    printf("[Round1] Check start: ready=%d, match_players=%d, round_status=%d\n",
-           g_r1.ready_count, match->player_count, round ? round->status : -1);
-    // ⭐ HARDCODE FOR TESTING: Require 2 players ready
-    if (g_r1.ready_count >= 2 && round && round->status == ROUND_PENDING) {
+    // Calculate expected players (non-eliminated)
+    int expected = 0;
+    for (int i = 0; i < match->player_count; i++) {
+        if (!match->players[i].eliminated) expected++;
+    }
+    
+    printf("[Round1] Check start: ready=%d, expected=%d, match_players=%d, round_status=%d\n",
+           g_r1.ready_count, expected, match->player_count, round ? round->status : -1);
+    
+    // Start when all non-eliminated players are ready
+    if (g_r1.ready_count >= expected && expected > 0 && round && round->status == ROUND_PENDING) {
         printf("[Round1] All ready, starting round\n");
         
         // Update RoundState
@@ -998,7 +1004,7 @@ static void handle_player_ready(int fd, MessageHeader *req, const char *payload)
         round->started_at = time(NULL);
         round->current_question_idx = 0;
         g_r1.is_active = true;
-        
+    
         // Build start message
         cJSON *start = cJSON_CreateObject();
         cJSON_AddTrueToObject(start, "success");
@@ -1035,8 +1041,8 @@ static void handle_get_question(int fd, MessageHeader *req, const char *payload)
     if (match_id != g_r1.match_id) {
         send_json(fd, req, ERR_BAD_REQUEST, "{\"success\":false,\"error\":\"Invalid match\"}");
         return;
-    }
-    
+  }
+  
     RoundState *round = get_round();
     if (!round || round->status != ROUND_PLAYING) {
         send_json(fd, req, ERR_BAD_REQUEST, "{\"success\":false,\"error\":\"Round not active\"}");
@@ -1051,7 +1057,7 @@ static void handle_get_question(int fd, MessageHeader *req, const char *payload)
         if (mp && mp->eliminated) {
             send_json(fd, req, ERR_BAD_REQUEST, "{\"success\":false,\"error\":\"Player eliminated\"}");
     return;
-        }
+  }
     }
     
     // Send current question (use RoundState.current_question_idx)
@@ -1079,7 +1085,7 @@ static void handle_submit_answer(int fd, MessageHeader *req, const char *payload
 
     uint32_t match_id, q_idx, time_ms;
     uint8_t choice;
-    
+
     memcpy(&match_id, payload, 4);
     memcpy(&q_idx, payload + 4, 4);
     choice = (uint8_t)payload[8];
@@ -1114,8 +1120,8 @@ static void handle_submit_answer(int fd, MessageHeader *req, const char *payload
     if (!mp) {
         send_json(fd, req, ERR_SERVER_ERROR, "{\"success\":false,\"error\":\"Player not in match\"}");
         return;
-    }
-    
+  }
+
     // Block eliminated players (includes disconnect in both modes)
     if (mp->eliminated) {
         send_json(fd, req, ERR_BAD_REQUEST, "{\"success\":false,\"error\":\"Player eliminated\"}");
@@ -1159,8 +1165,8 @@ static void handle_submit_answer(int fd, MessageHeader *req, const char *payload
         if (correct) {
             round->questions[q_idx].correct_count++;
         }
-    }
-    
+  }
+
     printf("[Round1] Player %d: correct=%d delta=%d total=%d\n",
            mp->account_id, correct, delta, mp->score);
     
@@ -1179,7 +1185,7 @@ static void handle_submit_answer(int fd, MessageHeader *req, const char *payload
         cJSON_AddBoolToObject(ans_obj, "is_correct", correct);
         cJSON_AddNumberToObject(ans_obj, "time_ms", time_ms);
         cJSON_AddItemToObject(db_payload, "answer", ans_obj);
-        
+
         // Post directly to database
         cJSON *result = NULL;
         db_error_t db_err = db_post("match_answer", db_payload, &result);
@@ -1193,8 +1199,8 @@ static void handle_submit_answer(int fd, MessageHeader *req, const char *payload
         
         cJSON_Delete(db_payload);
         if (result) cJSON_Delete(result);
-    }
-    
+  }
+
     // Build response
     cJSON *result = cJSON_CreateObject();
     cJSON_AddTrueToObject(result, "success");
@@ -1342,7 +1348,7 @@ void handle_round1_disconnect(int client_fd) {
     hdr.version = PROTOCOL_VERSION;
     hdr.command = htons(NTF_PLAYER_LEFT);
     hdr.length = htonl((uint32_t)strlen(json));
-    
+
     for (int i = 0; i < g_r1.player_count; i++) {
         if (g_r1.players[i].account_id != account_id) {
             int fd = get_socket(g_r1.players[i].account_id);

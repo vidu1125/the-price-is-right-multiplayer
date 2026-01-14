@@ -137,6 +137,13 @@ const Round2 = ({ matchId = 1, playerId = 1, previousScore = 0, onRoundComplete 
             productReceivedRef.current = false;
 
             // First product will come via S2C_ROUND2_PRODUCT
+            // Fallback: Request product if not received within 2 seconds
+            setTimeout(() => {
+                if (!productReceivedRef.current && gameStartedRef.current) {
+                    console.log('[Round2] Product not received, requesting...');
+                    getProduct(matchId, 0);
+                }
+            }, 2000);
         };
 
         window.addEventListener('round2AllReady', handleAllReady);
@@ -467,6 +474,23 @@ const Round2 = ({ matchId = 1, playerId = 1, previousScore = 0, onRoundComplete 
                     <button className="skip-button" onClick={handleSkipToNextRound}>
                         SKIP → ROUND 3
                     </button>
+                </div>
+            </div>
+        );
+    }
+
+    //==========================================================================
+    // RENDER: Waiting for product (playing but no product data yet)
+    //==========================================================================
+    if (gamePhase === 'playing' && !productData) {
+        return (
+            <div className="round2-wrapper-quiz">
+                <div className="connecting-content">
+                    <h1 className="connecting-title">ROUND 2: THE BID</h1>
+                    <div className="connecting-status">
+                        <div className="connecting-spinner"></div>
+                        <p>Loading product...</p>
+                    </div>
                 </div>
             </div>
         );
