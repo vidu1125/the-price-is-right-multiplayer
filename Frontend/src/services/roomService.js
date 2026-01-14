@@ -87,3 +87,24 @@ registerHandler(OPCODE.RES_READY_OK, (payload) => {
     console.log('[ROOM_SERVICE] ✅ Ready state updated');
     // UI will be updated via NTF_PLAYER_READY
 });
+
+/**
+ * Mời người chơi vào phòng
+ * @param {number} targetId - ID người chơi mục tiêu
+ * @param {number} roomId - ID phòng hiện tại
+ */
+export function invitePlayer(targetId, roomId) {
+    console.log('[ROOM_SERVICE] invitePlayer:', { targetId, roomId });
+
+    // Payload: target_id (4B) + room_id (4B) = 8 bytes total
+    const buffer = new ArrayBuffer(8);
+    const view = new DataView(buffer);
+
+    // bytes 0-3: target_id (network byte order)
+    view.setInt32(0, targetId, false);
+
+    // bytes 4-7: room_id (network byte order)
+    view.setUint32(4, roomId, false);
+
+    sendPacket(OPCODE.CMD_INVITE_FRIEND || 0x0205, new Uint8Array(buffer));
+}

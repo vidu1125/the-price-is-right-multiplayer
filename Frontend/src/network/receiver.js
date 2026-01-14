@@ -19,6 +19,24 @@ export function registerHandler(opcode, handler) {
   console.log("[Receiver] registerHandler opcode", opcode, "count", list.length);
 }
 
+/**
+ * Hủy đăng ký handler cho opcode
+ * @param {number} opcode
+ * @param {Function} handler
+ */
+export function unregisterHandler(opcode, handler) {
+  if (opcode === undefined || opcode === null) return;
+  const list = handlers.get(opcode);
+  if (!list) return;
+
+  const index = list.indexOf(handler);
+  if (index !== -1) {
+    list.splice(index, 1);
+    handlers.set(opcode, list);
+    console.log("[Receiver] unregisterHandler opcode", opcode, "count", list.length);
+  }
+}
+
 
 
 // Đăng ký handler mặc định (gọi khi không có handler cụ thể cho opcode)
