@@ -14,7 +14,9 @@ CREATE TABLE accounts (
 -- SESSIONS
 -- ===============================
 CREATE TABLE sessions (
-    account_id INT PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+    account_id INT PRIMARY KEY
+        REFERENCES accounts(id)
+        ON DELETE CASCADE,
     session_id UUID,
     connected BOOLEAN,
     updated_at TIMESTAMP DEFAULT NOW()
@@ -25,7 +27,9 @@ CREATE TABLE sessions (
 -- ===============================
 CREATE TABLE profiles (
     id SERIAL PRIMARY KEY,
-    account_id INT REFERENCES accounts(id) ON DELETE CASCADE,
+    account_id INT
+        REFERENCES accounts(id)
+        ON DELETE CASCADE,
     name VARCHAR(50),
     avatar TEXT,
     bio TEXT,
@@ -42,8 +46,12 @@ CREATE TABLE profiles (
 -- ===============================
 CREATE TABLE friends (
     id SERIAL PRIMARY KEY,
-    requester_id INT REFERENCES accounts(id),
-    addressee_id INT REFERENCES accounts(id),
+    requester_id INT
+        REFERENCES accounts(id)
+        ON DELETE CASCADE,
+    addressee_id INT
+        REFERENCES accounts(id)
+        ON DELETE CASCADE,
     status VARCHAR(20),
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW(),
@@ -58,7 +66,11 @@ CREATE TABLE rooms (
     name VARCHAR(100),
     code VARCHAR(10) UNIQUE,
     visibility VARCHAR(20),
-    host_id INT REFERENCES accounts(id),
+    host_id INT
+        REFERENCES accounts(id),
+    wager_mode BOOLEAN DEFAULT FALSE,
+    max_players INT,
+    mode VARCHAR,
     status VARCHAR(20),
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
@@ -68,8 +80,12 @@ CREATE TABLE rooms (
 -- ROOM MEMBERS
 -- ===============================
 CREATE TABLE room_members (
-    room_id INT REFERENCES rooms(id) ON DELETE CASCADE,
-    account_id INT REFERENCES accounts(id) ON DELETE CASCADE,
+    room_id INT
+        REFERENCES rooms(id)
+        ON DELETE CASCADE,
+    account_id INT
+        REFERENCES accounts(id)
+        ON DELETE CASCADE,
     joined_at TIMESTAMP DEFAULT NOW(),
     PRIMARY KEY (room_id, account_id)
 );
@@ -79,11 +95,11 @@ CREATE TABLE room_members (
 -- ===============================
 CREATE TABLE matches (
     id SERIAL PRIMARY KEY,
-    room_id INT REFERENCES rooms(id),
+    room_id INT
+        REFERENCES rooms(id),
     mode VARCHAR(20),
     max_players INT,
     advanced JSONB,
-    round_time INT,
     started_at TIMESTAMP,
     ended_at TIMESTAMP
 );
@@ -93,13 +109,16 @@ CREATE TABLE matches (
 -- ===============================
 CREATE TABLE match_players (
     id SERIAL PRIMARY KEY,
-    match_id INT REFERENCES matches(id) ON DELETE CASCADE,
-    account_id INT REFERENCES accounts(id),
+    match_id INT
+        REFERENCES matches(id)
+        ON DELETE CASCADE,
+    account_id INT
+        REFERENCES accounts(id),
     score INT DEFAULT 0,
-    rank INT,
     eliminated BOOLEAN DEFAULT FALSE,
     forfeited BOOLEAN DEFAULT FALSE,
     winner BOOLEAN DEFAULT FALSE,
+    rank INT,
     joined_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -108,11 +127,13 @@ CREATE TABLE match_players (
 -- ===============================
 CREATE TABLE match_question (
     id SERIAL PRIMARY KEY,
-    match_id INT REFERENCES matches(id) ON DELETE CASCADE,
-    round_no INT,
-    round_type VARCHAR(20),
-    question_idx INT,
-    question JSONB,
+    match_id INT
+        REFERENCES matches(id)
+        ON DELETE CASCADE,
+    round_no INT,                 -- 1 | 2 | 3 | 4
+    round_type VARCHAR(20),       -- MCQ | FILL | WHEEL | BONUS
+    question_idx INT,             -- index trong round
+    question JSONB,               -- snapshot câu hỏi
     created_at TIMESTAMP DEFAULT NOW(),
     UNIQUE (match_id, round_no, question_idx)
 );
@@ -122,11 +143,15 @@ CREATE TABLE match_question (
 -- ===============================
 CREATE TABLE match_answer (
     id SERIAL PRIMARY KEY,
-    question_id INT REFERENCES match_question(id) ON DELETE CASCADE,
-    player_id INT REFERENCES match_players(id),
-    answer JSONB,
+    question_id INT
+        REFERENCES match_question(id)
+        ON DELETE CASCADE,
+    player_id INT
+        REFERENCES match_players(id)
+        ON DELETE CASCADE,
+    answer JSONB,                 -- choice / value / spin
     score_delta INT,
-    action_idx INT DEFAULT 1,
+    action_idx INT DEFAULT 1,     -- lượt trả lời / lượt quay
     created_at TIMESTAMP DEFAULT NOW(),
     UNIQUE (question_id, player_id, action_idx)
 );
@@ -136,27 +161,42 @@ CREATE TABLE match_answer (
 -- ===============================
 CREATE TABLE questions (
     id SERIAL PRIMARY KEY,
-    type VARCHAR(20),
+    type VARCHAR(20),             -- MCQ | PRICE | WHEEL
     data JSONB,
     active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
+-- ===============================
+-- MATCH EVENTS
+-- ===============================
 CREATE TABLE match_events (
     id SERIAL PRIMARY KEY,
-
     match_id INT NOT NULL
         REFERENCES matches(id)
         ON DELETE CASCADE,
-
     player_id INT
         REFERENCES accounts(id)
         ON DELETE SET NULL,
-
     event_type VARCHAR(50) NOT NULL,
     round_no INT,
     question_idx INT,
-
     created_at TIMESTAMP DEFAULT NOW()
 );
+
+-- ===============================
+-- VIEWS
+-- ===============================
+CREATE OR REPLACE VIEW rooms_with_counts AS
+SELECT 
+    r.id,
+    r.name,
+    r.status,
+    r.mode,
+    r.max_players,
+    r.visibility,
+    r.wager_mode,
+    r.created_at,
+    (SELECT COUNT(*) FROM room_members rm WHERE rm.room_id = r.id) as current_players
+FROM rooms r;
