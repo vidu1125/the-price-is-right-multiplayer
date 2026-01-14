@@ -236,6 +236,7 @@ export default function WaitingRoom() {
             isHost={isHost}
             roomId={room.id}
             gameRules={room.rules}
+            currentPlayerCount={room.players.length}
             onRulesChange={handleRulesChange}
           />
         </div>

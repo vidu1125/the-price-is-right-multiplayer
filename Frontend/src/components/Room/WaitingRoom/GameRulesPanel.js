@@ -29,7 +29,7 @@ export default function GameRulesPanel({ isHost, roomId, gameRules, onRulesChang
   // Hàm commit rules khi bấm Done
   const handleDone = async () => {
     if (isHost) {
-      // Save current rules before sending to server
+      // LƯU SNAPSHOT của rules hiện tại (trước khi gửi server)
       const previousRules = { ...gameRules };
 
       try {
@@ -39,11 +39,11 @@ export default function GameRulesPanel({ isHost, roomId, gameRules, onRulesChang
       } catch (error) {
         console.error("❌ Failed to commit rules:", error);
 
-        // Revert to previous rules on error
+        // REVERT về rules cũ nếu server reject
         onRulesChange(previousRules);
 
-        // Show error message to user
-        alert("❌ Cannot update rules: " + (error.message || "Invalid rule settings (e.g., max_players cannot be less than current player count)"));
+        // Hiển thị lỗi cho user
+        alert("❌ Cannot update rules: " + (error.message || "Server rejected the rule change"));
       }
     }
   };
