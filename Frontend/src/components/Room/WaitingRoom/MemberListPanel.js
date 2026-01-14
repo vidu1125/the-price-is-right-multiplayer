@@ -1,6 +1,7 @@
 // MemberListPanel.js
 import "./MemberListPanel.css";
 import { kickMember } from "../../../services/hostService";
+import { toggleReady } from "../../../services/roomService";
 import { registerHandler } from "../../../network/receiver";
 import { OPCODE } from "../../../network/opcode";
 import { useEffect } from "react";
@@ -10,6 +11,10 @@ const CROWN_ICON = "/bg/crown.png";
 
 export default function MemberListPanel({ isHost, roomId, hostId, roomName, roomCode, maxPlayers = 6, members = [], onRefresh }) {
   const emptySlots = Array(Math.max(0, maxPlayers - members.length)).fill(null);
+
+  // Get current user ID from localStorage
+  const profile = JSON.parse(localStorage.getItem('profile') || '{}');
+  const currentUserId = profile.account_id;
 
   useEffect(() => {
     // Register handler for kick response

@@ -37,7 +37,7 @@ void handle_close_room(
  * Handle CMD_SET_RULE (0x0206)
  * Host changes room settings
  */
-void handle_set_rules(
+void handle_set_rule(
     int client_fd,
     MessageHeader *req,
     const char *payload
@@ -68,6 +68,16 @@ void handle_leave_room(
  * Get list of waiting rooms
  */
 void handle_get_room_list(
+    int client_fd,
+    MessageHeader *req,
+    const char *payload
+);
+
+/**
+ * Handle CMD_READY (0x0203)
+ * Player toggles ready state
+ */
+void handle_ready(
     int client_fd,
     MessageHeader *req,
     const char *payload
