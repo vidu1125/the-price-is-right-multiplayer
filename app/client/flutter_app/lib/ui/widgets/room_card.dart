@@ -267,6 +267,7 @@ class _RoomCardState extends State<RoomCard> {
                                        final newRoom = Room(
                                             id: res['roomId'],
                                             name: name,
+                                            code: res['roomCode'],
                                             hostId: accountId,
                                             maxPlayers: maxPlayers,
                                             visibility: visibility,
@@ -308,6 +309,74 @@ class _RoomCardState extends State<RoomCard> {
   }
 
   // --- Helper Widgets for the Modal ---
+
+  void _showFindRoomModal() {
+    String roomCode = "";
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          width: 400,
+          padding: const EdgeInsets.all(32),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1A1A2E),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: LobbyTheme.primaryDark, width: 4),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text("FIND ROOM", style: LobbyTheme.gameFont(fontSize: 32, color: LobbyTheme.yellowGame)),
+              const SizedBox(height: 24),
+              _buildLabel("ROOM CODE"),
+              const SizedBox(height: 8),
+              _buildTextField(
+                hint: "Enter 8-char code...",
+                onChanged: (val) => roomCode = val,
+                icon: Icons.vpn_key_rounded,
+              ),
+              const SizedBox(height: 32),
+              Row(
+                children: [
+                  Expanded(
+                    child: _modalButton(
+                      label: "CANCEL",
+                      color: Colors.grey[400]!,
+                      textColor: LobbyTheme.primaryDark,
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _modalButton(
+                      label: "JOIN",
+                      color: LobbyTheme.blueAction,
+                      textColor: Colors.white,
+                      onPressed: () async {
+                        if (roomCode.isEmpty) return;
+                        try {
+                          final room = await ServiceLocator.roomService.joinRoomByCode(roomCode.toUpperCase());
+                          if (mounted && room != null) {
+                            Navigator.pop(context);
+                            Navigator.pushNamed(context, '/room', arguments: {'room': room, 'initialIsHost': false});
+                          }
+                        } catch (e) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+                          }
+                        }
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   Widget _buildLabel(String text) {
     return Text(
@@ -502,7 +571,7 @@ class _RoomCardState extends State<RoomCard> {
                         label: "FIND ROOM",
                         color: LobbyTheme.blueAction,
                         textColor: Colors.white,
-                        onPressed: () => print("Finding..."),
+                        onPressed: () => _showFindRoomModal(),
                         fontSize: buttonTextSize,
                         verticalPadding: 24, // Increased from 22
                       ),

@@ -24,6 +24,7 @@ class _RoomScreenState extends State<RoomScreen> {
   String? _error;
   int? _currentUserId;
   StreamSubscription? _eventSub;
+  bool _editMode = false;
 
   bool get _isHost => _room.hostId == _currentUserId;
 
@@ -78,7 +79,34 @@ class _RoomScreenState extends State<RoomScreen> {
                       _room.members.removeWhere((m) => m.accountId == p['account_id']);
                  }
                 break;
-            default: break;
+            case RoomEventType.playerReady:
+                final data = event.data;
+                if (data != null) {
+                    final accountId = data['account_id'];
+                    final isReady = data['is_ready'] == true;
+                    final idx = _room.members.indexWhere((m) => m.accountId == accountId);
+                    if (idx != -1) {
+                         _room.members[idx] = _room.members[idx].copyWith(ready: isReady);
+                    }
+                }
+                break;
+            case RoomEventType.rulesChanged:
+                final data = event.data;
+                if (data != null) {
+                    _room = _room.copyWith(
+                        mode: data['mode'] ?? "scoring",
+                        maxPlayers: data['maxPlayers'] ?? 6,
+                        visibility: data['visibility'] ?? "public",
+                        wagerMode: data['wagerMode'] == true,
+                    );
+                    // Server also resets ready states on rule change
+                    for (int i = 0; i < _room.members.length; i++) {
+                        _room.members[i] = _room.members[i].copyWith(ready: false);
+                    }
+                }
+                break;
+            default:
+                break;
         }
     });
 
@@ -86,6 +114,9 @@ class _RoomScreenState extends State<RoomScreen> {
       // ... keep toast/dialog logic which is separate from state update ...
       case RoomEventType.roomClosed:
         _showExitDialog("Room Closed", "The host has closed the room.");
+        break;
+      case RoomEventType.memberKicked:
+        _showExitDialog("Kicked", "You have been kicked from the room.");
         break;
       case RoomEventType.gameStarted:
         // Navigate to the Game Container Screen
@@ -141,6 +172,101 @@ class _RoomScreenState extends State<RoomScreen> {
     if (confirm == true) {
       await ServiceLocator.roomService.kickMember(_room.id, targetId);
     }
+  }
+
+  Future<void> _toggleReady() async {
+      try {
+          await ServiceLocator.roomService.toggleReady();
+      } catch (e) {
+          if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text("Error: $e")),
+              );
+          }
+      }
+  }
+
+  Future<void> _showEditRulesDialog() async {
+    String currentMode = _room.mode;
+    int currentMaxPlayers = _room.maxPlayers;
+    String currentVisibility = _room.visibility;
+    bool currentWager = _room.wagerMode;
+
+    await showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: const Text("Edit Game Rules"),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButtonFormField<String>(
+                    decoration: const InputDecoration(labelText: "Game Mode"),
+                    value: currentMode.toLowerCase(),
+                    items: const [
+                      DropdownMenuItem(value: "elimination", child: Text("Elimination (4 Players)")),
+                      DropdownMenuItem(value: "scoring", child: Text("Scoring (4-6 Players)")),
+                    ],
+                    onChanged: (val) {
+                      if (val != null) {
+                         setDialogState(() {
+                           currentMode = val;
+                           if (val == "elimination") currentMaxPlayers = 4;
+                         });
+                      }
+                    },
+                  ),
+                  if (currentMode == "scoring")
+                    TextFormField(
+                      decoration: const InputDecoration(labelText: "Max Players (4-6)"),
+                      initialValue: currentMaxPlayers.toString(),
+                      keyboardType: TextInputType.number,
+                      onChanged: (val) => currentMaxPlayers = int.tryParse(val) ?? 6,
+                    ),
+                  DropdownButtonFormField<String>(
+                    decoration: const InputDecoration(labelText: "Visibility"),
+                    value: currentVisibility.toLowerCase(),
+                    items: const [
+                      DropdownMenuItem(value: "public", child: Text("Public")),
+                      DropdownMenuItem(value: "private", child: Text("Private")),
+                    ],
+                    onChanged: (val) => setDialogState(() => currentVisibility = val ?? "public"),
+                  ),
+                  SwitchListTile(
+                    title: const Text("Wager Mode"),
+                    value: currentWager,
+                    onChanged: (val) => setDialogState(() => currentWager = val),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+              ElevatedButton(
+                onPressed: () async {
+                  try {
+                    await ServiceLocator.roomService.setRules(
+                      mode: currentMode,
+                      maxPlayers: currentMaxPlayers,
+                      visibility: currentVisibility,
+                      wager: currentWager,
+                    );
+                    if (context.mounted) Navigator.pop(context);
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("$e")));
+                    }
+                  }
+                },
+                child: const Text("Save"),
+              ),
+            ],
+          );
+        }
+      ),
+    );
   }
   
   Future<void> _startGame() async {
@@ -296,99 +422,286 @@ class _RoomScreenState extends State<RoomScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final w = constraints.maxWidth;
-        final titleSize = (w * 0.12).clamp(20.0, 36.0);
-        final labelSize = (w * 0.12).clamp(14.0, 24.0); // Increased from 0.08
-        final valueSize = (w * 0.12).clamp(14.0, 24.0); // Increased from 0.08
-        final containerPadding = (w * 0.08).clamp(12.0, 24.0); // Responsive padding
-        final itemSpacing = (w * 0.05).clamp(8.0, 20.0); // Responsive spacing
-
-        return Stack(
-          children: [
-            Container(
-              decoration: RoomTheme.panelDecoration,
-              padding: EdgeInsets.all(containerPadding),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+        final titleSize = (w * 0.1).clamp(20.0, 32.0);
+        
+        return Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF1F2A44).withOpacity(0.9),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFF1B2333), width: 4),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.4),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              )
+            ],
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 25),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header Row
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
                 children: [
-                  Text(
-                    "GAME RULES", 
-                    style: TextStyle(
-                      fontFamily: 'LuckiestGuy', 
-                      fontSize: titleSize, 
-                      color: const Color(0xFFFFEB3B)
-                    )
+                  Flexible(
+                    child: Text("GAME RULES", 
+                      style: TextStyle(
+                        fontFamily: 'LuckiestGuy', 
+                        fontSize: (titleSize * 0.8).clamp(18.0, 28.0), 
+                        color: const Color(0xFFFFEB3B),
+                        shadows: const [Shadow(offset: Offset(2, 2), color: Color(0xFF1B2333))]
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                  SizedBox(height: itemSpacing),
-                  _ruleRow("MAX PLAYERS", "6", labelSize, valueSize),
-                  _ruleRow("VISIBILITY", "PUBLIC", labelSize, valueSize),
-                  _ruleRow("MODE", "SCORING", labelSize, valueSize),
-                  _ruleRow("ROUND TIME", "15S", labelSize, valueSize),
-                  _ruleRow("WAGER", "ON", labelSize, valueSize),
+                  if (_isHost) ...[
+                    const SizedBox(width: 8),
+                    GestureDetector(
+                      onTap: () {
+                        setState(() {
+                             _editMode = !_editMode;
+                        });
+                      },
+                      child: Text(_editMode ? "DONE" : "EDIT", 
+                        style: TextStyle(
+                          fontFamily: 'LuckiestGuy', 
+                          fontSize: 12, 
+                          color: Colors.white.withOpacity(0.4),
+                          fontStyle: FontStyle.italic,
+                          letterSpacing: 1,
+                        )
+                      ),
+                    ),
+                  ],
                 ],
               ),
-            ),
-            // Nút EDIT floating ở góc phải trên (chỉ host thấy)
-            if (_isHost)
-              Positioned(
-                top: 8,
-                right: 8,
-                child: InkWell(
-                  onTap: () {
-                    // TODO: Mở dialog edit game rules
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Edit Rules - Coming Soon")),
-                    );
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF29B6F6),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 2),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.3),
-                          blurRadius: 6,
-                          spreadRadius: 1,
+              const SizedBox(height: 25),
+              
+              // Max Players Row
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text("MAX PLAYERS:", style: TextStyle(fontFamily: 'LuckiestGuy', fontSize: 18, color: Color(0xFF29B6F6))),
+                  if (_isHost && _editMode)
+                    Row(
+                      children: [
+                        _controlBtn("-", () => _handleMaxPlayersChange(-1), 
+                          enabled: _room.mode.toLowerCase() != "elimination" && _room.maxPlayers > 4),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          child: Text("${_room.maxPlayers}", style: const TextStyle(fontFamily: 'LuckiestGuy', fontSize: 28, color: Color(0xFFFFEB3B))),
                         ),
+                        _controlBtn("+", () => _handleMaxPlayersChange(1), 
+                          enabled: _room.mode.toLowerCase() != "elimination" && _room.maxPlayers < 6),
                       ],
-                    ),
-                    child: const Icon(
-                      Icons.edit,
-                      color: Colors.white,
-                      size: 18,
-                    ),
-                  ),
-                ),
+                    )
+                  else
+                    Text("${_room.maxPlayers}", style: const TextStyle(fontFamily: 'LuckiestGuy', fontSize: 28, color: Color(0xFFFFEB3B))),
+                ],
               ),
-          ],
+              const SizedBox(height: 20),
+
+              // Visibility Mode
+              const Text("VISIBILITY:", style: TextStyle(fontFamily: 'LuckiestGuy', fontSize: 18, color: Color(0xFF29B6F6))),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                   _wrToggleButton("PUBLIC", _room.visibility.toLowerCase() == "public", () => _updateRule(visibility: "public")),
+                   const SizedBox(width: 10),
+                   _wrToggleButton("PRIVATE", _room.visibility.toLowerCase() == "private", () => _updateRule(visibility: "private")),
+                ],
+              ),
+              const SizedBox(height: 20),
+
+              // Game Mode
+              const Text("MODE:", style: TextStyle(fontFamily: 'LuckiestGuy', fontSize: 18, color: Color(0xFF29B6F6))),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                   _wrToggleButton("ELIMINATION", _room.mode.toLowerCase() == "elimination", () => _updateRule(mode: "elimination")),
+                   const SizedBox(width: 10),
+                   _wrToggleButton("SCORING", _room.mode.toLowerCase() == "scoring", () => _updateRule(mode: "scoring")),
+                ],
+              ),
+              const SizedBox(height: 20),
+
+              // Wager Mode
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Flexible(child: Text("WAGER MODE:", style: TextStyle(fontFamily: 'LuckiestGuy', fontSize: 16, color: Color(0xFF29B6F6)))),
+                  const SizedBox(width: 4),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                       _wagerBadge("ON", _room.wagerMode, () => _updateRule(wager: true)),
+                       const SizedBox(width: 8),
+                       _wagerBadge("OFF", !_room.wagerMode, () => _updateRule(wager: false)),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
         );
       }
     );
   }
 
+  Widget _controlBtn(String label, VoidCallback onTap, {bool enabled = true}) {
+      return GestureDetector(
+          onTap: enabled ? onTap : null,
+          child: Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                  color: const Color(0xFF2c3e50),
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: const Color(0xFF1B2333), width: 2),
+              ),
+              alignment: Alignment.center,
+              child: Opacity(
+                  opacity: enabled ? 1.0 : 0.3,
+                  child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+              ),
+          ),
+      );
+  }
+
+  Widget _wrToggleButton(String label, bool isActive, VoidCallback onTap) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: (_isHost && _editMode) ? onTap : null,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: isActive ? const Color(0xFF8BC34A) : const Color(0xFF2c3e50),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: const Color(0xFF1B2333), width: 2),
+            boxShadow: isActive ? [
+              BoxShadow(color: const Color(0xFF558b2f), offset: const Offset(0, 4))
+            ] : null,
+          ),
+          alignment: Alignment.center,
+          child: Opacity(
+            opacity: (_isHost && _editMode) || isActive ? 1.0 : 0.6,
+            child: Text(label, style: TextStyle(
+              fontFamily: 'LuckiestGuy', 
+              fontSize: 16, 
+              color: isActive ? Colors.white : const Color(0xFF5d6d7e),
+              shadows: isActive ? [const Shadow(offset: Offset(1, 1), color: Color(0xFF1B2333))] : null,
+            )),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _wagerBadge(String label, bool isActive, VoidCallback onTap) {
+      final activeColor = label == "ON" ? const Color(0xFF8BC34A) : const Color(0xFFf44336);
+      return GestureDetector(
+          onTap: (_isHost && _editMode) ? onTap : null,
+          child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 6),
+              constraints: const BoxConstraints(minWidth: 55),
+              decoration: BoxDecoration(
+                  color: isActive ? activeColor : const Color(0xFF2c3e50),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: isActive ? Colors.white : const Color(0xFF1B2333), width: 2),
+                  boxShadow: isActive ? [
+                      BoxShadow(color: label == "ON" ? const Color(0xFF558b2f) : const Color(0xFFc62828), offset: const Offset(0, 4))
+                  ] : null,
+              ),
+              alignment: Alignment.center,
+              child: Opacity(
+                  opacity: (_isHost && _editMode) || isActive ? 1.0 : 0.6,
+                  child: Text(label, style: TextStyle(
+                      fontFamily: 'LuckiestGuy', 
+                      fontSize: 16, 
+                      color: isActive ? Colors.white : const Color(0xFF5d6d7e),
+                      shadows: isActive ? [const Shadow(offset: Offset(1, 1), color: Color(0xFF1B2333))] : null,
+                  )),
+              ),
+          ),
+      );
+  }
+
+  void _handleMaxPlayersChange(int delta) {
+      int newVal = _room.maxPlayers + delta;
+      if (newVal >= 4 && newVal <= 6) {
+          _updateRule(maxPlayers: newVal);
+      }
+  }
+
+  Future<void> _updateRule({String? mode, int? maxPlayers, String? visibility, bool? wager}) async {
+    if (!_isHost) return;
+    
+    // Logic: Nếu chọn elimination -> Mặc định là 4 người
+    int finalMaxPlayers = maxPlayers ?? _room.maxPlayers;
+    String finalMode = mode ?? _room.mode;
+    
+    if (mode == "elimination") {
+        finalMaxPlayers = 4;
+    } else if (mode == "scoring") {
+        if (finalMaxPlayers < 4) finalMaxPlayers = 4;
+        if (finalMaxPlayers > 6) finalMaxPlayers = 6;
+    }
+
+    try {
+      await ServiceLocator.roomService.setRules(
+        mode: finalMode,
+        maxPlayers: finalMaxPlayers,
+        visibility: visibility ?? _room.visibility,
+        wager: wager ?? _room.wagerMode,
+      );
+      // Room state will be updated via NTF_RULES_CHANGED
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("$e")));
+    }
+  }
+
   Widget _buildMemberListPanel() {
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Calculate size based on actual panel space
         double panelWidth = constraints.maxWidth;
-        double cardSpacing = (panelWidth * 0.03).clamp(10.0, 20.0); // Giảm từ 0.04 và 12-25
-        double containerPadding = (panelWidth * 0.025).clamp(12.0, 24.0); // Giảm từ 0.03 và 15-30
-
+        double cardSpacing = 15.0;
+        
         return Container(
-          decoration: RoomTheme.panelDecoration,
-          padding: EdgeInsets.all(containerPadding),
+          decoration: RoomTheme.panelDecoration.copyWith(
+            color: const Color(0xFF232D42),
+          ),
+          padding: const EdgeInsets.all(20),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                _room?.name ?? "ROOM", 
-                style: RoomTheme.titleStyle.copyWith(
-                  fontSize: (panelWidth * 0.05).clamp(16.0, 32.0) // Giảm từ 0.06 và 18-36
-                )
+              // Room Code Badge
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1B2333),
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                  child: Text("ID: ${_room.code ?? _room.id}", 
+                    style: const TextStyle(color: Colors.white54, fontSize: 12, fontWeight: FontWeight.bold)),
+                ),
               ),
-              SizedBox(height: containerPadding * 0.5), // Giảm từ 0.75
-              // Wrap GridView trong Flexible để tránh overflow
+              Text(
+                _room.name.toUpperCase(), 
+                style: const TextStyle(
+                  fontFamily: 'LuckiestGuy', 
+                  fontSize: 28, 
+                  color: Color(0xFFFFDE00)
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 15),
               Flexible(
                 child: GridView.count(
                   shrinkWrap: true,
@@ -396,23 +709,23 @@ class _RoomScreenState extends State<RoomScreen> {
                   crossAxisCount: 3,
                   crossAxisSpacing: cardSpacing,
                   mainAxisSpacing: cardSpacing,
-                  childAspectRatio: 1.0, // Card vuông cân đối (1:1)
+                  childAspectRatio: 0.85, 
                   children: List.generate(6, (index) {
-                    if (_room != null && index < _room!.members.length) {
-                      return _buildPlayerCard(_room!.members[index]);
+                    if (index < _room.members.length) {
+                      return _buildPlayerCard(_room.members[index]);
                     } else {
                       return _buildEmptySlot();
                     }
                   }),
                 ),
               ),
-              SizedBox(height: containerPadding * 0.5), // Giảm từ 0.75
+              const SizedBox(height: 20),
               Text(
-                "PLAYERS (${_room?.members.length ?? 0}/6)", 
-                style: TextStyle(
+                "PLAYERS (${_room.members.length}/6)", 
+                style: const TextStyle(
                   fontFamily: 'LuckiestGuy', 
-                  color: Colors.white, 
-                  fontSize: (panelWidth * 0.035).clamp(12.0, 18.0) // Giảm từ 0.04 và 14-20
+                  color: Color(0xFFFFDE00), 
+                  fontSize: 16
                 )
               ),
             ],
@@ -423,165 +736,150 @@ class _RoomScreenState extends State<RoomScreen> {
   }
 
   Widget _buildPlayerCard(RoomMember member) {
-    final isHostMember = member.accountId == _room!.hostId;
-    final statusColor = member.ready ? const Color(0xFF8BC34A) : const Color(0xFFFFB74D);
-    // Màu viền: vàng cho host, màu status cho người chơi thường
-    final borderColor = isHostMember 
-        ? const Color(0xFFFFD700) // Vàng cho host
-        : (member.ready ? statusColor : Colors.white24);
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final w = constraints.maxWidth;
-        final h = constraints.maxHeight;
-        // Tăng size để các thành phần to hơn, dễ nhìn hơn
-        final double avatarRadius = (w * 0.32).clamp(30.0, 65.0); // Tăng từ 0.29 lên 0.32
-        final double nameFontSize = (w * 0.32).clamp(14.0, 26.0); // Tăng từ 0.20
-        final double statusFontSize = (w * 0.32).clamp(11.0, 20.0); // Tăng từ 0.2
-
-        return Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12), // Giảm từ 15
-            border: Border.all(
-              color: borderColor, 
-              width: isHostMember ? 4 : 3 // Viền dày hơn cho host
+    final isHostMember = member.accountId == _room.hostId;
+    final statusColor = member.ready ? const Color(0xFF8BC34A) : const Color(0xFFFFC107);
+    
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0F0F0),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(
+          color: isHostMember ? const Color(0xFFFFDE00) : Colors.white70, 
+          width: 3
+        ),
+      ),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          if (isHostMember)
+            Positioned(
+              top: -15,
+              right: -10,
+              child: Transform.rotate(
+                angle: 0.3,
+                child: const Icon(Icons.workspace_premium, color: Colors.orange, size: 36),
+              ),
             ),
-            // Thêm shadow cho host để nổi bật
-            boxShadow: isHostMember ? [
-              BoxShadow(
-                color: const Color(0xFFFFD700).withOpacity(0.5),
-                blurRadius: 8,
-                spreadRadius: 2,
-              )
-            ] : null,
-          ),
-          child: Stack(
-            children: [
-              // Dùng Center để content nằm chính giữa card
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(4.0), // Giảm từ 8.0 xuống 4.0
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      CircleAvatar(
-                        radius: avatarRadius,
-                        backgroundColor: const Color(0xFFE0E0E0),
-                        backgroundImage: (member.avatar != null && member.avatar!.isNotEmpty)
-                          ? (member.avatar!.startsWith("http")
-                              ? NetworkImage(member.avatar!)
-                              : AssetImage(member.avatar!) as ImageProvider)
-                          : const AssetImage('assets/images/default-mushroom.jpg'),
-                        child: member.avatar == null 
-                           ? const SizedBox.shrink()
-                           : null,
-                      ),
-                      SizedBox(height: h * 0.03),
-                      Flexible(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 3),
-                          child: Text(
-                            member.email.toUpperCase(),
-                            style: TextStyle(
-                              fontFamily: 'LuckiestGuy',
-                              fontSize: nameFontSize,
-                              color: const Color(0xFF1F2A44),
-                            ),
-                            textAlign: TextAlign.center,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ),
-                      SizedBox(height: h * 0.02),
-                      Center(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 14),
-                          decoration: BoxDecoration(
-                            color: statusColor,
-                            borderRadius: BorderRadius.circular(5),
-                          ),
-                          child: Text(
-                            member.ready ? "READY" : "WAITING",
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontFamily: 'LuckiestGuy',
-                              fontSize: statusFontSize,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
+          
+          // Kick button for host (only if not clicking themselves)
+          if (_isHost && !isHostMember)
+            Positioned(
+              top: -5,
+              left: -5,
+              child: GestureDetector(
+                onTap: () => _kickMember(member.accountId),
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: const BoxDecoration(
+                    color: Colors.redAccent,
+                    shape: BoxShape.circle,
                   ),
+                  child: const Icon(Icons.close, color: Colors.white, size: 14),
                 ),
               ),
-              // Nút KICK ở góc phải trên (tăng size lên)
-              if (_isHost && !isHostMember)
-                Positioned(
-                  top: 4,
-                  right: 4,
-                  child: InkWell(
-                    onTap: () => _kickMember(member.accountId),
-                    child: Container(
-                      padding: const EdgeInsets.all(5), // Tăng từ 4
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFE53935),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2), // Tăng từ 1.5
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.3),
-                            blurRadius: 4,
-                          ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.close,
-                        color: Colors.white,
-                        size: 16, // Tăng từ 14
-                      ),
-                    ),
-                  ),
+            ),
+
+          Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircleAvatar(
+                  radius: 30,
+                  backgroundColor: Colors.white,
+                  backgroundImage: (member.avatar != null && member.avatar!.isNotEmpty)
+                      ? (member.avatar!.startsWith("http") ? NetworkImage(member.avatar!) : AssetImage(member.avatar!) as ImageProvider)
+                      : const AssetImage('assets/images/default-mushroom.jpg'),
                 ),
-            ],
+                const SizedBox(height: 8),
+                Text(member.email.toUpperCase(), 
+                  style: const TextStyle(fontFamily: 'LuckiestGuy', fontSize: 14, color: Color(0xFF1B2333)),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 5),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: statusColor,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(member.ready ? "READY" : "WAITING", 
+                    style: const TextStyle(fontFamily: 'LuckiestGuy', fontSize: 10, color: Colors.white)),
+                )
+              ],
+            ),
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 
   Widget _buildEmptySlot() {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.3),
+        color: const Color(0xFF1B2333).withOpacity(0.4),
         borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: Colors.white10, width: 2),
+        border: Border.all(color: Colors.white10, width: 2, style: BorderStyle.none),
       ),
-      child: const Center(
-        child: Text(
-          "EMPTY",
-          style: TextStyle(
-            fontFamily: 'LuckiestGuy',
-            color: Colors.white24,
-            fontSize: 16, // Chữ Empty to hơn cho cân đối
-          ),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.help, color: Colors.white.withOpacity(0.1), size: 40),
+            const SizedBox(height: 5),
+            Text("EMPTY", style: TextStyle(fontFamily: 'LuckiestGuy', color: Colors.white.withOpacity(0.1), fontSize: 14)),
+          ],
         ),
       ),
     );
   }
 
   Widget _buildActionButtons() {
+    final me = _room.members.firstWhere((m) => m.accountId == _currentUserId, 
+        orElse: () => RoomMember(accountId: -1, email: ""));
+    final myReady = me.ready;
+
+    // Check if everyone is ready (including Host)
+    final allReady = _room.members.length >= 4 && _room.members.every((m) => m.ready);
+
     return Column(
       children: [
-        if (_isHost)
-          _actionButton("START GAME", RoomTheme.accentYellow, RoomTheme.primaryDark, _startGame),
-          const SizedBox(height: 10),
-        
+        // Ready Button for EVERYONE
+        _actionButton(
+          myReady ? "NOT READY" : "READY", 
+          myReady ? RoomTheme.accentRed : RoomTheme.accentGreen, 
+          Colors.white, 
+          _toggleReady
+        ),
+        const SizedBox(height: 10),
+
         _actionButton("INVITE FRIENDS", RoomTheme.accentGreen, Colors.white, () {}),
         const SizedBox(height: 10),
         _actionButton("LEAVE ROOM", RoomTheme.accentRed, Colors.white, _leaveRoom),
+
+        if (_isHost) ...[
+          const SizedBox(height: 10),
+          // Start Game button only for Host at the bottom
+          Opacity(
+            opacity: allReady ? 1.0 : 0.5,
+            child: _actionButton(
+              "START GAME", 
+              RoomTheme.accentYellow, 
+              RoomTheme.primaryDark, 
+              () {
+                if (allReady) {
+                  _startGame();
+                } else {
+                  String msg = _room.members.length < 4 
+                      ? "Need at least 4 players to start!" 
+                      : "All players must be READY to start!";
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(msg)),
+                  );
+                }
+              }
+            ),
+          ),
+        ],
       ],
     );
   }

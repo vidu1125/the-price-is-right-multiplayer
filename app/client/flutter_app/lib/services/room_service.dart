@@ -15,7 +15,8 @@ enum RoomEventType {
   gameStarted,
   roomClosed,
   memberKicked,
-  rulesChanged
+  rulesChanged,
+  playerReady
 }
 
 class RoomEvent {
@@ -66,6 +67,11 @@ class RoomService {
     dispatcher.register(Command.ntfRulesChanged, (msg) {
         var json = Protocol.decodeJson(msg.payload);
         _eventController.add(RoomEvent(RoomEventType.rulesChanged, json));
+    });
+
+    dispatcher.register(Command.ntfPlayerReady, (msg) {
+        var json = Protocol.decodeJson(msg.payload);
+        _eventController.add(RoomEvent(RoomEventType.playerReady, json));
     });
   }
 
@@ -132,7 +138,12 @@ class RoomService {
         if (response.command == Command.resRoomCreated) {
              final respData = ByteData.sublistView(response.payload);
              final roomId = respData.getUint32(0, Endian.big);
-             return {"success": true, "roomId": roomId};
+             // Read room_code (8 bytes)
+             final codeBytes = response.payload.sublist(4, 12);
+             // Remove null terminators
+             final roomCode = utf8.decode(codeBytes.takeWhile((b) => b != 0).toList());
+             
+             return {"success": true, "roomId": roomId, "roomCode": roomCode};
         } else {
              String? errorMsg;
              try {
@@ -146,11 +157,25 @@ class RoomService {
   }
 
   Future<Room?> joinRoom(int roomId) async {
+    return _joinRoomAction(id: roomId);
+  }
+
+  Future<Room?> joinRoomByCode(String code) async {
+    return _joinRoomAction(code: code);
+  }
+
+  Future<Room?> _joinRoomAction({int? id, String? code}) async {
     final buffer = ByteData(16);
-    buffer.setUint8(0, 0); // by_code = 0 (join by id)
-    // padding 3 bytes
-    buffer.setUint32(4, roomId);
-    // room_code 8 bytes (padded with 0s)
+    if (code != null) {
+      buffer.setUint8(0, 1); // by_code = 1
+      final codeBytes = utf8.encode(code);
+      for (int i = 0; i < codeBytes.length && i < 8; i++) {
+        buffer.setUint8(8 + i, codeBytes[i]);
+      }
+    } else {
+      buffer.setUint8(0, 0); // by_code = 0
+      buffer.setUint32(4, id ?? 0);
+    }
 
     try {
       final response = await client.request(Command.joinRoom, payload: buffer.buffer.asUint8List());
@@ -158,24 +183,6 @@ class RoomService {
       if (response.command == Command.resRoomJoined) {
           final jsonStr = utf8.decode(response.payload);
           final json = jsonDecode(jsonStr);
-          // JSON response from handle_join_room contains:
-          // roomId, roomCode, roomName, hostId, isHost, gameRules (mode, maxPlayers, visibility, wagerMode), players (list)
-          
-          // We need to map this to our Room model.
-          // Note context: Room.fromJson matches the standard consistent JSON structure.
-          // Check backend JSON construction in handle_join_room:
-          // "roomId", "roomCode", "roomName", "hostId", "gameRules": {...}, "players": [...]
-          
-          // Room.fromJson expects: id, name, code, host_id, max_players, visibility...
-          // The keys might differ slighty!
-          // handle_join_room keys: roomId, roomCode, roomName, hostId
-          // Room.fromJson keys: id, name, code, host_id
-          
-          // We must adapt the JSON or update Room.fromJson. 
-          // Updating Room.fromJson is better for consistency if we can standartize.
-          // But Room.fromJson is likely built for "GET_ROOM_LIST" which uses SQL column names (snake_case).
-          
-          // Let's manually map here to be safe and quick.
           
           var rules = json['gameRules'] ?? {};
           var playerList = <RoomMember>[];
@@ -197,9 +204,9 @@ class RoomService {
               visibility: rules['visibility'] ?? "public",
               mode: rules['mode'] ?? "scoring",
               wagerMode: rules['wagerMode'] == true,
-              roundTime: 15, // Default for now
+              roundTime: 15,
               members: playerList,
-              status: "waiting", // Implicit
+              status: "waiting",
               currentPlayerCount: playerList.length
           );
       } else if (response.command == Command.errRoomFull) {
@@ -247,6 +254,38 @@ class RoomService {
     } catch (e) {
       print("Error fetching room list: $e");
       return [];
+    }
+  }
+  Future<void> toggleReady() async {
+      await client.request(Command.ready);
+  }
+
+  Future<void> setRules({
+    required String mode,
+    required int maxPlayers,
+    required String visibility,
+    required bool wager,
+  }) async {
+    final buffer = ByteData(4);
+    
+    // mode: 0=elimination, 1=scoring
+    int modeVal = (mode.toLowerCase() == "elimination") ? 0 : 1;
+    buffer.setUint8(0, modeVal);
+    
+    // max_players
+    buffer.setUint8(1, maxPlayers);
+    
+    // visibility: 0=public, 1=private
+    int visibilityVal = (visibility.toLowerCase() == "private") ? 1 : 0;
+    buffer.setUint8(2, visibilityVal);
+    
+    // wager: 0=off, 1=on
+    int wagerVal = wager ? 1 : 0;
+    buffer.setUint8(3, wagerVal);
+
+    final response = await client.request(Command.setRule, payload: buffer.buffer.asUint8List());
+    if (response.command != Command.resRulesUpdated) {
+        throw "Failed to update rules: ${response.command}";
     }
   }
 

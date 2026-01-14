@@ -14,6 +14,16 @@ void handle_create_room(
 );
 
 /**
+ * Handle CMD_JOIN_ROOM (0x0201)
+ * Player joins an existing room
+ */
+void handle_join_room(
+    int client_fd,
+    MessageHeader *req,
+    const char *payload
+);
+
+/**
  * Handle CMD_CLOSE_ROOM (0x0207)
  * Host closes the room (kicks all members)
  */
@@ -48,6 +58,16 @@ void handle_kick_member(
  * Member leaves the room
  */
 void handle_leave_room(
+    int client_fd,
+    MessageHeader *req,
+    const char *payload
+);
+
+/**
+ * Handle CMD_GET_ROOM_LIST (0x0208)
+ * Get list of waiting rooms
+ */
+void handle_get_room_list(
     int client_fd,
     MessageHeader *req,
     const char *payload

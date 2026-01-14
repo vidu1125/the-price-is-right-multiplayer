@@ -19,6 +19,20 @@ class RoomMember {
       ready: json['ready'] == true, // Handle boolean or missing
     );
   }
+
+  RoomMember copyWith({
+    int? accountId,
+    String? email,
+    String? avatar,
+    bool? ready,
+  }) {
+    return RoomMember(
+      accountId: accountId ?? this.accountId,
+      email: email ?? this.email,
+      avatar: avatar ?? this.avatar,
+      ready: ready ?? this.ready,
+    );
+  }
 }
 
 class Room {
@@ -76,6 +90,35 @@ class Room {
     );
   }
 
+  Room copyWith({
+    int? id,
+    String? name,
+    String? code,
+    int? hostId,
+    int? maxPlayers,
+    String? visibility,
+    String? mode,
+    bool? wagerMode,
+    int? roundTime,
+    String? status,
+    List<RoomMember>? members,
+    int? currentPlayerCount,
+  }) {
+    return Room(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      code: code ?? this.code,
+      hostId: hostId ?? this.hostId,
+      maxPlayers: maxPlayers ?? this.maxPlayers,
+      visibility: visibility ?? this.visibility,
+      mode: mode ?? this.mode,
+      wagerMode: wagerMode ?? this.wagerMode,
+      roundTime: roundTime ?? this.roundTime,
+      members: members ?? this.members,
+      status: status ?? this.status,
+      currentPlayerCount: currentPlayerCount ?? this.currentPlayerCount,
+    );
+  }
   static int _parseRoundTime(dynamic val) {
     if (val is int) return val;
     if (val == "normal") return 15;
