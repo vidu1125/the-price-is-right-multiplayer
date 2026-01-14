@@ -143,45 +143,36 @@ int room_repo_set_rules(
     uint32_t room_id,
     uint8_t mode,
     uint8_t max_players,
-    uint8_t wager_enabled,
-    char *out_buf,
-    size_t out_size
+    uint8_t visibility,
+    uint8_t wager_enabled
 ) {
-    // Build update payload
+    printf("[ROOM_REPO] Updating rules for room %u: mode=%u, max=%u, vis=%u, wager=%u\n",
+           room_id, mode, max_players, visibility, wager_enabled);
+    
+    // Build JSON payload
     cJSON *payload = cJSON_CreateObject();
-    cJSON_AddStringToObject(payload, "mode", mode ? "elimination" : "scoring");
+    cJSON_AddStringToObject(payload, "mode", mode ? "scoring" : "elimination");
     cJSON_AddNumberToObject(payload, "max_players", max_players);
+    cJSON_AddStringToObject(payload, "visibility", visibility ? "private" : "public");
     cJSON_AddBoolToObject(payload, "wager_mode", wager_enabled);
     
-    // Build SQL WHERE clause
-    char query[128];
-    snprintf(query, sizeof(query), "id = %u", room_id);
+    // Build filter
+    char filter[64];
+    snprintf(filter, sizeof(filter), "id = %u", room_id);
     
-    // Note: db_client doesn't have PATCH yet, use POST to RPC or build custom
-    // For now, use workaround: DELETE old + INSERT new is bad
-    // Better: Add db_patch() to db_client
-    
-    // Workaround: Use RPC function
-    cJSON *rpc_payload = cJSON_CreateObject();
-    cJSON_AddNumberToObject(rpc_payload, "p_room_id", room_id);
-    cJSON_AddStringToObject(rpc_payload, "p_mode", mode ? "scoring" : "elimination"); // MODE_ELIMINATION=0, MODE_SCORING=1
-    cJSON_AddNumberToObject(rpc_payload, "p_max_players", max_players);
-    cJSON_AddBoolToObject(rpc_payload, "p_wager_mode", wager_enabled);
-    
+    // Call db_patch
     cJSON *response = NULL;
-    db_error_t rc = db_rpc("update_room_rules", rpc_payload, &response);
+    db_error_t rc = db_patch("rooms", filter, payload, &response);
     
     cJSON_Delete(payload);
-    cJSON_Delete(rpc_payload);
+    if (response) cJSON_Delete(response);
     
     if (rc != DB_OK) {
-        if (response) cJSON_Delete(response);
-        snprintf(out_buf, out_size, "{\"success\":false,\"error\":\"Failed to update\"}" );
+        printf("[ROOM_REPO] Failed to update rules for room %u\n", room_id);
         return -1;
     }
     
-    snprintf(out_buf, out_size, "{\"success\":true}");
-    if (response) cJSON_Delete(response);
+    printf("[ROOM_REPO] Successfully updated rules for room %u\n", room_id);
     return 0;
 }
 //==============================================================================

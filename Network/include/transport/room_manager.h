@@ -95,6 +95,13 @@ bool room_user_in_any_room(uint32_t account_id);
 uint32_t room_find_by_player_fd(int client_fd);
 
 /**
+ * Find room ID by player's account ID
+ * Returns 0 if player not in any room
+ * Implementation: Iterates g_rooms and checks room_has_player() for consistency
+ */
+uint32_t room_find_by_player_account(uint32_t account_id);
+
+/**
  * Get room state by ID (alias for room_get for clarity)
  */
 RoomState* room_get_state(uint32_t room_id);

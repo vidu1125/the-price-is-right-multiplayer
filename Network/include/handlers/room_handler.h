@@ -37,7 +37,7 @@ void handle_close_room(
  * Handle CMD_SET_RULE (0x0206)
  * Host changes room settings
  */
-void handle_set_rules(
+void handle_set_rule(
     int client_fd,
     MessageHeader *req,
     const char *payload

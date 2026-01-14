@@ -81,7 +81,7 @@ void dispatch_command(
         handle_close_room(client_fd, header, payload);
         break;
     case CMD_SET_RULE:
-        handle_set_rules(client_fd, header, payload);
+        handle_set_rule(client_fd, header, payload);
         break;
     case CMD_KICK:
         handle_kick_member(client_fd, header, payload);
