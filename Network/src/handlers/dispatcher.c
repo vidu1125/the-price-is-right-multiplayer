@@ -2,6 +2,7 @@
 #include <arpa/inet.h>
 
 #include "handlers/dispatcher.h"
+#include "handlers/password_handler.h"
 #include "handlers/history_handler.h"
 #include "handlers/room_handler.h"
 #include "handlers/profile_handler.h"
@@ -62,6 +63,9 @@ void dispatch_command(
         break;
     case CMD_GET_PROFILE:
         handle_get_profile(client_fd, header, payload);
+        break;
+    case CMD_CHANGE_PASSWORD:
+        handle_change_password(client_fd, header, payload);
         break;
 
     // Room Management

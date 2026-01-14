@@ -3,7 +3,7 @@
 # ==============================
 CC := gcc
 CFLAGS := -Wall -Wextra -O2 -g
-INCLUDES := -Iinclude
+INCLUDES := -Iinclude -I/usr/include/postgresql
 
 # ==============================
 # Directories
@@ -36,7 +36,7 @@ TARGET := network_server
 .PHONY: all clean run
 
 all: $(TARGET)
-LIBS := -lcurl -lcjson -lcrypt -luuid -lpthread
+LIBS := -lpq -lcjson -lcrypt -luuid -lpthread
 
 $(TARGET): $(OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LIBS)

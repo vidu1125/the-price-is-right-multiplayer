@@ -169,6 +169,7 @@ docker logs tpir-postgres
 **Nguyên nhân:** Sai password
 **Giải pháp:** Đảm bảo password là `password` (chữ thường)
 
+<<<<<<< HEAD
 ### Lỗi: "FATAL: role 'postgres' does not exist" hoặc "FATAL: role 'postgresql' does not exist"
 **Nguyên nhân:** 
 - Sai username trong DBeaver, HOẶC
@@ -217,6 +218,8 @@ GRANT ALL PRIVILEGES ON DATABASE tpir TO postgresql;
 - Việc xóa volume (Bước 2) sẽ **XÓA TẤT CẢ DỮ LIỆU** trong database. Chỉ làm khi bạn chấp nhận mất dữ liệu hoặc đang trong giai đoạn development.
 - Giải pháp Bước 3 chỉ hoạt động nếu bạn biết user hiện tại của database (thường là `postgres`).
 
+=======
+>>>>>>> e73574328230d6e12877681e5b5ef50a7bb7df68
 ### Lỗi: "Port 5432 already in use"
 **Nguyên nhân:** Có PostgreSQL instance khác đang chạy trên port 5432
 **Giải pháp:**

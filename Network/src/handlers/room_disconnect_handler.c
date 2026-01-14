@@ -41,7 +41,7 @@ void room_handle_disconnect(int client_fd, uint32_t account_id) {
     printf("[ROOM_DISCONNECT] Deleting from database room_members...\n");
     char query[256];
     snprintf(query, sizeof(query), 
-             "account_id=eq.%u&room_id=eq.%u", account_id, room_id);
+             "account_id = %u AND room_id = %u", account_id, room_id);
     
     cJSON *response = NULL;
     db_error_t rc = db_delete("room_members", query, &response);
@@ -67,7 +67,7 @@ void room_handle_disconnect(int client_fd, uint32_t account_id) {
         cJSON_AddStringToObject(payload, "status", "closed");
         
         char filter[64];
-        snprintf(filter, sizeof(filter), "id=eq.%u", room_id);
+        snprintf(filter, sizeof(filter), "id = %u", room_id);
         
         response = NULL;
         rc = db_patch("rooms", filter, payload, &response);

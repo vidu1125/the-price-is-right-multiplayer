@@ -1,3 +1,6 @@
+-- ===============================
+-- ACCOUNTS
+-- ===============================
 CREATE TABLE accounts (
     id SERIAL PRIMARY KEY,
     email VARCHAR(100) UNIQUE NOT NULL,
@@ -7,6 +10,9 @@ CREATE TABLE accounts (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
+-- ===============================
+-- SESSIONS
+-- ===============================
 CREATE TABLE sessions (
     account_id INT PRIMARY KEY
         REFERENCES accounts(id)
@@ -16,6 +22,9 @@ CREATE TABLE sessions (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
+-- ===============================
+-- PROFILES
+-- ===============================
 CREATE TABLE profiles (
     id SERIAL PRIMARY KEY,
     account_id INT
@@ -32,6 +41,9 @@ CREATE TABLE profiles (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
+-- ===============================
+-- FRIENDS
+-- ===============================
 CREATE TABLE friends (
     id SERIAL PRIMARY KEY,
     requester_id INT
@@ -46,6 +58,9 @@ CREATE TABLE friends (
     UNIQUE (requester_id, addressee_id)
 );
 
+-- ===============================
+-- ROOMS
+-- ===============================
 CREATE TABLE rooms (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100),
@@ -54,13 +69,16 @@ CREATE TABLE rooms (
     host_id INT
         REFERENCES accounts(id),
     wager_mode BOOLEAN DEFAULT FALSE,
-    max_player INT,
+    max_players INT,
     mode VARCHAR,
     status VARCHAR(20),
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
+-- ===============================
+-- ROOM MEMBERS
+-- ===============================
 CREATE TABLE room_members (
     room_id INT
         REFERENCES rooms(id)
@@ -72,6 +90,9 @@ CREATE TABLE room_members (
     PRIMARY KEY (room_id, account_id)
 );
 
+-- ===============================
+-- MATCHES
+-- ===============================
 CREATE TABLE matches (
     id SERIAL PRIMARY KEY,
     room_id INT
@@ -83,6 +104,9 @@ CREATE TABLE matches (
     ended_at TIMESTAMP
 );
 
+-- ===============================
+-- MATCH PLAYERS
+-- ===============================
 CREATE TABLE match_players (
     id SERIAL PRIMARY KEY,
     match_id INT
@@ -98,6 +122,9 @@ CREATE TABLE match_players (
     joined_at TIMESTAMP DEFAULT NOW()
 );
 
+-- ===============================
+-- MATCH QUESTIONS
+-- ===============================
 CREATE TABLE match_question (
     id SERIAL PRIMARY KEY,
     match_id INT
@@ -111,6 +138,9 @@ CREATE TABLE match_question (
     UNIQUE (match_id, round_no, question_idx)
 );
 
+-- ===============================
+-- MATCH ANSWERS
+-- ===============================
 CREATE TABLE match_answer (
     id SERIAL PRIMARY KEY,
     question_id INT
@@ -126,6 +156,9 @@ CREATE TABLE match_answer (
     UNIQUE (question_id, player_id, action_idx)
 );
 
+-- ===============================
+-- QUESTIONS BANK
+-- ===============================
 CREATE TABLE questions (
     id SERIAL PRIMARY KEY,
     type VARCHAR(20),             -- MCQ | PRICE | WHEEL
@@ -135,6 +168,9 @@ CREATE TABLE questions (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
+-- ===============================
+-- MATCH EVENTS
+-- ===============================
 CREATE TABLE match_events (
     id SERIAL PRIMARY KEY,
     match_id INT NOT NULL
@@ -148,3 +184,19 @@ CREATE TABLE match_events (
     question_idx INT,
     created_at TIMESTAMP DEFAULT NOW()
 );
+
+-- ===============================
+-- VIEWS
+-- ===============================
+CREATE OR REPLACE VIEW rooms_with_counts AS
+SELECT 
+    r.id,
+    r.name,
+    r.status,
+    r.mode,
+    r.max_players,
+    r.visibility,
+    r.wager_mode,
+    r.created_at,
+    (SELECT COUNT(*) FROM room_members rm WHERE rm.room_id = r.id) as current_players
+FROM rooms r;

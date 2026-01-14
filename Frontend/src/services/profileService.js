@@ -137,3 +137,47 @@ registerHandler(RES_PROFILE_FOUND, (payload) => {
     }
   }
 });
+
+let passwordPending = null;
+
+export function changePassword(oldPassword, newPassword) {
+  return new Promise((resolve, reject) => {
+    if (passwordPending) {
+      clearTimeout(passwordPending.timeoutId);
+    }
+    passwordPending = { resolve, reject, timeoutId: null };
+    passwordPending.timeoutId = setTimeout(() => {
+      passwordPending = null;
+      reject({ success: false, error: "Timeout changing password" });
+    }, TIMEOUT);
+
+    // Create binary payload of 128 bytes (64 for old, 64 for new)
+    const buffer = new ArrayBuffer(128);
+    const view = new Uint8Array(buffer);
+
+    // Helper to write string to buffer
+    const writeString = (str, offset, maxLen) => {
+      const encoded = encoder.encode(str);
+      // Truncate if too long (though UI limits this preferably)
+      const len = Math.min(encoded.length, maxLen - 1); // allow space for null terminator
+      view.set(encoded.slice(0, len), offset);
+      // Padding is 0 by default for ArrayBuffer
+    };
+
+    writeString(oldPassword, 0, 64);
+    writeString(newPassword, 64, 64);
+
+    sendPacket(OPCODE.CMD_CHANGE_PASSWORD, buffer);
+  });
+}
+
+registerHandler(OPCODE.RES_PASSWORD_CHANGED, (payload) => {
+  const data = parsePayload(payload);
+  if (passwordPending) {
+    const { resolve, reject, timeoutId } = passwordPending;
+    clearTimeout(timeoutId);
+    passwordPending = null;
+    if (data.success) resolve(data);
+    else reject(data);
+  }
+});

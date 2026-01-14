@@ -194,7 +194,7 @@ void handle_create_room(int client_fd, MessageHeader *req, const char *payload) 
     char profile_name[64] = "Host";
     char profile_avatar[256] = "";
     char query[128];
-    snprintf(query, sizeof(query), "account_id=eq.%u", session->account_id);
+    snprintf(query, sizeof(query), "SELECT * FROM profiles WHERE account_id = %u LIMIT 1", session->account_id);
     
     cJSON *profile_response = NULL;
     db_error_t profile_rc = db_get("profiles", query, &profile_response);
@@ -357,7 +357,7 @@ void handle_join_room(int client_fd, MessageHeader *req, const char *payload) {
     char profile_name[64] = "Player";  // fallback default
     char profile_avatar[256] = "";     // fallback empty
     char query[128];
-    snprintf(query, sizeof(query), "account_id=eq.%u", session->account_id);
+    snprintf(query, sizeof(query), "SELECT * FROM profiles WHERE account_id = %u LIMIT 1", session->account_id);
     
     cJSON *profile_response = NULL;
     db_error_t profile_rc = db_get("profiles", query, &profile_response);
@@ -697,7 +697,7 @@ void handle_get_room_list(int client_fd, MessageHeader *req, const char *payload
     
     char query[256];
     snprintf(query, sizeof(query), 
-             "select=id,name,status,mode,max_players,visibility,wager_mode,current_players&status=eq.waiting&order=created_at.desc&limit=10");
+             "SELECT id, name, status, mode, max_players, visibility, wager_mode, current_players FROM rooms_with_counts WHERE status = 'waiting' ORDER BY created_at DESC LIMIT 10");
     
     cJSON *response = NULL;
     // Update target table to 'rooms_with_counts'

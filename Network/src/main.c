@@ -71,7 +71,7 @@ int main(int argc, char *argv[]) {
     cJSON_AddStringToObject(payload, "status", "closed");
     cJSON *response = NULL;
     
-    db_error_t rc = db_patch("rooms", "status=in.(waiting,playing)", payload, &response);
+    db_error_t rc = db_patch("rooms", "status IN ('waiting', 'playing')", payload, &response);
     
     if (rc == DB_OK) {
         printf("[DB] Closed zombie rooms\n");
@@ -84,7 +84,7 @@ int main(int argc, char *argv[]) {
     
     // Clear all room members
     response = NULL;
-    rc = db_delete("room_members", "id=gt.0", &response);
+    rc = db_delete("room_members", "room_id > 0", &response);
     
     if (rc == DB_OK) {
         printf("[DB] Cleared room members\n");
