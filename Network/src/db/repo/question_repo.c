@@ -100,7 +100,6 @@ db_error_t question_get_excluded_ids(
         "JOIN matches m ON mq.match_id = m.id "
         "JOIN match_players mp ON mp.match_id = m.id "
         "WHERE mp.account_id IN (%s) "
-        "ORDER BY m.started_at DESC "
         "LIMIT %d",
         account_list, recent_match_count * 10);  // Get more to ensure coverage
 

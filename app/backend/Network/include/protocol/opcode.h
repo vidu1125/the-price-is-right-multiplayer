@@ -10,6 +10,7 @@
 // Profile / Player Settings
 #define CMD_UPDATE_PROFILE   0x0104
 #define CMD_GET_PROFILE      0x0105
+#define CMD_CHANGE_PASSWORD  0x0106
 
 // Lobby (Room Management)
 #define CMD_CREATE_ROOM     0x0200
@@ -20,6 +21,7 @@
 #define CMD_INVITE_FRIEND   0x0205
 #define CMD_SET_RULE        0x0206
 #define CMD_CLOSE_ROOM      0x0207  // Host closes room
+#define CMD_GET_ROOM_LIST   0x0208  // Get list of waiting rooms
 
 // Gameplay
 #define CMD_START_GAME      0x0300
@@ -54,10 +56,12 @@
 #define RES_ROOM_CLOSED     0x00DF  // 223
 #define RES_RULES_UPDATED   0x00E0  // 224
 #define RES_MEMBER_KICKED   0x00E1  // 225
+#define RES_ROOM_LIST       0x00E4  // 228
 #define RES_GAME_STARTED    0x012D  // 301
 // Profile
 #define RES_PROFILE_UPDATED 0x00E2  // 226
 #define RES_PROFILE_FOUND   0x00E3  // 227
+#define RES_PASSWORD_CHANGED 0x00E5 // 229
 
 // Error
 #define ERR_BAD_REQUEST     0x0190  // 400

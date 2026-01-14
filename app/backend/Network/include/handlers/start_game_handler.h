@@ -77,6 +77,7 @@ typedef struct {
     uint8_t connected;       // 1 = online, 0 = disconnected
     uint8_t eliminated;      // 1 = bị loại
     uint8_t forfeited;       // 1 = bỏ cuộc
+    int     eliminated_at_round; // Round number where player was eliminated (1-based)
 } MatchPlayerState;
 
 // Round state (depends on QuestionState, MatchQuestion)
@@ -110,6 +111,8 @@ typedef struct {
     int round_count;
 
     int current_round_idx;
+    
+    char question_category[32]; // "lifestyle", "electronics", "furniture", or "" for all
 
     time_t created_at;
 } MatchState;
