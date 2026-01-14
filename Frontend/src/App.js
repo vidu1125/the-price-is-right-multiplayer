@@ -16,6 +16,7 @@ import TutorialPage from "./components/Tutorial/TutorialPage";
 import Login from "./components/Auth/Login";
 import Register from "./components/Auth/Register";
 import PlayerSettings from "./components/Profile/PlayerSettings";
+import FriendsManager from "./components/Friends/FriendsManager";
 
 import LobbyLayout from "./layout/layout1";
 import WaitingRoomLayout from "./layout/layout2";
@@ -77,6 +78,7 @@ function AnimatedRoutes() {
           <Route path="/tutorial" element={<TutorialPage />} />
           <Route path="/match/:id" element={<MatchDetailPage />} />
           <Route path="/settings" element={<PlayerSettings />} />
+          <Route path="/friends" element={<FriendsManager />} />
         </Route>
 
         {/* ===== WAITING ROOM (PRIVATE) ===== */}

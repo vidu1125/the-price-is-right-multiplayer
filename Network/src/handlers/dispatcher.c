@@ -7,6 +7,9 @@
 #include "handlers/room_handler.h"
 #include "handlers/profile_handler.h"
 #include "handlers/round1_handler.h"
+#include "handlers/social_handler.h"
+#include "handlers/presence_handler.h"
+#include "handlers/friend_handler.h"
 #include "handlers/start_game_handler.h"
 #include "handlers/forfeit_handler.h"
 #include "handlers/session_context.h"
@@ -127,6 +130,25 @@ void dispatch_command(
     case CMD_REPLAY:
         printf("[DISPATCH] Parsing to replayHandler\n");       
         handle_replay(client_fd, header, payload, account_id);
+        break;
+
+    // Social - Friend Management
+    case CMD_FRIEND_ADD:
+    case CMD_FRIEND_ACCEPT:
+    case CMD_FRIEND_REJECT:
+    case CMD_FRIEND_REMOVE:
+    case CMD_FRIEND_LIST:
+    case CMD_FRIEND_REQUESTS:
+    case CMD_SEARCH_USER:
+        handle_friend(client_fd, header, payload);
+        break;
+
+    // Presence & Status
+    case CMD_STATUS_UPDATE:
+        handle_status_update(client_fd, header, payload);
+        break;
+    case CMD_GET_FRIEND_STATUS:
+        handle_get_friend_status(client_fd, header, payload);
         break;
 
     default:
