@@ -71,3 +71,19 @@ registerHandler(OPCODE.RES_ROOM_JOINED, (payload) => {
 
 // Đăng ký handler cho lỗi (Room Full, Game Started handled centrally or here if specific UI feedback needed)
 // Currently ERR_BAD_REQUEST is handled in RoomPanel generic handler
+
+/**
+ * Toggle ready state
+ */
+export function toggleReady() {
+    console.log('[ROOM_SERVICE] Toggling ready state');
+
+    // Send packet with EMPTY payload (0 bytes)
+    sendPacket(OPCODE.CMD_READY, new Uint8Array(0));
+}
+
+// Register handler for RES_READY_OK
+registerHandler(OPCODE.RES_READY_OK, (payload) => {
+    console.log('[ROOM_SERVICE] ✅ Ready state updated');
+    // UI will be updated via NTF_PLAYER_READY
+});

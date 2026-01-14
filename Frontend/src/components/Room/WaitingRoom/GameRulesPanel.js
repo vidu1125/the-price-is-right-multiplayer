@@ -6,8 +6,8 @@ import { useState, useEffect } from "react";
 export default function GameRulesPanel({ isHost, roomId, gameRules, onRulesChange }) {
   const [editMode, setEditMode] = useState(false);
 
-  // Hàm xử lý thay đổi rule chung
-  const handleRuleChange = async (ruleKey, value) => {
+  // Hàm xử lý thay đổi rule chung (chỉ update local state)
+  const handleRuleChange = (ruleKey, value) => {
     let newRules = { ...gameRules, [ruleKey]: value };
 
     // LOGIC ĐẶC BIỆT: Khi thay đổi Mode
@@ -17,21 +17,33 @@ export default function GameRulesPanel({ isHost, roomId, gameRules, onRulesChang
         newRules.maxPlayers = 4;
       } else if (value === "scoring") {
         // Nếu chọn Scoring -> Đảm bảo nằm trong khoảng 4-6
-        // Nếu đang là 4 thì giữ nguyên, nếu khác thì reset về 4 (hoặc logic khác tùy bạn)
         if ((newRules.maxPlayers || 0) < 4) newRules.maxPlayers = 4;
         if ((newRules.maxPlayers || 0) > 6) newRules.maxPlayers = 6;
       }
     }
 
+    // Chỉ update local state, KHÔNG gửi server
     onRulesChange(newRules);
+  };
 
-    // Send to server if host
+  // Hàm commit rules khi bấm Done
+  const handleDone = async () => {
     if (isHost) {
+      // LƯU SNAPSHOT của rules hiện tại (trước khi gửi server)
+      const previousRules = { ...gameRules };
+
       try {
-        await setRules(roomId, newRules);
-        console.log("✅ Game rules updated", newRules);
+        await setRules(roomId, gameRules);
+        console.log("✅ Game rules committed:", gameRules);
+        setEditMode(false);
       } catch (error) {
-        console.error("❌ Failed to update rules:", error);
+        console.error("❌ Failed to commit rules:", error);
+
+        // REVERT về rules cũ nếu server reject
+        onRulesChange(previousRules);
+
+        // Hiển thị lỗi cho user
+        alert("❌ Cannot update rules: " + (error.message || "Server rejected the rule change"));
       }
     }
   };
@@ -45,8 +57,7 @@ export default function GameRulesPanel({ isHost, roomId, gameRules, onRulesChang
     let min = 4;
     let max = 6;
 
-    // Nếu là elimination, không cho chỉnh (hoặc logic khác nếu bạn muốn)
-    // Theo yêu cầu "mặc định là 4", mình sẽ khóa cứng ở 4 cho chế độ này
+    // Nếu là elimination, không cho chỉnh
     if (currentMode === "elimination") {
       return;
     }
@@ -68,7 +79,7 @@ export default function GameRulesPanel({ isHost, roomId, gameRules, onRulesChang
         {isHost && (
           <button
             className="settings-icon-btn"
-            onClick={() => setEditMode(!editMode)}
+            onClick={editMode ? handleDone : () => setEditMode(true)}
           >
             {editMode ? "done" : "edit"}
           </button>

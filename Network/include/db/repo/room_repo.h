@@ -20,9 +20,8 @@ int room_repo_set_rules(
     uint32_t room_id,
     uint8_t mode,
     uint8_t max_players,
-    uint8_t wager_enabled,
-    char *out_buf,
-    size_t out_size
+    uint8_t visibility,
+    uint8_t wager_enabled
 );
 
 int room_repo_kick_member(

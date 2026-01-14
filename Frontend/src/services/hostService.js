@@ -134,45 +134,63 @@ registerHandler(OPCODE.RES_ROOM_CLOSED, (payload) => {
 //==============================================================================
 
 /**
- * SetRulesPayload struct (8 bytes):
- * - uint32_t room_id
+ * SetRulesPayload struct (4 bytes):
  * - uint8_t mode
  * - uint8_t max_players
- * - uint8_t round_time
- * - uint8_t wager_enabled
+ * - uint8_t visibility
+ * - uint8_t wager_mode
  */
 export function setRules(roomId, rules) {
-    const buffer = new ArrayBuffer(8);
-    const view = new DataView(buffer);
+    return new Promise((resolve, reject) => {
+        const buffer = new ArrayBuffer(4);
+        const view = new DataView(buffer);
 
-    view.setUint32(0, roomId, false); // Network byte order
-    view.setUint8(4, rules.mode === 'elimination' ? 1 : 0);
-    view.setUint8(5, rules.maxPlayers || 6);
-    view.setUint8(6, rules.roundTime || 15);
-    view.setUint8(7, rules.wagerEnabled ? 1 : 0);
+        // Byte 0: mode (0=elimination, 1=scoring)
+        view.setUint8(0, rules.mode === 'scoring' ? 1 : 0);
 
-    console.log('[Host] Setting rules:', rules);
-    sendPacket(OPCODE.CMD_SET_RULE, buffer);
+        // Byte 1: max_players
+        view.setUint8(1, rules.maxPlayers || 4);
+
+        // Byte 2: visibility (0=public, 1=private)
+        view.setUint8(2, rules.visibility === 'private' ? 1 : 0);
+
+        // Byte 3: wager_mode
+        view.setUint8(3, rules.wagerMode ? 1 : 0);
+
+        console.log('[HOST_SERVICE] setRules:', rules, 'payload size:', 4);
+
+        // Register one-time handlers for this request
+        const successHandler = (payload) => {
+            console.log('[HOST_SERVICE] ✅ Rules updated successfully');
+            resolve();
+        };
+
+        const errorHandler = (payload) => {
+            const text = new TextDecoder().decode(payload);
+            let errorMsg = "Failed to update rules";
+            try {
+                const data = JSON.parse(text);
+                errorMsg = data.error || data.message || text;
+            } catch (e) {
+                errorMsg = text;
+            }
+            console.error('[HOST_SERVICE] ❌ Rules update failed:', errorMsg);
+            reject(new Error(errorMsg));
+        };
+
+        // Register handlers (these will be called once)
+        registerHandler(OPCODE.RES_RULES_UPDATED, successHandler);
+        registerHandler(OPCODE.ERR_BAD_REQUEST, errorHandler);
+
+        sendPacket(OPCODE.CMD_SET_RULE, new Uint8Array(buffer));
+    });
 }
 
-registerHandler(OPCODE.RES_RULES_UPDATED, (payload) => {
-    const text = new TextDecoder().decode(payload);
-    let jsonStr = text.substring(text.indexOf('\r\n\r\n') + 4);
-
-    try {
-        const response = JSON.parse(jsonStr);
-
-        if (response.success) {
-            console.log('[Host] Rules updated:', response.rules);
-            // TODO: Update UI to reflect new rules
-            alert('Rules updated successfully!');
-        } else {
-            alert('Failed to update rules: ' + response.error);
-        }
-    } catch (e) {
-        console.error('[Host] Parse error:', e);
-    }
-});
+// Remove old handler registration (now done inside setRules function)
+// registerHandler(OPCODE.RES_RULES_UPDATED, (payload) => {
+//     console.log('[HOST_SERVICE] ✅ Rules updated successfully');
+//     // UI will be updated via NTF_RULES_CHANGED
+// });
 
 //==============================================================================
 // 4. KICK MEMBER

@@ -180,3 +180,42 @@
     font-size: 20px;
     text-shadow: 2px 2px 0 #1F2A44;
 }
+/* ==================== READY BUTTON ==================== */
+.ready-btn {
+    margin-top: 8px;
+    padding: 8px 16px;
+    border-radius: 8px;
+    border: 2px solid #1F2A44;
+    font-family: 'Luckiest Guy', cursive;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.3s;
+    min-width: 120px;
+    font-weight: normal;
+}
+
+.ready-btn.ready {
+    background: #8BC34A;  /* Green */
+    color: white;
+    box-shadow: 0 4px 0 #558b2f;
+}
+
+.ready-btn.not-ready {
+    background: #FF5252;  /* Red */
+    color: white;
+    box-shadow: 0 4px 0 #c62828;
+}
+
+.ready-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.ready-btn:not(:disabled):hover {
+    transform: translateY(-2px);
+}
+
+.ready-btn:not(:disabled):active {
+    transform: translateY(2px);
+    box-shadow: 0 2px 0 #558b2f;
+}
