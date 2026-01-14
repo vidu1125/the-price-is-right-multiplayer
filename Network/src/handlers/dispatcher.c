@@ -6,6 +6,7 @@
 #include "handlers/room_handler.h"
 #include "handlers/profile_handler.h"
 #include "handlers/round1_handler.h"
+#include "handlers/round2_handler.h"
 #include "handlers/start_game_handler.h"
 #include "handlers/forfeit_handler.h"
 #include "handlers/session_context.h"
@@ -111,6 +112,14 @@ void dispatch_command(
     case OP_C2S_ROUND1_PLAYER_READY:
     case OP_C2S_ROUND1_FINISHED:
         handle_round1(client_fd, header, payload);
+        break;
+
+    // Round 2 - Bid
+    case OP_C2S_ROUND2_READY:
+    case OP_C2S_ROUND2_PLAYER_READY:
+    case OP_C2S_ROUND2_GET_PRODUCT:
+    case OP_C2S_ROUND2_BID:
+        handle_round2(client_fd, header, payload);
         break;
 
     case CMD_REPLAY:

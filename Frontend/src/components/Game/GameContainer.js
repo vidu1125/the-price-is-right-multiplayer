@@ -352,6 +352,9 @@ import Round3 from './Round/Round3';
 import RoundBonus from './Round/RoundBonus';
 import { sendForfeit } from '../../services/forfeitService';
 import { useNavigate } from 'react-router-dom';
+// Import services to ensure handlers are registered
+import '../../services/round1Service';
+import '../../services/round2Service';
 
 const GameContainer = () => {
     // ============ STATE MANAGEMENT ============
@@ -468,10 +471,6 @@ const GameContainer = () => {
                     matchId={matchId}
                     playerId={playerId}
                     onRoundComplete={handleRoundComplete}
-                    currentQuestion={1}
-                    totalQuestions={5}
-                    productImage="/bg/iphone15.jpg"
-                    isWagerAvailable={true}
                 />;
             case 3:
                 return <Round3 totalPlayers={4} onRoundComplete={handleRoundComplete} />;

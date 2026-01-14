@@ -11,7 +11,8 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
 
     // Connection state
     const [connectedPlayers, setConnectedPlayers] = useState([]);
-    const [connectionCountdown, setConnectionCountdown] = useState(5);
+    // ⭐ HARDCODE FOR TESTING: Reduced countdown (3 seconds)
+    const [connectionCountdown, setConnectionCountdown] = useState(3);
 
     // Question state
     const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
@@ -28,7 +29,8 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
 
     // Summary screen state
     const [summaryData, setSummaryData] = useState(null);
-    const [summaryCountdown, setSummaryCountdown] = useState(10);
+    // ⭐ HARDCODE FOR TESTING: Reduced countdown (3 seconds)
+    const [summaryCountdown, setSummaryCountdown] = useState(3);
     const [activePlayers, setActivePlayers] = useState([]); // Track connected players
     const [disconnectedPlayers, setDisconnectedPlayers] = useState([]); // Track who disconnected
 
@@ -79,8 +81,8 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
 
         connectAndReady();
 
-        // Countdown để hiển thị trạng thái kết nối (tăng lên 10s)
-        setConnectionCountdown(10);
+        // ⭐ HARDCODE FOR TESTING: Reduced countdown (3s)
+        setConnectionCountdown(3);
         connectionTimerRef.current = setInterval(() => {
             setConnectionCountdown(prev => {
                 if (prev <= 1) {
@@ -239,14 +241,17 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
             setTimeout(() => {
                 showingResultRef.current = false; // Allow new questions now
                 const nextIdx = currentIdxRef.current + 1;
+                const totalQ = data.total_questions || questionData?.total_questions || 10;
 
-                if (nextIdx < 10) {
+                console.log('[Round1] Next question check: nextIdx=' + nextIdx + ', total=' + totalQ);
+
+                if (nextIdx < totalQ) {
                     currentIdxRef.current = nextIdx;
                     setCurrentQuestionIdx(nextIdx);
                     questionReceivedRef.current = false;
                     getQuestion(matchId, nextIdx);
                 } else {
-                    console.log('[Round1] All 10 questions done! Final score: ' + scoreRef.current);
+                    console.log('[Round1] All ' + totalQ + ' questions done! Final score: ' + scoreRef.current);
                     setGamePhase('waiting');
                     endRound1(matchId, playerId);
                 }
@@ -305,7 +310,8 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
             setActivePlayers(connected);
             setDisconnectedPlayers(disconnected);
             setGamePhase('summary');
-            setSummaryCountdown(10);
+            // ⭐ HARDCODE FOR TESTING: Reduced countdown (3 seconds)
+            setSummaryCountdown(3);
 
             console.log('[Round1] Active players:', connected.length, 'Disconnected:', disconnected.length);
 
@@ -439,14 +445,17 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
             }
 
             if (onRoundComplete) {
-                onRoundComplete(2, {
+                // Use next_round from server, default to 2
+                const nextRound = summaryData?.next_round || 2;
+                console.log('[Round1] Calling onRoundComplete with nextRound:', nextRound);
+                onRoundComplete(nextRound, {
                     score: scoreRef.current,
                     playerCount: activeCount,
                     disconnectedPlayers: disconnectedPlayers
                 });
             }
         }
-    }, [gamePhase, summaryCountdown, activePlayers, disconnectedPlayers, onRoundComplete]);
+    }, [gamePhase, summaryCountdown, activePlayers, disconnectedPlayers, onRoundComplete, summaryData]);
 
     //==========================================================================
     // Cleanup
@@ -476,7 +485,9 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
     const handleSkipToNextRound = () => {
         clearInterval(summaryTimerRef.current);
         if (onRoundComplete) {
-            onRoundComplete(2, { score: scoreRef.current });
+            const nextRound = summaryData?.next_round || 2;
+            console.log('[Round1] Skip to next round:', nextRound);
+            onRoundComplete(nextRound, { score: scoreRef.current });
         }
     };
 
@@ -720,12 +731,13 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
             <div className="quiz-content">
                 <div className="question-header-row">
                     <div className="question-number-header">
-                        QUESTION {currentQuestionIdx + 1} / 10
+                        QUESTION {currentQuestionIdx + 1} / {questionData.total_questions || 10}
                     </div>
-                    {/* Timer đã có ở GameContainer header, không cần ở đây */}
                 </div>
 
-                <h2 className="quiz-question">{questionData.question}</h2>
+                <div className="question-box">
+                    <h2 className="quiz-question">{questionData.question}</h2>
+                </div>
 
                 {questionData.product_image && (
                     <div className="product-image-container">

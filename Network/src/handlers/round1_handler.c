@@ -42,7 +42,8 @@
 //==============================================================================
 // CONSTANTS
 //==============================================================================
-#define TIME_PER_QUESTION   15000 // 15 seconds in milliseconds
+// ⭐ HARDCODE FOR TESTING: Reduced time (10 seconds)
+#define TIME_PER_QUESTION   10000 // 10 seconds in milliseconds
 #define MAX_SCORE_PER_Q     200   // Max score per question
 #define MIN_SCORE_PER_Q     100   // Min score for correct answer
 
@@ -296,7 +297,7 @@ static int count_answered(void) {
                 count++;
         }
     }
-    return count;
+  return count;
 }
 
 /**
@@ -467,7 +468,7 @@ static char* build_question_json(int q_idx) {
     char *json = cJSON_PrintUnformatted(obj);
     cJSON_Delete(obj);
     cJSON_Delete(root);
-    return json;
+  return json;
 }
 
 //==============================================================================
@@ -658,7 +659,7 @@ static char* build_round_end_json(void) {
         cJSON_AddStringToObject(obj, "status_message", "Game ended - too many disconnections");
     } else if (disconnected == 1) {
         cJSON_AddStringToObject(obj, "status_message", "1 disconnected - no elimination");
-    } else {
+      } else {
         cJSON_AddStringToObject(obj, "status_message", "Round completed");
     }
     
@@ -695,6 +696,14 @@ static char* build_round_end_json(void) {
         if (tie >= 2) need_bonus = true;
     }
     cJSON_AddBoolToObject(obj, "need_bonus_round", need_bonus);
+    
+    // Add next round info (match was already retrieved at start of function)
+    int next_round = match->current_round_idx + 1; // 1-based for frontend
+    if (next_round > match->round_count) {
+        next_round = 0; // No more rounds
+    }
+    cJSON_AddNumberToObject(obj, "next_round", next_round);
+    cJSON_AddNumberToObject(obj, "current_round", 1);
     
     // Sort descending for display (highest first)
     for (int i = 0; i < count - 1; i++) {
@@ -797,11 +806,27 @@ void advance_to_next_question(MessageHeader *req) {
         // Perform elimination - UPDATE MatchPlayerState.eliminated
         perform_elimination();
         
-        // Broadcast results
+        // Advance to next round in MatchState
+        MatchState *match = get_match();
+        if (match && match->current_round_idx < match->round_count - 1) {
+            match->current_round_idx++;
+            printf("[Round1] Advanced to round %d\n", match->current_round_idx + 1);
+            
+            // Initialize next round state
+            RoundState *next_round = &match->rounds[match->current_round_idx];
+            next_round->status = ROUND_PENDING;
+            next_round->current_question_idx = 0;
+        }
+        
+        // Broadcast results with next_round info
         char *end_json = build_round_end_json();
         if (end_json) {
+            printf("[Round1] ALL_FINISHED JSON: %s\n", end_json);
             broadcast_json(req, OP_S2C_ROUND1_ALL_FINISHED, end_json);
+            printf("[Round1] ALL_FINISHED broadcast complete\n");
             free(end_json);
+        } else {
+            printf("[Round1] ERROR: build_round_end_json returned NULL!\n");
         }
     } else {
         // Send next question
@@ -814,17 +839,17 @@ void advance_to_next_question(MessageHeader *req) {
 //==============================================================================
 
 static void handle_player_ready(int fd, MessageHeader *req, const char *payload) {
-    if (req->length < 8) {
+  if (req->length < 8) {
         send_json(fd, req, ERR_BAD_REQUEST, "{\"success\":false,\"error\":\"Invalid payload\"}");
-        return;
-    }
-    
+    return;
+  }
+
     uint32_t match_id, player_id;
-    memcpy(&match_id, payload, 4);
-    memcpy(&player_id, payload + 4, 4);
-    match_id = ntohl(match_id);
-    player_id = ntohl(player_id);
-    
+  memcpy(&match_id, payload, 4);
+  memcpy(&player_id, payload + 4, 4);
+  match_id = ntohl(match_id);
+  player_id = ntohl(player_id);
+
     // Get account from session
     UserSession *session = session_get_by_socket(fd);
     int32_t account_id = session ? session->account_id : (int32_t)player_id;
@@ -843,15 +868,15 @@ static void handle_player_ready(int fd, MessageHeader *req, const char *payload)
     for (int i = 0; i < match->player_count; i++) {
         if (match->players[i].account_id == account_id) {
             mp = &match->players[i];
-            break;
+      break;
     }
-    }
-    
+  }
+
     if (!mp) {
         send_json(fd, req, ERR_BAD_REQUEST, "{\"success\":false,\"error\":\"Not in match\"}");
-        return;
-    }
-    
+    return;
+  }
+
     // Block eliminated players (includes disconnect in both modes)
     if (mp->eliminated) {
         send_json(fd, req, ERR_BAD_REQUEST, "{\"success\":false,\"error\":\"Player eliminated\"}");
@@ -923,10 +948,11 @@ static void handle_player_ready(int fd, MessageHeader *req, const char *payload)
     broadcast_json(req, OP_S2C_ROUND1_READY_STATUS, json);
     free(json);
     
-    // All ready → start round (need all players ready)
+    // All ready → start round
+    // ⭐ HARDCODE FOR TESTING: Start with 1+ player ready
     printf("[Round1] Check start: ready=%d, match_players=%d, round_status=%d\n",
            g_r1.ready_count, match->player_count, round ? round->status : -1);
-    if (g_r1.ready_count >= match->player_count && round && round->status == ROUND_PENDING) {
+    if (g_r1.ready_count >= 1 && round && round->status == ROUND_PENDING) {
         printf("[Round1] All ready, starting round\n");
         
         // Update RoundState
@@ -950,7 +976,7 @@ static void handle_player_ready(int fd, MessageHeader *req, const char *payload)
         
         // Send first question
         broadcast_current_question(req);
-    }
+  }
 }
 
 //==============================================================================
@@ -960,9 +986,9 @@ static void handle_player_ready(int fd, MessageHeader *req, const char *payload)
 static void handle_get_question(int fd, MessageHeader *req, const char *payload) {
     if (req->length < 8) {
         send_json(fd, req, ERR_BAD_REQUEST, "{\"success\":false,\"error\":\"Invalid payload\"}");
-        return;
-    }
-    
+    return;
+  }
+
     uint32_t match_id, q_idx;
     memcpy(&match_id, payload, 4);
     memcpy(&q_idx, payload + 4, 4);
@@ -976,9 +1002,9 @@ static void handle_get_question(int fd, MessageHeader *req, const char *payload)
     RoundState *round = get_round();
     if (!round || round->status != ROUND_PLAYING) {
         send_json(fd, req, ERR_BAD_REQUEST, "{\"success\":false,\"error\":\"Round not active\"}");
-        return;
-    }
-    
+    return;
+  }
+
     // Check if player is eliminated
     // Check if player is eliminated (includes disconnect in both modes)
     UserSession *session = session_get_by_socket(fd);
@@ -986,7 +1012,7 @@ static void handle_get_question(int fd, MessageHeader *req, const char *payload)
         MatchPlayerState *mp = get_match_player(session->account_id);
         if (mp && mp->eliminated) {
             send_json(fd, req, ERR_BAD_REQUEST, "{\"success\":false,\"error\":\"Player eliminated\"}");
-            return;
+    return;
         }
     }
     
@@ -994,9 +1020,9 @@ static void handle_get_question(int fd, MessageHeader *req, const char *payload)
     char *json = build_question_json(round->current_question_idx);
     if (!json) {
         send_json(fd, req, ERR_SERVER_ERROR, "{\"success\":false,\"error\":\"Question not found\"}");
-        return;
-    }
-    
+    return;
+  }
+
     send_json(fd, req, OP_S2C_ROUND1_QUESTION, json);
     free(json);
 }
@@ -1006,13 +1032,13 @@ static void handle_get_question(int fd, MessageHeader *req, const char *payload)
 // Updates: MatchPlayerState.score, MatchPlayerState.score_delta
 // Uses: RoundState.current_question_idx, QuestionState.answered_count
 //==============================================================================
-
+  
 static void handle_submit_answer(int fd, MessageHeader *req, const char *payload) {
-    if (req->length < 13) {
+  if (req->length < 13) {
         send_json(fd, req, ERR_BAD_REQUEST, "{\"success\":false,\"error\":\"Invalid payload\"}");
-        return;
-    }
-    
+    return;
+  }
+
     uint32_t match_id, q_idx, time_ms;
     uint8_t choice;
     
@@ -1191,15 +1217,15 @@ static void handle_end_round(int fd, MessageHeader *req, const char *payload) {
 static void handle_legacy_ready(int fd, MessageHeader *req, const char *payload) {
     if (req->length < 8) {
         send_json(fd, req, ERR_BAD_REQUEST, "{\"success\":false,\"error\":\"Invalid payload\"}");
-        return;
-    }
-    
+    return;
+  }
+
     uint32_t room_id, match_id;
     memcpy(&room_id, payload, 4);
     memcpy(&match_id, payload + 4, 4);
     room_id = ntohl(room_id);
-    match_id = ntohl(match_id);
-    
+  match_id = ntohl(match_id);
+  
     MatchState *match = match_get_by_id(match_id);
     if (!match) {
         send_json(fd, req, ERR_BAD_REQUEST, "{\"success\":false,\"error\":\"Match not found\"}");
@@ -1332,7 +1358,7 @@ void handle_round1_disconnect(int client_fd) {
             MessageHeader dummy = {0};
             advance_to_next_question(&dummy);
         }
-    }
+  }
 }
 
 //==============================================================================
@@ -1340,27 +1366,27 @@ void handle_round1_disconnect(int client_fd) {
 //==============================================================================
 
 void handle_round1(int client_fd, MessageHeader *req_header, const char *payload) {
-    printf("[Round1] cmd=0x%04X len=%u\n", req_header->command, req_header->length);
-    
-    switch (req_header->command) {
-        case OP_C2S_ROUND1_READY:
+  printf("[Round1] cmd=0x%04X len=%u\n", req_header->command, req_header->length);
+
+  switch (req_header->command) {
+    case OP_C2S_ROUND1_READY:
             handle_legacy_ready(client_fd, req_header, payload);
-            break;
-        case OP_C2S_ROUND1_PLAYER_READY:
-            handle_player_ready(client_fd, req_header, payload);
-            break;
-        case OP_C2S_ROUND1_GET_QUESTION:
-            handle_get_question(client_fd, req_header, payload);
-            break;
-        case OP_C2S_ROUND1_ANSWER:
-            handle_submit_answer(client_fd, req_header, payload);
-            break;
-        case OP_C2S_ROUND1_END:
-        case OP_C2S_ROUND1_FINISHED:
-            handle_end_round(client_fd, req_header, payload);
-            break;
-        default:
+      break;
+    case OP_C2S_ROUND1_PLAYER_READY:
+      handle_player_ready(client_fd, req_header, payload);
+      break;
+    case OP_C2S_ROUND1_GET_QUESTION:
+      handle_get_question(client_fd, req_header, payload);
+      break;
+    case OP_C2S_ROUND1_ANSWER:
+      handle_submit_answer(client_fd, req_header, payload);
+      break;
+    case OP_C2S_ROUND1_END:
+    case OP_C2S_ROUND1_FINISHED:
+      handle_end_round(client_fd, req_header, payload);
+      break;
+    default:
             printf("[Round1] Unknown cmd: 0x%04X\n", req_header->command);
-            break;
-    }
+      break;
+  }
 }

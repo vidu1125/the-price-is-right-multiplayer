@@ -110,3 +110,15 @@
 #define OP_C2S_ROUND1_FINISHED      0x0607  // Player finished all questions
 #define OP_S2C_ROUND1_WAITING       0x0618  // Waiting for other players
 #define OP_S2C_ROUND1_ALL_FINISHED  0x0619  // All players finished, show results
+
+// Round 2 - Bid (0x0620 - 0x063F)
+#define OP_C2S_ROUND2_READY         0x0620  // Client ready to start round 2
+#define OP_C2S_ROUND2_PLAYER_READY  0x0621  // Player clicks ready
+#define OP_S2C_ROUND2_READY_STATUS  0x0630  // Broadcast ready status
+#define OP_S2C_ROUND2_ALL_READY     0x0631  // All players ready, round starts
+#define OP_C2S_ROUND2_GET_PRODUCT   0x0622  // Request current product
+#define OP_S2C_ROUND2_PRODUCT       0x0632  // Server sends product info
+#define OP_C2S_ROUND2_BID           0x0623  // Submit bid
+#define OP_S2C_ROUND2_BID_ACK       0x0633  // Bid acknowledged
+#define OP_S2C_ROUND2_TURN_RESULT   0x0634  // Turn result (all bids + scores)
+#define OP_S2C_ROUND2_ALL_FINISHED  0x0635  // Round finished, show final results

@@ -70,15 +70,20 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
     // =========================================================================
     uint8_t player_count = room->player_count;
     
-    // Minimum 2 players required to start a game
-    int min_players = 2;
+    // // Minimum 2 players required to start a game
+    // int min_players = 2;
     
-    printf("[HANDLER] <startgame> Player count: %d (min=%d)\n", player_count, min_players);
-    if (player_count < min_players) {
-        printf("[HANDLER] <startgame> Error: Need at least %d players\n", min_players);
-        forward_response(client_fd, req, ERR_BAD_REQUEST, "Need at least 2 players", 23);
-        return;
-    }
+    // printf("[HANDLER] <startgame> Player count: %d (min=%d)\n", player_count, min_players);
+    // if (player_count < min_players) {
+    //     printf("[HANDLER] <startgame> Error: Need at least %d players\n", min_players);
+    //     forward_response(client_fd, req, ERR_BAD_REQUEST, "Need at least 2 players", 23);
+    //     return;
+    // }
+    // ⭐ HARDCODE FOR TESTING: Allow 1 player, skip validation
+    printf("[HANDLER] <startgame> TEST MODE: Allowing %d player(s)\n", player_count);
+    
+    // Skip player count validation for testing
+    (void)room->mode; // Suppress unused warning
 
     // =========================================================================
     // VALIDATION: Check all players are connected
@@ -229,7 +234,8 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
     
     RoundType round_types[] = {ROUND_MCQ, ROUND_BID, ROUND_WHEEL};
     const char *round_type_names[] = {"mcq", "bid", "wheel"};
-    int questions_per_round[] = {5, 3, 2}; // MCQ=5, BID=3, WHEEL=2
+    // ⭐ HARDCODE FOR TESTING: Reduced questions (MCQ=2, BID=2, WHEEL=1)
+    int questions_per_round[] = {2, 2, 1};
     
     match->round_count = 3;
     int total_questions_loaded = 0;
