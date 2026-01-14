@@ -147,8 +147,30 @@ void handle_login(
     err = session_find_by_account(account->id, &session);
     
     if (err == DB_SUCCESS && session) {
-        // Existing session - reconnect
-        session_reconnect(session->session_id);
+        // Existing session found
+        printf("[AUTH] Existing session found for account_id=%d, session_id=%s, connected=%d\n", 
+               account->id, session->session_id, session->connected);
+        
+        if (!session->connected) {
+            // Session marked as disconnected - allow reconnect
+            printf("[AUTH] Session was disconnected, allowing reconnect\n");
+            session_reconnect(session->session_id);
+        } else {
+            // Session marked as connected - check in-memory state
+            // Delete old session and create new one to prevent conflicts
+            printf("[AUTH] Session was connected, deleting old session and creating new one\n");
+            session_delete(session->session_id);
+            session_free(session);
+            
+            // Create new fresh session
+            err = session_create(account->id, &session);
+            if (err != DB_SUCCESS || !session) {
+                account_free(account);
+                cJSON_Delete(json);
+                send_error(client_fd, header, ERR_SERVER_ERROR, "Failed to create session");
+                return;
+            }
+        }
     } else {
         // Create new session
         session_free(session);
@@ -167,9 +189,6 @@ void handle_login(
     if (profile_err == DB_ERROR_NOT_FOUND) {
         profile_create(account->id, NULL, NULL, NULL, &profile);
     }
-
-    // TODO: Fetch profile data
-    // For now, send basic response
 
     // Enforce session exclusivity and bind mapping per session rule
     UserSession *bound = session_bind_after_login(client_fd, account->id, session->session_id, header);
@@ -405,27 +424,27 @@ void handle_logout(
     UserSession *us = session_get_by_socket(client_fd);
     int32_t account_id = us ? us->account_id : 0;
 
-    // TODO: Remove player from any active rooms
+    // Remove player from any active rooms
     room_remove_member_all(client_fd);
 
-    // Mark session disconnected in DB (try by session_id first, then by account_id)
-    printf("[AUTH] Marking session disconnected: %s (account_id=%d)\n", session_id, account_id);
-    db_error_t update_err = session_update_connected(session_id, false);
+    // Delete session from database (complete logout)
+    printf("[AUTH] Deleting session: %s (account_id=%d)\n", session_id, account_id);
+    db_error_t delete_err = session_delete(session_id);
     
-    if (update_err != DB_SUCCESS && account_id > 0) {
-        printf("[AUTH] Update by session_id failed (err=%d), trying by account_id=%d\n", 
-               update_err, account_id);
-        // Fallback: update by account_id
-        update_err = session_update_connected_by_account(account_id, false);
+    if (delete_err != DB_SUCCESS && account_id > 0) {
+        printf("[AUTH] Delete by session_id failed (err=%d), trying by account_id=%d\n", 
+               delete_err, account_id);
+        // Fallback: delete by account_id
+        delete_err = session_delete_by_account(account_id);
     }
     
-    if (update_err != DB_SUCCESS) {
-        printf("[AUTH] Failed to update session: err=%d\n", update_err);
+    if (delete_err != DB_SUCCESS) {
+        printf("[AUTH] Failed to delete session: err=%d\n", delete_err);
     } else {
-        printf("[AUTH] Session marked disconnected successfully\n");
+        printf("[AUTH] Session deleted successfully\n");
     }
 
-    // Clear binding and session state
+    // Clear binding and session state from memory
     clear_client_session(client_fd);
     if (us) {
         session_destroy(us);
@@ -438,7 +457,7 @@ void handle_logout(
 
     send_response(client_fd, header, RES_SUCCESS, response);
 
-    printf("[AUTH] Logout successful: session_id=%s\n", session_id);
+    printf("[AUTH] Logout successful: session_id=%s, account_id=%d\n", session_id, account_id);
 
     // Cleanup
     cJSON_Delete(response);
@@ -541,13 +560,12 @@ void handle_reconnect(
         profile_create(account->id, NULL, NULL, NULL, &profile);
     }
 
-    // TODO: Restore room state if player was in a room
-
     // Build success response
     cJSON *response = cJSON_CreateObject();
     cJSON_AddBoolToObject(response, "success", true);
     cJSON_AddNumberToObject(response, "account_id", account->id);
     cJSON_AddStringToObject(response, "session_id", session->session_id);
+    cJSON_AddBoolToObject(response, "reconnected", true);
     add_profile_to_response(response, profile, account);
 
     send_response(client_fd, header, RES_LOGIN_OK, response);

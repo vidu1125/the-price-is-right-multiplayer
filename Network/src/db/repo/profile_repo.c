@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
+
 #include <cjson/cJSON.h>
 
 #include "db/repo/profile_repo.h"
@@ -89,7 +91,7 @@ db_error_t profile_find_by_account(
 	}
 
 	char query[256];
-	snprintf(query, sizeof(query), "select=*&account_id=eq.%d&limit=1", account_id);
+	snprintf(query, sizeof(query), "SELECT * FROM profiles WHERE account_id = %d LIMIT 1", account_id);
 
 	cJSON *response = NULL;
 	db_error_t err = db_get("profiles", query, &response);
@@ -141,7 +143,7 @@ db_error_t profile_update_by_account(
 	if (bio) cJSON_AddStringToObject(payload, "bio", bio);
 
 	char filter[128];
-	snprintf(filter, sizeof(filter), "account_id=eq.%d", account_id);
+	snprintf(filter, sizeof(filter), "account_id = %d", account_id);
 
 	cJSON *response = NULL;
 	db_error_t err = db_patch("profiles", filter, payload, &response);

@@ -7,6 +7,7 @@
 #include "handlers/profile_handler.h"
 #include "handlers/round1_handler.h"
 #include "handlers/start_game_handler.h"
+#include "handlers/forfeit_handler.h"
 #include "handlers/session_context.h"
 #include "handlers/auth_guard.h"
 #include "protocol/opcode.h"
@@ -66,6 +67,9 @@ void dispatch_command(
     case CMD_CREATE_ROOM:
         handle_create_room(client_fd, header, payload);
         break;
+    case CMD_JOIN_ROOM:
+        handle_join_room(client_fd, header, payload);
+        break;
     case CMD_LEAVE_ROOM:
         handle_leave_room(client_fd, header, payload);
         break;
@@ -78,10 +82,16 @@ void dispatch_command(
     case CMD_KICK:
         handle_kick_member(client_fd, header, payload);
         break;
+    case CMD_GET_ROOM_LIST:
+        handle_get_room_list(client_fd, header, payload);
+        break;
 
     // Match Management
     case CMD_START_GAME:
         handle_start_game(client_fd, header, payload);
+        break;
+    case CMD_FORFEIT:
+        handle_forfeit(client_fd, header, payload);
         break;
 
     // History

@@ -2,7 +2,8 @@
 import "./RoomPanel.css";
 import RoomList from "./RoomList";
 import { createRoom } from "../../services/hostService";
-import { useState, useEffect } from "react";
+import JoinByCodeModal from "./JoinByCodeModal";
+import React, { useState, useEffect, useRef } from "react";
 import { registerHandler } from "../../network/receiver";
 import { OPCODE } from "../../network/opcode";
 import { useNavigate } from "react-router-dom";
@@ -10,6 +11,7 @@ import { useNavigate } from "react-router-dom";
 export default function RoomPanel() {
   const navigate = useNavigate();
   const [showModal, setShowModal] = useState(false);
+  const [showFindModal, setShowFindModal] = useState(false);
 
   // Khởi tạo state form
   const [formData, setFormData] = useState({
@@ -40,6 +42,13 @@ export default function RoomPanel() {
     });
   };
 
+  // Use ref to keep track of latest formData without re-binding event listener
+  const formDataRef = useRef(formData);
+
+  useEffect(() => {
+    formDataRef.current = formData;
+  }, [formData]);
+
   useEffect(() => {
     // Handler for RES_ROOM_CREATED moved to hostService.js to handle binary payload correctly
     // and centralised logic.
@@ -51,16 +60,45 @@ export default function RoomPanel() {
     const onRoomCreated = (e) => {
       const { roomId, roomCode } = e.detail;
       console.log("🚀 Event received: room_created", e.detail);
+      console.log("👉 Current Form Data:", formDataRef.current); // Debug log
+
       setShowModal(false);
       navigate('/waitingroom', {
         state: {
           roomId,
           roomCode,
-          isHost: true
+          roomName: formDataRef.current.name, // Pass room name from ref
+          isHost: true,
+          gameRules: {
+            maxPlayers: formDataRef.current.maxPlayers,
+            mode: formDataRef.current.mode,
+            wagerMode: formDataRef.current.wagerEnabled,
+            roundTime: formDataRef.current.roundTime || 15,
+            visibility: formDataRef.current.visibility || "public"
+          }
         }
       });
     };
     window.addEventListener('room_created', onRoomCreated);
+
+    // Xử lý khi Join thành công (từ roomService)
+    const onRoomJoined = (e) => {
+      console.log("🚀 Event received: room_joined", e.detail);
+      const roomData = e.detail;
+
+      navigate('/waitingroom', {
+        state: {
+          roomId: roomData.roomId,
+          roomCode: roomData.roomCode,
+          roomName: roomData.roomName,
+          hostId: roomData.hostId,
+          isHost: roomData.isHost,
+          gameRules: roomData.gameRules,
+          players: roomData.players // Pass initial player list
+        }
+      });
+    };
+    window.addEventListener('room_joined', onRoomJoined);
 
     registerHandler(OPCODE.ERR_BAD_REQUEST, (payload) => {
       const text = new TextDecoder().decode(payload);
@@ -74,8 +112,10 @@ export default function RoomPanel() {
 
     return () => {
       window.removeEventListener('room_created', onRoomCreated);
+      window.removeEventListener('room_joined', onRoomJoined);
+      // unregisterHandler(OPCODE.RES_ROOM_CREATED);
     };
-  }, [navigate]);
+  }, []); // Only run once on mount
 
   const handleCreateRoom = () => {
     createRoom(formData);
@@ -89,7 +129,7 @@ export default function RoomPanel() {
       </div>
       <div className="room-actions">
         <button onClick={() => console.log("Reload")}>Reload</button>
-        <button onClick={() => console.log("Find room")}>Find room</button>
+        <button onClick={() => setShowFindModal(true)}>Find room</button>
         <button className="create-room-btn" onClick={() => setShowModal(true)}>
           + Create new room
         </button>
@@ -162,6 +202,11 @@ export default function RoomPanel() {
             </form>
           </div>
         </div>
+      )}
+
+      {/* FIND ROOM MODAL */}
+      {showFindModal && (
+        <JoinByCodeModal onClose={() => setShowFindModal(false)} />
       )}
     </div>
   );

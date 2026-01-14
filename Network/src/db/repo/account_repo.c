@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <cjson/cJSON.h>
+#include <stdbool.h>
 
 #include "db/repo/account_repo.h"
 #include "db/core/db_client.h"
@@ -111,12 +112,9 @@ db_error_t account_find_by_email(
 
     printf("[AUTH] Finding account by email: %s\n", email);
 
-    // Build query: select=*&email=eq.{email}&limit=1
-    char encoded_email[256];
-    encode_email(email, encoded_email, sizeof(encoded_email));
-
+    // Build SQL query instead of REST query
     char query[512];
-    snprintf(query, sizeof(query), "select=*&email=eq.%s&limit=1", encoded_email);
+    snprintf(query, sizeof(query), "SELECT * FROM accounts WHERE email = '%s' LIMIT 1", email);
 
     cJSON *response = NULL;
     db_error_t err = db_get("accounts", query, &response);
@@ -164,9 +162,9 @@ db_error_t account_find_by_id(
         return DB_ERROR_INVALID_PARAM;
     }
 
-    // Build query: select=*&id=eq.{id}&limit=1
+    // Build SQL query
     char query[256];
-    snprintf(query, sizeof(query), "select=*&id=eq.%d&limit=1", account_id);
+    snprintf(query, sizeof(query), "SELECT * FROM accounts WHERE id = %d LIMIT 1", account_id);
 
     cJSON *response = NULL;
     db_error_t err = db_get("accounts", query, &response);
@@ -202,9 +200,9 @@ db_error_t account_update_password(
         return DB_ERROR_INVALID_PARAM;
     }
 
-    // Build filter: id=eq.{account_id}
+    // Build SQL filter
     char filter[128];
-    snprintf(filter, sizeof(filter), "id=eq.%d", account_id);
+    snprintf(filter, sizeof(filter), "id = %d", account_id);
 
     // Create payload
     cJSON *payload = cJSON_CreateObject();
@@ -227,9 +225,9 @@ db_error_t account_update_role(
         return DB_ERROR_INVALID_PARAM;
     }
 
-    // Build filter: id=eq.{account_id}
+    // Build SQL filter
     char filter[128];
-    snprintf(filter, sizeof(filter), "id=eq.%d", account_id);
+    snprintf(filter, sizeof(filter), "id = %d", account_id);
 
     // Create payload
     cJSON *payload = cJSON_CreateObject();

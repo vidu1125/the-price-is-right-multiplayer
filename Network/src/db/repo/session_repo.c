@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <stdbool.h>
 #include <cjson/cJSON.h>
 
 #include "db/repo/session_repo.h"
@@ -67,7 +68,7 @@ db_error_t session_create(
     cJSON *payload = cJSON_CreateObject();
     cJSON_AddNumberToObject(payload, "account_id", account_id);
     cJSON_AddStringToObject(payload, "session_id", uuid);
-    cJSON_AddBoolToObject(payload, "connected", true);
+    cJSON_AddBoolToObject(payload, "connected", 1);  // 1 = TRUE in cJSON
 
     cJSON *response = NULL;
     db_error_t err = db_post("sessions", payload, &response);
@@ -98,9 +99,9 @@ db_error_t session_find_by_id(
         return DB_ERROR_INVALID_PARAM;
     }
 
-    // Build query: select=*&session_id=eq.{session_id}&limit=1
+    // Build SQL query
     char query[256];
-    snprintf(query, sizeof(query), "select=*&session_id=eq.%s&limit=1", session_id);
+    snprintf(query, sizeof(query), "SELECT * FROM sessions WHERE session_id = '%s' LIMIT 1", session_id);
 
     cJSON *response = NULL;
     db_error_t err = db_get("sessions", query, &response);
@@ -136,9 +137,9 @@ db_error_t session_find_by_account(
         return DB_ERROR_INVALID_PARAM;
     }
 
-    // Build query: select=*&account_id=eq.{account_id}&limit=1
+    // Build SQL query
     char query[256];
-    snprintf(query, sizeof(query), "select=*&account_id=eq.%d&limit=1", account_id);
+    snprintf(query, sizeof(query), "SELECT * FROM sessions WHERE account_id = %d LIMIT 1", account_id);
 
     cJSON *response = NULL;
     db_error_t err = db_get("sessions", query, &response);
@@ -177,9 +178,9 @@ db_error_t session_update_connected(
     printf("[SESSION_REPO] Updating session connected: session_id=%s, connected=%d\n", 
            session_id, connected);
 
-    // Build filter: session_id=eq.{session_id}
+    // Build SQL WHERE clause
     char filter[128];
-    snprintf(filter, sizeof(filter), "session_id=eq.%s", session_id);
+    snprintf(filter, sizeof(filter), "session_id = '%s'", session_id);
 
     // Create payload with updated_at
     cJSON *payload = cJSON_CreateObject();
@@ -215,9 +216,9 @@ db_error_t session_delete(
         return DB_ERROR_INVALID_PARAM;
     }
 
-    // Build filter: session_id=eq.{session_id}
+    // Build SQL WHERE clause
     char filter[128];
-    snprintf(filter, sizeof(filter), "session_id=eq.%s", session_id);
+    snprintf(filter, sizeof(filter), "session_id = '%s'", session_id);
 
     cJSON *response = NULL;
     db_error_t err = db_delete("sessions", filter, &response);
@@ -234,9 +235,9 @@ db_error_t session_delete_by_account(
         return DB_ERROR_INVALID_PARAM;
     }
 
-    // Build filter: account_id=eq.{account_id}
+    // Build SQL WHERE clause
     char filter[128];
-    snprintf(filter, sizeof(filter), "account_id=eq.%d", account_id);
+    snprintf(filter, sizeof(filter), "account_id = %d", account_id);
 
     cJSON *response = NULL;
     db_error_t err = db_delete("sessions", filter, &response);
@@ -258,9 +259,9 @@ db_error_t session_update_connected_by_account(
     printf("[SESSION_REPO] Updating by account_id: account_id=%d, connected=%d\n", 
            account_id, connected);
 
-    // Build filter: account_id=eq.{account_id}
+    // Build SQL WHERE clause
     char filter[64];
-    snprintf(filter, sizeof(filter), "account_id=eq.%d", account_id);
+    snprintf(filter, sizeof(filter), "account_id = %d", account_id);
 
     // Create payload
     cJSON *payload = cJSON_CreateObject();
@@ -310,10 +311,10 @@ db_error_t session_cleanup_old_disconnected(void) {
     char timestamp[40];
     strftime(timestamp, sizeof(timestamp), "%Y-%m-%dT%H:%M:%S+07:00", &tm_info);
     
-    // Build filter: connected=false AND updated_at < cutoff_time
+    // Build SQL WHERE clause
     char filter[512];
     snprintf(filter, sizeof(filter), 
-             "connected=eq.false&updated_at=lt.%s", timestamp);
+             "connected = false AND updated_at < '%s'", timestamp);
     
     cJSON *response = NULL;
     db_error_t err = db_delete("sessions", filter, &response);

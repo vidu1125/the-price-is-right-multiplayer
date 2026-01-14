@@ -67,6 +67,8 @@ RoomState {
 
 RoomPlayerState {
   uint32_t account_id;
+  char name[64];         // Player's display name (fetched from DB on join, cached in memory)
+  char avatar[256];      // Player's avatar URL (fetched from DB on join, cached in memory)
 
   bool is_host;      // true nếu account_id == RoomState.host_id
   bool is_ready;     // REAL-TIME: player đã sẵn sàng chưa
@@ -123,45 +125,41 @@ KHÔNG query DB để check realtime
 
 Thông báo danh sách player hiện tại trong phòng (broadcast sau mọi thay đổi membership).
 
-```c
-#define MAX_USERNAME_LEN 32
+**Implementation:** JSON payload (UTF-8 encoded)
 
-typedef struct PACKED {
-  uint32_t room_id;       // network byte order
-  uint8_t  player_count;  // số lượng players
-  uint8_t  reserved;      // padding for alignment
-  // Followed by array of PlayerInfo[player_count]
-} PlayerListNotificationHeader;
-
-typedef struct PACKED {
-  uint32_t account_id;                  // network byte order
-  char username[MAX_USERNAME_LEN];      // null-terminated UTF-8
-  uint8_t is_host;                      // 0 = false, 1 = true
-  uint8_t is_ready;                     // 0 = false, 1 = true
-  uint8_t connected;                    // 0 = false, 1 = true
-} PlayerInfo;
+```json
+{
+  "members": [
+    {
+      "account_id": 42,
+      "name": "PlayerName",
+      "avatar": "",
+      "is_host": true,
+      "is_ready": false
+    }
+  ]
+}
 ```
 
-**Payload structure:**
-```
-[PlayerListNotificationHeader (6 bytes)]
-[PlayerInfo #1 (39 bytes)]
-[PlayerInfo #2 (39 bytes)]
-...
-[PlayerInfo #N (39 bytes)]
-```
+**Field descriptions:**
+- `account_id` (number): ID của player
+- `name` (string): Tên hiển thị của player (lấy từ `profiles.name` khi join, cached trong `RoomPlayerState.name`)
+- `avatar` (string): Avatar URL của player (lấy từ `profiles.avatar` khi join, cached trong `RoomPlayerState.avatar`)
+- `is_host` (boolean): Player có phải host không
+- `is_ready` (boolean): Player đã sẵn sàng chưa
 
-**Total size:** `6 + (39 × player_count)` bytes
+**Data flow:**
+1. Khi player join room, server query `profiles` table để lấy `name` và `avatar`
+2. `name` và `avatar` được lưu vào `RoomPlayerState` (in-memory cache)
+3. Khi broadcast `NTF_PLAYER_LIST`, server đọc từ `RoomPlayerState` (không query DB lại)
 
-**Max payload:** `6 + (39 × 6) = 240 bytes` (cho SCORING mode với 6 players)
+**Max payload:** ~500 bytes cho 6 players (an toàn trong giới hạn 4096 bytes)
 
-✅ Vẫn nhỏ hơn `MAX_PAYLOAD_SIZE (4096 bytes)`
-
-📌 **Lý do GIỮ `room_id` trong notification:**
-- An toàn cho async notification (client validate đúng room)
-- Dễ debug log ở frontend
-- Notification ≠ request → không vi phạm rule "server authoritative"
-- Giúp client xử lý edge case (reconnect, multiple rooms trong tương lai)
+📌 **Lý do dùng JSON thay vì binary:**
+- Dễ debug và maintain
+- Frontend dễ parse
+- Flexible cho future fields
+- Payload size vẫn nhỏ (< 1KB cho 6 players)
 
 ---
 # ==============================
@@ -279,18 +277,52 @@ room.wager_mode  = payload.wager_mode;      // maps to rooms.wager_mode
 
 ### Add Host vào RoomState
 
+**Implementation:** Sử dụng `room_add_player()` với player name
+
 ```c
-RoomPlayerState host_player;
+// STEP 1: Fetch host's profile name from DB
+char profile_name[64] = "Host";  // default fallback
+char query[128];
+snprintf(query, sizeof(query), "account_id=eq.%u", account_id);
 
-host_player.account_id = account_id;
-host_player.is_host    = true;
-host_player.is_ready   = false;   // REAL-TIME ONLY
-host_player.connected  = true;    // REAL-TIME ONLY
+cJSON *profile_response = NULL;
+if (db_get("profiles", query, &profile_response) == DB_OK && profile_response) {
+    cJSON *first = cJSON_GetArrayItem(profile_response, 0);
+    if (first) {
+        cJSON *name_item = cJSON_GetObjectItem(first, "name");
+        if (name_item && cJSON_IsString(name_item)) {
+            strncpy(profile_name, name_item->valuestring, sizeof(profile_name) - 1);
+            profile_name[sizeof(profile_name) - 1] = '\0';
+        }
+    }
+    cJSON_Delete(profile_response);
+}
 
-room.players[account_id] = host_player;
+// STEP 2: Add host to room using room_add_player()
+// Signature: int room_add_player(uint32_t room_id, uint32_t account_id, const char *name, int client_fd)
+room_add_player(room->id, account_id, profile_name, client_fd);
+
+// STEP 3: Mark as host
+room->players[0].is_host = true;
 ```
 
-📌 `is_ready`, `connected` **chỉ tồn tại trong memory**, không lưu DB.
+**What happens inside `room_add_player()`:**
+```c
+RoomPlayerState *player = &room->players[room->player_count];
+player->account_id = account_id;
+strncpy(player->name, name ? name : "Player", sizeof(player->name) - 1);
+player->name[sizeof(player->name) - 1] = '\0';
+player->is_host = false;      // Will be set to true after for host
+player->is_ready = false;     // REAL-TIME ONLY
+player->connected = true;     // REAL-TIME ONLY
+player->joined_at = time(NULL);
+```
+
+📌 **Player name caching strategy:**
+- Query `profiles.name` **once** when player joins
+- Store in `RoomPlayerState.name` (in-memory cache)
+- Use cached name for all broadcasts (no repeated DB queries)
+- Name is snapshot at join time (doesn't change if profile updates)
 
 ---
 
@@ -428,14 +460,41 @@ typedef struct PACKED {
 4. Nếu join bằng **room_id (list)**:
 
    * `RoomState.visibility == ROOM_PUBLIC`
-5. Add `RoomPlayerState`:
+5. **Fetch player name from DB:**
 
    ```c
-   is_host   = false;
-   is_ready  = false;
-   connected = true;
+   char profile_name[64] = "Player";
+   char query[128];
+   snprintf(query, sizeof(query), "account_id=eq.%u", account_id);
+   
+   cJSON *profile_response = NULL;
+   if (db_get("profiles", query, &profile_response) == DB_OK && profile_response) {
+       cJSON *first = cJSON_GetArrayItem(profile_response, 0);
+       if (first) {
+           cJSON *name_item = cJSON_GetObjectItem(first, "name");
+           if (name_item && cJSON_IsString(name_item)) {
+               strncpy(profile_name, name_item->valuestring, sizeof(profile_name) - 1);
+               profile_name[sizeof(profile_name) - 1] = '\0';
+           }
+       }
+       cJSON_Delete(profile_response);
+   }
    ```
-6. Insert DB:
+
+6. Add `RoomPlayerState` using `room_add_player()`:
+
+   ```c
+   // Signature: int room_add_player(uint32_t room_id, uint32_t account_id, 
+   //                                 const char *name, const char *avatar, int client_fd)
+   room_add_player(room_id, account_id, profile_name, profile_avatar, client_fd);
+   // Player is automatically added with:
+   // - is_host = false
+   // - is_ready = false
+   // - connected = true
+   // - name = profile_name (cached)
+   // - avatar = profile_avatar (cached)
+   ```
+7. Insert DB:
 
    * `room_members(room_id, account_id)`
 
@@ -449,7 +508,44 @@ typedef struct PACKED {
 RES_ROOM_JOINED (0x00DD)
 ```
 
-Payload: empty
+**Payload:** JSON object (UTF-8 encoded) containing full room state
+
+```json
+{
+  "roomId": 123,
+  "roomCode": "ABC123",
+  "roomName": "My Room",
+  "hostId": 47,
+  "isHost": false,
+  "gameRules": {
+    "mode": "elimination",
+    "maxPlayers": 4,
+    "wagerMode": true,
+    "visibility": "public"
+  },
+  "players": [
+    {
+      "account_id": 47,
+      "name": "Host Player",
+      "avatar": "",
+      "is_host": true,
+      "is_ready": false
+    },
+    {
+      "account_id": 42,
+      "name": "Joining Player",
+      "avatar": "",
+      "is_host": false,
+      "is_ready": false
+    }
+  ]
+}
+```
+
+**Design rationale:**
+- Prevents race condition where `NTF_PLAYER_LIST` arrives before `WaitingRoom` mounts
+- Joiner receives complete room state immediately
+- Enables instant UI rendering without waiting for broadcasts
 
 ### Notifications (broadcast)
 
@@ -473,7 +569,7 @@ NTF_PLAYER_LIST   (0x02BE)
 
 # ==============================
 
-# USE CASE 3️⃣ – SET GAME RULE (FINAL – COMMIT)
+# USE CASE 3️⃣ – SET GAME RULE 
 
 # ==============================
 

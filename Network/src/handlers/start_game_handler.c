@@ -63,7 +63,7 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
     }
 
     //
-    printf("[HANDLER] <startgame> All players are ready", room->status);
+    printf("[HANDLER] <startgame> All players are ready\n");
 
     // =========================================================================
     // VALIDATION: Check player count based on game mode
@@ -72,7 +72,7 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
     
     if (player_count < 4) {
         // Add fake players until we have 4
-        int fake_ids[] = {44, 45, 48};
+        int fake_ids[] = {2,3,4};
         int needed = 4 - player_count;
         int added = 0;
         
@@ -168,8 +168,8 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
         match->players[i].score = 0;
         match->players[i].connected = room->players[i].connected ? 1 : 0;
         
-        printf("[HANDLER] <startgame>   - Added match player: %d\n"), 
-               match->players[i].account_id;
+        printf("[HANDLER] <startgame>   - Added match player: %d\n", 
+               match->players[i].account_id);
     }
     
     printf("[HANDLER] <startgame> Step 2: Added %d players to match from Room %u\n", 
@@ -219,9 +219,40 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
            sessions_updated, match->player_count);
 
     // =========================================================================
-    // STEP 4: CREATE 3 ROUNDS AND LOAD QUESTIONS
+    // STEP 4: GET EXCLUDED QUESTION IDs (avoid duplicates from recent matches)
     // =========================================================================
-    printf("[HANDLER] <startgame> Step 4: Creating rounds and loading questions...\n");
+    printf("[HANDLER] <startgame> Step 4: Getting excluded question IDs from recent matches...\n");
+    
+    // Collect player account IDs
+    int32_t player_account_ids[MAX_ROOM_MEMBERS];
+    for (int i = 0; i < match->player_count; i++) {
+        player_account_ids[i] = match->players[i].account_id;
+    }
+    
+    // Get excluded question IDs from recent matches (last 3 matches)
+    int32_t *excluded_ids = NULL;
+    int excluded_count = 0;
+    
+    db_error_t excl_rc = question_get_excluded_ids(
+        player_account_ids,
+        match->player_count,
+        3,  // recent_match_count: check last 3 matches
+        &excluded_ids,
+        &excluded_count
+    );
+    
+    if (excl_rc != DB_OK) {
+        printf("[HANDLER] <startgame> WARN: Failed to get excluded IDs (rc=%d), continuing without exclusions\n", excl_rc);
+        excluded_ids = NULL;
+        excluded_count = 0;
+    } else {
+        printf("[HANDLER] <startgame> Excluding %d questions from recent matches\n", excluded_count);
+    }
+
+    // =========================================================================
+    // STEP 5: CREATE 3 ROUNDS AND LOAD QUESTIONS
+    // =========================================================================
+    printf("[HANDLER] <startgame> Step 5: Creating rounds and loading questions...\n");
     
     RoundType round_types[] = {ROUND_MCQ, ROUND_BID, ROUND_WHEEL};
     const char *round_type_names[] = {"mcq", "bid", "wheel"};
@@ -243,11 +274,19 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
         round->ended_at = 0;
         
         cJSON *questions_json = NULL;
-        db_error_t db_rc = question_get_random(round_type_names[r], questions_per_round[r], &questions_json);
+        db_error_t db_rc = question_get_random(
+            round_type_names[r],      // round_type
+            questions_per_round[r],   // count
+            excluded_ids,             // excluded_ids (may be NULL)
+            excluded_count,           // excluded_count
+            NULL,                     // category (NULL = all categories)
+            &questions_json           // out_json
+        );
         
         if (db_rc != DB_OK || !questions_json) {
             printf("[HANDLER] <startgame> ERROR: Failed to load questions for round %d (rc=%d)\n", 
                    r + 1, db_rc);
+            if (excluded_ids) free(excluded_ids);
             match_destroy(match->runtime_match_id);
             return;
         }
@@ -292,6 +331,11 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
                round->question_count);
     }
     
+    // Free excluded_ids after loading all questions
+    if (excluded_ids) {
+        free(excluded_ids);
+    }
+    
     match->current_round_idx = 0;
 
     // =========================================================================
@@ -314,32 +358,24 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
     printf("\n");
 
     // =========================================================================
-    // STEP 5: BROADCAST START ROUND 1
+    // STEP 5: BROADCAST NTF_GAME_START TO ALL PLAYERS
     // =========================================================================
-    // TODO: Create round start notification payload
-    // - Include round number, questions, timer, etc.
-    // - Use room_broadcast to send to all players
-    
-    // Example broadcast structure (needs actual payload implementation)
-    const char *round_start_msg = "{\"round\":1,\"status\":\"started\"}";
+    // This triggers the client to navigate to the game screen (Round 1)
+    char game_start_msg[256];
+    snprintf(game_start_msg, sizeof(game_start_msg), "{\"match_id\":%u}", match->runtime_match_id);
+
+    printf("[HANDLER] <startgame> Broadcasting NTF_GAME_START (match_id=%u) to room %u\n", 
+           match->runtime_match_id, room_id);
+
     room_broadcast(
         room_id,
-        0x0501, // TODO: Define NTF_ROUND_START in opcode.h
-        round_start_msg,
-        strlen(round_start_msg),
-        -1 // Send to all members
+        NTF_GAME_START, // 0x02C4 - Triggers navigateToRound1() in frontend
+        game_start_msg,
+        strlen(game_start_msg),
+        -1 // Send to ALL members including host
     );
 
-    printf("[HANDLER] <startgame> Step 6: Round 1 start broadcasted to room %u\n", room_id);
-    // =========================================================================
-    // STEP 6: SEND SUCCESS RESPONSE TO HOST
-    // =========================================================================
-    char resp_json[256];
-    // Frontend expects dummy header: "...\r\n\r\n{JSON}"
-    snprintf(resp_json, sizeof(resp_json), "HTTP/1.1 200 OK\r\n\r\n{\"success\":true,\"match_id\":%u}", match->runtime_match_id);
-    
-    forward_response(client_fd, req, RES_GAME_STARTED, resp_json, strlen(resp_json));
-    printf("[HANDLER] <startgame> Sent RES_GAME_STARTED to host (with dummy headers)\n");
+    printf("[HANDLER] <startgame> Game start broadcast complete. All clients should navigate now.\n");
 
     printf("[HANDLER] <startgame> Game start sequence completed successfully\n");
 }

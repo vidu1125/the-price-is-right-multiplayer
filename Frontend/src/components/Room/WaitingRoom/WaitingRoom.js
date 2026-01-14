@@ -15,20 +15,36 @@ export default function WaitingRoom() {
   const navigate = useNavigate();
 
   // 1. Initialize State from Navigation Data
-  const { roomId, roomCode, isHost } = location.state || {};
+  const { roomId, roomCode, roomName, isHost, hostId, gameRules: passedRules } = location.state || {};
+
+  console.log("[WaitingRoom] location.state:", location.state);
+  console.log("[WaitingRoom] roomName from state:", roomName);
+  console.log("[WaitingRoom] gameRules from state:", passedRules);
+
+  // Get current user profile to add as host
+  const profile = JSON.parse(localStorage.getItem('profile') || '{}');
+  console.log("[WaitingRoom] profile from localStorage:", profile);
 
   const [room, setRoom] = useState({
     id: roomId,
     code: roomCode,
-    hostId: null, // Will be updated via notification or assumption
-    players: [],
-    rules: {
+    name: roomName || "My Room",
+    hostId: hostId || profile.account_id || null,
+    players: (location.state && location.state.players) ? location.state.players : (isHost ? [{
+      account_id: profile.account_id,
+      name: profile.name || 'Host',
+      is_host: true,
+      is_ready: false
+    }] : []),
+    rules: passedRules || {
       maxPlayers: 5,
       mode: "scoring",
       wagerMode: false,
-      roundTime: "normal"
+      roundTime: 15
     }
   });
+
+  console.log("[WaitingRoom] Initial room state:", room);
 
   useEffect(() => {
     // 2. Validate Room ID
@@ -39,27 +55,28 @@ export default function WaitingRoom() {
     }
 
     console.log(`[WaitingRoom] Listening for updates for Room ${roomId} (${roomCode})`);
+    console.log("[WaitingRoom] Registering NTF_PLAYER_LIST handler");
 
     // --- SOCKET NOTIFICATION HANDLERS ---
 
     // 1. NTF_PLAYER_LIST (Snapshot of members)
     registerHandler(OPCODE.NTF_PLAYER_LIST, (payload) => {
+      console.log("[WaitingRoom] NTF_PLAYER_LIST handler called!");
       const text = new TextDecoder().decode(payload);
+      console.log("[WaitingRoom] Raw payload:", text);
       try {
         const data = JSON.parse(text);
-        console.log("[NTF] Player List:", data);
+        console.log("[WaitingRoom] Parsed Player List:", data);
 
-        setRoom(prev => ({
-          ...prev,
-          players: data.members || [],
-          // hostId: data.host_id // If provided in list
-        }));
-        // Update host_id if available in payload
-        if (data.host_id) {
-          setRoom(prev => ({ ...prev, hostId: data.host_id }));
+        if (data.members && Array.isArray(data.members)) {
+          console.log("[WaitingRoom] Updating players:", data.members);
+          setRoom(prev => ({
+            ...prev,
+            players: data.members
+          }));
         }
       } catch (e) {
-        console.error("Failed to parse player list:", e);
+        console.error("[WaitingRoom] Failed to parse player list:", e);
       }
     });
 
@@ -120,8 +137,27 @@ export default function WaitingRoom() {
 
     // 6. NTF_GAME_START
     registerHandler(OPCODE.NTF_GAME_START || 0x02C4, (payload) => {
-      console.log("[NTF] Game Started! Navigating...");
-      navigate('/round', { state: { roomId: roomId, roomCode: roomCode, isHost: isHost } });
+      console.log("[NTF] Game Started! Parsing payload...");
+      try {
+        const text = new TextDecoder().decode(payload);
+        const data = JSON.parse(text);
+        const matchId = data.match_id;
+        console.log("[NTF] Match ID:", matchId);
+        
+        // Get player_id from profile in localStorage
+        const profile = JSON.parse(localStorage.getItem('profile') || '{}');
+        const playerId = profile.account_id;
+        const playerName = profile.name || `Player${playerId}`;
+        
+        console.log("[NTF] Player ID:", playerId, "Name:", playerName);
+        navigate(`/round?match_id=${matchId}&player_id=${playerId}&name=${encodeURIComponent(playerName)}`, {
+          state: { roomId, roomCode, isHost, matchId, playerId, playerName }
+        });
+      } catch (e) {
+        console.error("[NTF] Failed to parse NTF_GAME_START:", e);
+        // Fallback without match_id
+        navigate('/round', { state: { roomId, roomCode, isHost } });
+      }
     });
 
     // Cleanup listeners? 

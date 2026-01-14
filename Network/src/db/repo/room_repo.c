@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>                 // time()
+#include <stdbool.h>
 
 //==============================================================================
 // HELPER: Generate random 6-char room code
@@ -152,9 +153,9 @@ int room_repo_set_rules(
     cJSON_AddNumberToObject(payload, "max_players", max_players);
     cJSON_AddBoolToObject(payload, "wager_mode", wager_enabled);
     
-    // PATCH /rooms?id=eq.{room_id}
+    // Build SQL WHERE clause
     char query[128];
-    snprintf(query, sizeof(query), "id=eq.%u", room_id);
+    snprintf(query, sizeof(query), "id = %u", room_id);
     
     // Note: db_client doesn't have PATCH yet, use POST to RPC or build custom
     // For now, use workaround: DELETE old + INSERT new is bad
@@ -250,13 +251,13 @@ int room_repo_get_by_code(const char *code, room_t *out_room) {
 
     char query[128];
     snprintf(query, sizeof(query),
-             "code=eq.%s&select=*", code);
+             "SELECT * FROM rooms WHERE code = '%s'", code);
 
     cJSON *json = NULL;
     db_error_t rc = db_get("rooms", query, &json);
     if (rc != DB_OK || !json) return -1;
 
-    // Supabase trả về ARRAY
+    // Response is ARRAY
     cJSON *item = cJSON_GetArrayItem(json, 0);
     if (!item) {
         cJSON_Delete(json);
