@@ -54,7 +54,7 @@ CREATE TABLE rooms (
     host_id INT
         REFERENCES accounts(id),
     wager_mode BOOLEAN DEFAULT FALSE,
-    max_player INT,
+    max_players INT,
     mode VARCHAR,
     status VARCHAR(20),
     created_at TIMESTAMP DEFAULT NOW(),
