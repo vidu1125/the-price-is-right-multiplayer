@@ -25,6 +25,7 @@ void handle_update_profile(
     MessageHeader *header,
     const char *payload
 ) {
+    printf("[PROFILE_HANDLER] handle_update_profile invoked. Payload: %s\n", payload ? payload : "NULL");
     // Require bound session
     int32_t account_id = get_client_account(client_fd);
     if (account_id <= 0) {

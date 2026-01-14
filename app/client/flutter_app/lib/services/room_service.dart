@@ -145,23 +145,73 @@ class RoomService {
     }
   }
 
-  Future<Room?> fetchRoom(int roomId) async {
+  Future<Room?> joinRoom(int roomId) async {
+    final buffer = ByteData(16);
+    buffer.setUint8(0, 0); // by_code = 0 (join by id)
+    // padding 3 bytes
+    buffer.setUint32(4, roomId);
+    // room_code 8 bytes (padded with 0s)
+
     try {
-      final httpClient = HttpClient();
-      final request = await httpClient.getUrl(Uri.parse('$_apiBaseUrl/room/$roomId'));
-      final response = await request.close();
+      final response = await client.request(Command.joinRoom, payload: buffer.buffer.asUint8List());
       
-      if (response.statusCode == 200) {
-        final stringData = await response.transform(utf8.decoder).join();
-        final json = jsonDecode(stringData);
-        if (json['success'] == true && json['room'] != null) {
-          return Room.fromJson(json['room']);
-        }
+      if (response.command == Command.resRoomJoined) {
+          final jsonStr = utf8.decode(response.payload);
+          final json = jsonDecode(jsonStr);
+          // JSON response from handle_join_room contains:
+          // roomId, roomCode, roomName, hostId, isHost, gameRules (mode, maxPlayers, visibility, wagerMode), players (list)
+          
+          // We need to map this to our Room model.
+          // Note context: Room.fromJson matches the standard consistent JSON structure.
+          // Check backend JSON construction in handle_join_room:
+          // "roomId", "roomCode", "roomName", "hostId", "gameRules": {...}, "players": [...]
+          
+          // Room.fromJson expects: id, name, code, host_id, max_players, visibility...
+          // The keys might differ slighty!
+          // handle_join_room keys: roomId, roomCode, roomName, hostId
+          // Room.fromJson keys: id, name, code, host_id
+          
+          // We must adapt the JSON or update Room.fromJson. 
+          // Updating Room.fromJson is better for consistency if we can standartize.
+          // But Room.fromJson is likely built for "GET_ROOM_LIST" which uses SQL column names (snake_case).
+          
+          // Let's manually map here to be safe and quick.
+          
+          var rules = json['gameRules'] ?? {};
+          var playerList = <RoomMember>[];
+          if (json['players'] != null) {
+              playerList = (json['players'] as List).map((p) => RoomMember(
+                  accountId: p['account_id'],
+                  email: p['name'] ?? "Unknown",
+                  avatar: p['avatar'],
+                  ready: p['is_ready'] == true
+              )).toList();
+          }
+
+          return Room(
+              id: json['roomId'],
+              name: json['roomName'],
+              code: json['roomCode'],
+              hostId: json['hostId'],
+              maxPlayers: rules['maxPlayers'] ?? 6,
+              visibility: rules['visibility'] ?? "public",
+              mode: rules['mode'] ?? "scoring",
+              wagerMode: rules['wagerMode'] == true,
+              roundTime: 15, // Default for now
+              members: playerList,
+              status: "waiting", // Implicit
+              currentPlayerCount: playerList.length
+          );
+      } else if (response.command == Command.errRoomFull) {
+           throw "Room is full";
+      } else if (response.command == Command.errGameStarted) {
+           throw "Game already started";
+      } else {
+           throw "Failed to join room: ${response.command}";
       }
-      return null;
     } catch (e) {
-      print("Error fetching room: $e");
-      return null;
+      print("Error joining room: $e");
+      rethrow;
     }
   }
 
@@ -176,6 +226,28 @@ class RoomService {
       buffer.setUint32(0, roomId);
       buffer.setUint32(4, targetId);
       await client.request(Command.kick, payload: buffer.buffer.asUint8List());
+  }
+
+  Future<List<Room>> fetchRoomList() async {
+    try {
+      // CMD_GET_ROOM_LIST takes optional filtering payload, but empty is fine for "all"
+      final response = await client.request(Command.cmdGetRoomList, payload: Uint8List(0));
+      
+      if (response.command == Command.resRoomList) {
+          final jsonStr = utf8.decode(response.payload);
+          final dynamic json = jsonDecode(jsonStr);
+          
+          if (json is List) {
+             return json.map((r) => Room.fromJson(r)).toList();
+          } else if (json is Map && json['success'] == true && json['rooms'] is List) {
+              return (json['rooms'] as List).map((r) => Room.fromJson(r)).toList();
+          }
+      }
+      return [];
+    } catch (e) {
+      print("Error fetching room list: $e");
+      return [];
+    }
   }
 
 

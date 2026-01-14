@@ -1,7 +1,9 @@
+version: '3.8'
+
 services:
   postgres:
     image: postgres:15-alpine
-    container_name: tpir-postgres
+    container_name: tpir-app-postgres
     environment:
       POSTGRES_USER: postgresql
       POSTGRES_PASSWORD: password
@@ -9,9 +11,9 @@ services:
     ports:
       - "5432:5432"
     networks:
-      - tpir-net
+      - tpir-app-net
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_app_data:/var/lib/postgresql/data
       - ./Database/init:/docker-entrypoint-initdb.d
     restart: unless-stopped
     healthcheck:
@@ -24,11 +26,11 @@ services:
     build:
       context: ./Network
       dockerfile: Dockerfile
-    container_name: tpir-network
+    container_name: tpir-app-network
     ports:
       - "5500:5500"
     networks:
-      - tpir-net
+      - tpir-app-net
     environment:
       DB_HOST: postgres
       DB_PORT: 5432
@@ -40,40 +42,9 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  ws-bridge:
-    build: ./ws-bridge
-    container_name: tpir-ws-bridge
-    ports:
-      - "8080:8080"
-    depends_on:
-      - network
-    networks:
-      - tpir-net
-    environment:
-      C_SERVER_HOST: network
-      C_SERVER_PORT: 5500
-    restart: unless-stopped
-
-  frontend:
-    build:
-      context: .
-      dockerfile: Frontend/Dockerfile
-    container_name: tpir-frontend
-    ports:
-      - "3000:3000"
-    depends_on:
-      - ws-bridge
-    networks:
-      - tpir-net
-    environment:
-      WS_URL: ws://ws-bridge:8080
-    restart: unless-stopped
-    stdin_open: true
-    tty: true
-
 networks:
-  tpir-net:
+  tpir-app-net:
     driver: bridge
 
 volumes:
-  postgres_data:
+  postgres_app_data:

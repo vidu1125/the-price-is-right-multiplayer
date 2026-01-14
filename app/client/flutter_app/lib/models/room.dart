@@ -31,7 +31,9 @@ class Room {
   final String mode;
   final bool wagerMode;
   final int roundTime; // in seconds, or maybe enum?
+  final String status;
   final List<RoomMember> members;
+  final int currentPlayerCount;
 
   Room({
     required this.id,
@@ -44,6 +46,8 @@ class Room {
     required this.wagerMode,
     required this.roundTime,
     required this.members,
+    this.status = "waiting",
+    this.currentPlayerCount = 0,
   });
 
   factory Room.fromJson(Map<String, dynamic> json) {
@@ -54,6 +58,8 @@ class Room {
           .toList();
     }
 
+    int count = json['current_players'] is int ? json['current_players'] : memberList.length;
+
     return Room(
       id: json['id'] as int,
       name: json['name'] as String? ?? "Room",
@@ -62,9 +68,11 @@ class Room {
       maxPlayers: json['max_players'] as int? ?? 6,
       visibility: json['visibility'] as String? ?? "public",
       mode: json['mode'] as String? ?? "scoring",
-      wagerMode: json['wager_mode'] == true, // might be boolean or int in JSON? Check React. React says: `wagerMode: data.room.wager_mode ?? false`
+      wagerMode: json['wager_mode'] == true, 
       roundTime: _parseRoundTime(json['round_time']),
       members: memberList,
+      status: json['status'] as String? ?? "waiting",
+      currentPlayerCount: count,
     );
   }
 

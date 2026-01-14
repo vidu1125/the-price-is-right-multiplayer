@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'models/room.dart';
 import 'core/config.dart';
 import 'services/service_locator.dart';
 import 'ui/screens/login_screen.dart';
@@ -61,6 +62,12 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       navigatorKey: navigatorKey,
       initialRoute: initialRoute,
+      builder: (context, child) {
+        precacheImage(const AssetImage("assets/images/lobby-bg.png"), context);
+        precacheImage(const AssetImage("assets/images/waitingroom.png"), context);
+        precacheImage(const AssetImage("assets/images/default-mushroom.jpg"), context);
+        return child!;
+      },
       routes: {
         '/login': (context) => const LoginScreen(),
         '/register': (context) => const RegisterScreen(),
@@ -70,7 +77,10 @@ class MyApp extends StatelessWidget {
         '/settings': (context) => const PlayerSettingsPage(),
         '/room': (context) {
            final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
-           return RoomScreen(roomId: args['roomId']);
+           return RoomScreen(
+             room: args['room'] as dynamic, // Expecting Room object
+             initialIsHost: args['initialIsHost'] as bool? ?? false
+           );
         },
       },
     );

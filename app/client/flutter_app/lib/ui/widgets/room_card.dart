@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'room_list.dart';
 import '../theme/lobby_theme.dart';
 import '../../services/service_locator.dart';
+import '../../models/room.dart';
 
 class RoomCard extends StatefulWidget {
   const RoomCard({super.key});
@@ -17,6 +19,41 @@ class _RoomCardState extends State<RoomCard> {
   String mode = "scoring";
   int maxPlayers = 6;
   bool wagerEnabled = false;
+  List<Room> rooms = [];
+  bool isLoading = true; // Start true
+  Timer? _pollingTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchRooms();
+    _startPolling();
+  }
+
+  @override
+  void dispose() {
+    _pollingTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startPolling() {
+    _pollingTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
+      _fetchRooms(silent: true);
+    });
+  }
+
+  Future<void> _fetchRooms({bool silent = false}) async {
+      if (!silent && mounted) setState(() => isLoading = true);
+      
+      final list = await ServiceLocator.roomService.fetchRoomList();
+      
+      if (mounted) {
+          setState(() {
+              rooms = list;
+              if (!silent) isLoading = false;
+          });
+      }
+  }
 
   void handleModeChange(String? newMode) {
     if (newMode == null) return;
@@ -41,11 +78,12 @@ class _RoomCardState extends State<RoomCard> {
             backgroundColor: Colors.transparent,
             insetPadding: const EdgeInsets.symmetric(horizontal: 20),
             child: Container(
-              width: 400, // Fixed max width for better aesthetic
+              width: 500, // Widened
+              padding: const EdgeInsets.all(32),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: const Color(0xFF1A1A2E), // Navy Background
                 borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: LobbyTheme.primaryDark, width: 5),
+                border: Border.all(color: LobbyTheme.primaryDark, width: 4),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withOpacity(0.5),
@@ -57,42 +95,21 @@ class _RoomCardState extends State<RoomCard> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // --- HEADER ---
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    decoration: const BoxDecoration(
-                      color: LobbyTheme.yellowGame,
-                      borderRadius: BorderRadius.only(
-                        topLeft: Radius.circular(18),
-                        topRight: Radius.circular(18),
-                      ),
-                      border: Border(
-                        bottom: BorderSide(color: LobbyTheme.primaryDark, width: 4),
-                      ),
-                    ),
-                    child: Center(
-                      child: Text(
-                        "CREATE ROOM",
-                        style: LobbyTheme.gameFont(
-                          fontSize: 28,
-                          color: Colors.white,
-                        ).copyWith(
-                          shadows: [
-                            const Shadow(offset: Offset(2, 2), color: LobbyTheme.primaryDark),
-                            const Shadow(offset: Offset(-1, -1), color: LobbyTheme.primaryDark), // Extra thick outline
-                            const Shadow(offset: Offset(-1, 1), color: LobbyTheme.primaryDark),
-                            const Shadow(offset: Offset(1, -1), color: LobbyTheme.primaryDark),
-                          ]
-                        ),
+                  // --- TITLE ---
+                  Center(
+                    child: Text(
+                      "CREATE ROOM",
+                      style: LobbyTheme.gameFont(
+                        fontSize: 36,
+                        color: LobbyTheme.yellowGame,
                       ),
                     ),
                   ),
+                  const SizedBox(height: 24),
 
                   // --- BODY ---
                   Flexible(
                     child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(24),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -172,7 +189,7 @@ class _RoomCardState extends State<RoomCard> {
                                     Container(
                                       height: 54, // Match height of inputs
                                       decoration: BoxDecoration(
-                                        color: Colors.grey[100],
+                                        color: Colors.white, // White background
                                         borderRadius: BorderRadius.circular(12),
                                         border: Border.all(color: LobbyTheme.primaryDark, width: 2),
                                       ),
@@ -208,7 +225,7 @@ class _RoomCardState extends State<RoomCard> {
 
                   // --- FOOTER / ACTIONS ---
                   Container(
-                    padding: const EdgeInsets.only(left: 24, right: 24, bottom: 24),
+                    padding: const EdgeInsets.only(top: 32),
                     child: Row(
                       children: [
                         Expanded(
@@ -226,6 +243,13 @@ class _RoomCardState extends State<RoomCard> {
                             color: LobbyTheme.greenCreate,
                             textColor: Colors.white,
                             onPressed: () async {
+                              // Get Current User Info for Room object construction
+                              final authState = await ServiceLocator.authService.getAuthState();
+                              final accountId = int.tryParse(authState['accountId'] ?? "0") ?? 0;
+                              
+                              // We might need name/avatar. For now use placeholder or fetch?
+                              // If we don't have name, "Host" is fine for initial UI until real data syncs.
+                              
                                final res = await ServiceLocator.roomService.createRoom(
                                   name: name,
                                   visibility: visibility,
@@ -237,7 +261,29 @@ class _RoomCardState extends State<RoomCard> {
                               if (context.mounted) {
                                   Navigator.pop(context); 
                                   if (res['success'] == true) {
-                                       Navigator.pushNamed(context, '/room', arguments: {'roomId': res['roomId']});
+                                       // Construct Initial Room Object
+                                       final newRoom = Room(
+                                            id: res['roomId'],
+                                            name: name,
+                                            hostId: accountId,
+                                            maxPlayers: maxPlayers,
+                                            visibility: visibility,
+                                            mode: mode,
+                                            wagerMode: wagerEnabled,
+                                            roundTime: 15,
+                                            members: [
+                                                RoomMember(
+                                                    accountId: accountId,
+                                                    email: "You", // Will be updated by eventual consistency or profile fetch
+                                                    ready: false, // Host usually ready?
+                                                    avatar: null
+                                                )
+                                            ],
+                                            status: "waiting",
+                                            currentPlayerCount: 1
+                                       );
+                                      
+                                       Navigator.pushNamed(context, '/room', arguments: {'room': newRoom, 'initialIsHost': true});
                                   } else {
                                       ScaffoldMessenger.of(context).showSnackBar(
                                           SnackBar(content: Text("Failed to create room: ${res['error']}"))
@@ -266,9 +312,9 @@ class _RoomCardState extends State<RoomCard> {
       text,
       style: const TextStyle(
         fontFamily: 'LuckiestGuy',
-        color: LobbyTheme.primaryDark,
-        fontSize: 14,
-        letterSpacing: 0.5,
+        color: Colors.white, // White text
+        fontSize: 18,
+        letterSpacing: 1,
       ),
     );
   }
@@ -425,7 +471,9 @@ class _RoomCardState extends State<RoomCard> {
                 const SizedBox(height: 12), // Giảm từ 16
                 // Dùng Flexible để RoomList tự động điều chỉnh chiều cao
                 Flexible(
-                  child: RoomList(),
+                  child: isLoading 
+                    ? const Center(child: CircularProgressIndicator(color: LobbyTheme.yellowGame)) 
+                    : RoomList(rooms: rooms),
                 ),
                 const SizedBox(height: 10), // Giảm từ 12
                 // Row containing action buttons (Reload, Find, Create)
@@ -438,7 +486,7 @@ class _RoomCardState extends State<RoomCard> {
                         label: "RELOAD",
                         color: LobbyTheme.yellowReload,
                         textColor: Colors.white,
-                        onPressed: () => print("Reloading..."),
+                        onPressed: () => _fetchRooms(),
                         fontSize: buttonTextSize,
                         verticalPadding: 24, // Increased from 22
                       ),

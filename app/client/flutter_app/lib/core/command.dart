@@ -13,6 +13,7 @@ class Command {
   static const int reconnect = 0x0103;
   static const int cmdUpdateProfile = 0x0104; 
   static const int cmdGetProfile = 0x0105; 
+  static const int cmdChangePassword = 0x0106;
 
   // Lobby (Room Management)
   static const int createRoom = 0x0200;
@@ -23,6 +24,7 @@ class Command {
   static const int inviteFriend = 0x0205;
   static const int setRule = 0x0206;
   static const int closeRoom = 0x0207;
+  static const int cmdGetRoomList = 0x0208;
 
   // Gameplay
   static const int startGame = 0x0300;
@@ -53,6 +55,8 @@ class Command {
   static const int resMemberKicked = 225;
   static const int resProfileUpdated = 226;
   static const int resProfileFound = 227;
+  static const int resRoomList = 228;
+  static const int resPasswordChanged = 229;
   static const int resGameStarted = 301;
 
   // Error

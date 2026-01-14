@@ -1,25 +1,12 @@
 import 'package:flutter/material.dart';
 import '../theme/lobby_theme.dart';
-
-class Room {
-  final int id;
-  final String name;
-  final String status;
-  Room({required this.id, required this.name, required this.status});
-}
+import '../../models/room.dart';
+import '../../services/service_locator.dart';
 
 class RoomList extends StatelessWidget {
-  final List<Room> rooms = [
-    Room(id: 1, name: "The Price is Right (A)", status: "Waiting"),
-    Room(id: 2, name: "Challenge: High Stakes (B)", status: "In Game"),
-    Room(id: 3, name: "Casual Fun Room (C)", status: "Waiting"),
-    Room(id: 4, name: "Vietnamese Pricing Game (D)", status: "Waiting"),
-    Room(id: 5, name: "Max Bid Only (E)", status: "Waiting"),
-    Room(id: 6, name: "Quick Play - Open Slot (F)", status: "Waiting"),
-    Room(id: 7, name: "The Big Reveal (G)", status: "In Game"),
-    Room(id: 8, name: "Midnight Madness (H)", status: "Waiting"),
-    Room(id: 999, name: "[TEST] Simulation Room", status: "Waiting"),
-  ];
+  final List<Room> rooms;
+
+  const RoomList({super.key, required this.rooms});
 
   @override
   Widget build(BuildContext context) {
@@ -35,8 +22,13 @@ class RoomList extends StatelessWidget {
       separatorBuilder: (context, index) => const SizedBox(height: 8),
       itemBuilder: (context, index) {
         final room = rooms[index];
-        bool isInGame = room.status == "In Game";
+        bool isPlaying = room.status.toLowerCase() != "waiting";
+        bool isFull = room.currentPlayerCount >= room.maxPlayers;
+        bool isLocked = isPlaying || isFull;
 
+        String buttonText = "JOIN";
+        if (isPlaying) buttonText = "PLAYING";
+        else if (isFull) buttonText = "FULL";
 
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -54,13 +46,26 @@ class RoomList extends StatelessWidget {
               
               // NAME column - expanded
               Expanded(
-                child: Text(
-                  room.name,
-                  style: LobbyTheme.tableContentFont.copyWith(
-                    fontWeight: FontWeight.bold,
-                    fontSize: contentFontSize
-                  ),
-                  overflow: TextOverflow.ellipsis,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      room.name,
+                      style: LobbyTheme.tableContentFont.copyWith(
+                        fontWeight: FontWeight.bold,
+                        fontSize: contentFontSize
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      "${room.currentPlayerCount}/${room.maxPlayers} Players • ${room.mode.toUpperCase()}",
+                      style: LobbyTheme.tableContentFont.copyWith(
+                        fontSize: contentFontSize * 0.7,
+                        color: Colors.white70
+                      ),
+                    ),
+                  ],
                 ),
               ),
               
@@ -72,20 +77,31 @@ class RoomList extends StatelessWidget {
                 height: 42,
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: isInGame ? Colors.grey : const Color(0xFF66BB6A),
+                    backgroundColor: isLocked ? Colors.grey : const Color(0xFF66BB6A),
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                       side: const BorderSide(color: LobbyTheme.primaryDark, width: 2),
                     ),
                   ),
-                  onPressed: isInGame 
+                  onPressed: isLocked 
                     ? null 
-                    : () {
-                        Navigator.pushNamed(context, '/room', arguments: {'roomId': room.id});
+                    : () async {
+                        try {
+                           final joinedRoom = await ServiceLocator.roomService.joinRoom(room.id);
+                           if (context.mounted && joinedRoom != null) {
+                               Navigator.pushNamed(context, '/room', arguments: {'room': joinedRoom, 'initialIsHost': false});
+                           }
+                        } catch (e) {
+                           if (context.mounted) {
+                               ScaffoldMessenger.of(context).showSnackBar(
+                                   SnackBar(content: Text("Failed to join: $e"), backgroundColor: Colors.red),
+                               );
+                           }
+                        }
                       },
                   child: Text(
-                    isInGame ? "LOCK" : "JOIN",
+                    buttonText,
                     style: LobbyTheme.gameFont(fontSize: buttonFontSize, color: Colors.white),
                   ),
                 ),

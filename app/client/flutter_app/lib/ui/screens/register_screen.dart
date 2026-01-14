@@ -14,6 +14,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _nameController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController(); // Added confirm password controller
   bool _isLoading = false;
 
   @override
@@ -61,6 +62,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       const SizedBox(height: 8),
                       TextFormField(
                         controller: _nameController,
+                        maxLength: 10,
                         decoration: LoginTheme.inputDecoration("Your in-game name"),
                         validator: (val) => (val == null || val.isEmpty) ? "Name is required" : null,
                       ),
@@ -74,6 +76,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         obscureText: true,
                         decoration: LoginTheme.inputDecoration("Min 6 characters"),
                         validator: (val) => (val == null || val.length < 6) ? "Min 6 characters" : null,
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Confirm Password Field
+                      const Text("Confirm Password", style: LoginTheme.labelStyle),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _confirmPasswordController,
+                        obscureText: true,
+                        decoration: LoginTheme.inputDecoration("Confirm your password"),
+                        validator: (val) {
+                          if (val == null || val.isEmpty) return "Please confirm password";
+                          if (val != _passwordController.text) return "Passwords do not match";
+                          return null;
+                        },
                       ),
                       
                       const SizedBox(height: 32),

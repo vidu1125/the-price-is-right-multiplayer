@@ -65,8 +65,10 @@ class LobbyScreen extends StatelessWidget {
                                   _sideButton(context, "VIEW TUTORIAL", () {
                                     Navigator.pushNamed(context, '/tutorial');
                                   }),
-                                  _sideButton(context, "SETTING", () {
-                                    Navigator.pushNamed(context, '/settings');
+                                  _sideButton(context, "SETTING", () async {
+                                    await Navigator.pushNamed(context, '/settings');
+                                    // Settings pop doesn't return value but we want to trigger update
+                                    // ProfileService stream will handle this
                                   }),
                                   const SizedBox(height: 16),
                                   _sideButton(context, "LOG OUT", () async {

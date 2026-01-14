@@ -75,7 +75,7 @@ class TutorialTheme {
 
   static TextStyle detailTextStyle = const TextStyle(
     fontFamily: 'Parkinsans',
-    fontSize: 24,
+    fontSize: 28,
     color: Color(0xFF2C3E50), // Màu xanh xám đậm, sang trọng hơn màu đen thuần
     height: 1.4,
   );

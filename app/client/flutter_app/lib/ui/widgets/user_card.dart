@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../services/service_locator.dart';
 import '../../models/user_profile.dart';
@@ -13,11 +14,23 @@ class UserCard extends StatefulWidget {
 class _UserCardState extends State<UserCard> {
   UserProfile? _profile;
   bool _isLoading = true;
+  StreamSubscription? _subscription;
 
   @override
   void initState() {
     super.initState();
     _loadProfile();
+    _subscription = ServiceLocator.profileService.profileUpdates.listen((updatedProfile) {
+        if (mounted) {
+            setState(() => _profile = updatedProfile);
+        }
+    });
+  }
+
+  @override
+  void dispose() {
+    _subscription?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadProfile() async {
@@ -76,16 +89,22 @@ class _UserCardState extends State<UserCard> {
                 border: Border.all(color: LobbyTheme.primaryDark, width: 4),
               ),
               child: ClipOval(
-                child: Image.asset(
-                  'assets/images/default-mushroom.jpg',
-                  fit: BoxFit.cover,
-                  // Dự phòng nếu không tìm thấy ảnh
-                  errorBuilder: (context, error, stackTrace) => Icon(
-                    Icons.person,
-                    color: LobbyTheme.primaryDark,
-                    size: avatarSize * 0.6,
-                  ),
-                ),
+                child: _profile?.avatar != null && _profile!.avatar!.isNotEmpty
+                    ? (_profile!.avatar!.startsWith("http")
+                        ? Image.network(
+                            _profile!.avatar!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (c, e, s) => Image.asset('assets/images/default-mushroom.jpg', fit: BoxFit.cover),
+                          )
+                        : Image.asset(
+                            _profile!.avatar!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (c, e, s) => Image.asset('assets/images/default-mushroom.jpg', fit: BoxFit.cover),
+                          ))
+                    : Image.asset(
+                        'assets/images/default-mushroom.jpg',
+                        fit: BoxFit.cover,
+                      ),
               ),
             ),
           ),

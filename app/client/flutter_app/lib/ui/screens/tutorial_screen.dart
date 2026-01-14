@@ -90,29 +90,72 @@ class _TutorialPageState extends State<TutorialPage> {
           ),
           Positioned.fill(
             child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    const Color(0xFF0D47A1).withOpacity(0.7), 
-                    const Color(0xFF29B6F6).withOpacity(0.5),
-                  ],
-                ),
-              ),
+              color: Colors.black.withOpacity(0.5), // Match Lobby overlay
             ),
           ),
           
-          Container(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
-              child: Column(
-                children: [
-                  _buildHeroSection(),
-                  const SizedBox(height: 40),
-                  _buildCarousel(),
-                ],
-              ),
+          // Unified Full-Screen Panel
+          // Unified Full-Screen Panel
+          Positioned.fill(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return Center(
+                  child: Container(
+                    width: constraints.maxWidth * 0.85, // Reduced flexible width
+                    height: constraints.maxHeight * 0.65, // Reduced flexible height
+                    margin: const EdgeInsets.all(24),
+                    padding: const EdgeInsets.all(40),
+                    decoration: BoxDecoration(
+                      color: const Color(0xB31F2A44),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: const Color(0xFF1F2A44), width: 4),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.5),
+                          blurRadius: 30,
+                          offset: const Offset(0, 10),
+                        )
+                      ],
+                    ),
+                    child: constraints.maxWidth > 1000 
+                      ? Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Expanded(
+                              flex: 5,
+                              child: SingleChildScrollView(child: _buildHeroSection())
+                            ),
+                            Container(
+                              width: 2, 
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [Colors.transparent, Colors.white.withOpacity(0.2), Colors.transparent],
+                                )
+                              ),
+                              margin: const EdgeInsets.symmetric(horizontal: 32)
+                            ),
+                            Expanded(
+                              flex: 5,
+                              child: _buildCarousel()
+                            ),
+                          ],
+                        )
+                      : SingleChildScrollView(
+                          child: Column(
+                            children: [
+                              _buildHeroSection(),
+                              const SizedBox(height: 32),
+                              const Divider(color: Colors.white12, thickness: 2),
+                              const SizedBox(height: 32),
+                              _buildCarousel(),
+                            ],
+                          ),
+                        ),
+                  ),
+                );
+              },
             ),
           ),
         ],
@@ -121,42 +164,38 @@ class _TutorialPageState extends State<TutorialPage> {
   }
 
   Widget _buildHeroSection() {
-    return Container(
-      padding: const EdgeInsets.all(30),
-      // Use glassDecoration from theme
-      decoration: TutorialTheme.glassDecoration(opacity: 0.2), 
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text("LEARN THE RULES", style: TutorialTheme.gameFont(size: 18, color: TutorialTheme.brightYellow)),
-          const SizedBox(height: 10),
-          Text(
-            "The Price Is Right",
-            style: GoogleFonts.luckiestGuy(fontSize: 52, color: Colors.white, shadows: TutorialTheme.gameShowShadow(offset: 3)),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            "Quick recap of modes, mechanics, and scoring.",
-            style: TextStyle(fontFamily: 'Parkinsans', fontSize: 18, color: Colors.white.withOpacity(0.9)),
-          ),
-          const SizedBox(height: 25),
-          Row(
-            children: [
-              _buildHeroButton("Back to Lobby", isPrimary: true, onPressed: () => Navigator.pop(context)),
-              const SizedBox(width: 15),
-              _buildHeroButton("Go Back", isPrimary: false, onPressed: () => Navigator.pop(context)),
-            ],
-          ),
-          const SizedBox(height: 35),
-          Row(
-            children: [
-              _buildModePill("Scoring Mode", "4 - 6 players", "Highest total points wins"),
-              const SizedBox(width: 15),
-              _buildModePill("Elimination Mode", "Exactly 4 players", "Be the last player"),
-            ],
-          )
-        ],
-      ),
+    // Removed external container decoration, integrating into unified panel
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text("LEARN THE RULES", style: TutorialTheme.gameFont(size: 26, color: TutorialTheme.brightYellow)),
+        const SizedBox(height: 10),
+        Text(
+          "The Price Is Right",
+          style: GoogleFonts.luckiestGuy(fontSize: 68, color: Colors.white, shadows: TutorialTheme.gameShowShadow(offset: 4)),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          "Quick recap of modes, mechanics, and scoring.",
+          style: TextStyle(fontFamily: 'Parkinsans', fontSize: 24, color: Colors.white.withOpacity(0.9)),
+        ),
+        const SizedBox(height: 25),
+        // Single Back Button
+        Container(
+          width: double.infinity,
+          constraints: const BoxConstraints(maxWidth: 250),
+          child: _buildHeroButton("Back to Lobby", isPrimary: true, onPressed: () => Navigator.pop(context)),
+        ),
+        const SizedBox(height: 35),
+        Column(
+          children: [
+            _buildModePill("Scoring Mode", "4 - 6 players", "Highest total points wins"),
+            const SizedBox(height: 15),
+            _buildModePill("Elimination Mode", "Exactly 4 players", "Be the last player"),
+          ],
+        )
+      ],
     );
   }
 
@@ -164,6 +203,7 @@ class _TutorialPageState extends State<TutorialPage> {
     return ElevatedButton(
       onPressed: onPressed,
       style: ElevatedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
         backgroundColor: isPrimary ? TutorialTheme.primaryBlue : Colors.white.withOpacity(0.1),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(14),
@@ -173,79 +213,76 @@ class _TutorialPageState extends State<TutorialPage> {
       ),
       child: Text(
         text.toUpperCase(),
-        style: GoogleFonts.luckiestGuy(fontSize: 18, color: Colors.white),
+        style: GoogleFonts.luckiestGuy(fontSize: 26, color: Colors.white),
       ),
     );
   }
 
   Widget _buildModePill(String title, String players, String goal) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: const Color(0xFF29B6F6).withOpacity(0.2),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFF29B6F6), width: 2),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: GoogleFonts.luckiestGuy(fontSize: 20, color: const Color(0xFF29B6F6))),
-            const SizedBox(height: 5),
-            Text(players, style: const TextStyle(fontFamily: 'Parkinsans', fontSize: 16, color: Colors.white70)),
-            const SizedBox(height: 4),
-            Text(goal, style: const TextStyle(fontFamily: 'Parkinsans', fontSize: 16, color: Colors.white)),
-          ],
-        ),
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF29B6F6).withOpacity(0.15),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF29B6F6).withOpacity(0.5), width: 1.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.info_outline, color: Color(0xFF29B6F6), size: 30),
+              const SizedBox(width: 10),
+              Text(title, style: GoogleFonts.luckiestGuy(fontSize: 30, color: const Color(0xFF29B6F6))),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(players, style: const TextStyle(fontFamily: 'Parkinsans', fontSize: 22, color: Colors.white70)),
+          const SizedBox(height: 6),
+          Text(goal, style: const TextStyle(fontFamily: 'Parkinsans', fontSize: 22, color: Colors.white)),
+        ],
       ),
     );
   }
 
   Widget _buildCarousel() {
-    return Container(
-      constraints: const BoxConstraints(minHeight: 500),
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E1E2F).withOpacity(0.95),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFFFDE59), width: 3),
-         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 15, offset: const Offset(0, 5))
-        ]
-      ),
+    return Center(
       child: Column(
+        mainAxisSize: MainAxisSize.min, // Wrap content height
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _buildNavBtn("← PREV", _currentSection > 0 ? () {
-                _pageController.previousPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
-              } : null),
-              Expanded(
-                child: Text(
-                  sections[_currentSection]['title'].toUpperCase(),
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.luckiestGuy(color: const Color(0xFFFFDE59), fontSize: 28),
-                ),
+            _buildNavBtn("← PREV", _currentSection > 0 ? () {
+              _pageController.previousPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+            } : null),
+            Expanded(
+              child: Text(
+                sections[_currentSection]['title'].toUpperCase(),
+                textAlign: TextAlign.center,
+                style: GoogleFonts.luckiestGuy(color: const Color(0xFFFFDE59), fontSize: 42),
               ),
-              _buildNavBtn("NEXT →", _currentSection < sections.length - 1 ? () {
-                _pageController.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
-              } : null),
-            ],
-          ),
-          const SizedBox(height: 15),
-          Text("${_currentSection + 1} / ${sections.length}", style: GoogleFonts.luckiestGuy(color: Colors.white54, fontSize: 20)),
-          const SizedBox(height: 25),
-          SizedBox(
-            height: 400, // Increased height
-            child: PageView.builder(
-              controller: _pageController,
-              onPageChanged: (index) => setState(() => _currentSection = index),
-              itemCount: sections.length,
-              itemBuilder: (context, index) => _renderSectionContent(sections[index]),
             ),
+            _buildNavBtn("NEXT →", _currentSection < sections.length - 1 ? () {
+              _pageController.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+            } : null),
+          ],
+        ),
+        const SizedBox(height: 15),
+        Text("${_currentSection + 1} / ${sections.length}", style: GoogleFonts.luckiestGuy(color: Colors.white54, fontSize: 28)),
+        const SizedBox(height: 25),
+        SizedBox(
+          height: 450, // Keep fixed height for consistency
+          child: PageView.builder(
+            controller: _pageController,
+            onPageChanged: (index) => setState(() => _currentSection = index),
+            itemCount: sections.length,
+            itemBuilder: (context, index) => _renderSectionContent(sections[index]),
           ),
-        ],
+        ),
+      ],
       ),
     );
   }
@@ -263,7 +300,7 @@ class _TutorialPageState extends State<TutorialPage> {
             side: const BorderSide(color: Color(0xFF1F2A44), width: 2),
           ),
         ),
-        child: Text(text, style: GoogleFonts.luckiestGuy(color: Colors.white, fontSize: 16)),
+        child: Text(text, style: GoogleFonts.luckiestGuy(color: Colors.white, fontSize: 24)),
       ),
     );
   }
@@ -272,10 +309,15 @@ class _TutorialPageState extends State<TutorialPage> {
     return Container(
       padding: const EdgeInsets.all(30),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.95), // Nền trắng sữa sang trọng
-        borderRadius: BorderRadius.circular(30),
+        color: Colors.white.withOpacity(0.96), // Match Settings
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFF1F2A44), width: 2),
         boxShadow: [
-          BoxShadow(color: Colors.black26, blurRadius: 20, offset: const Offset(0, 10))
+          BoxShadow(
+            color: Colors.black.withOpacity(0.18),
+            blurRadius: 28,
+            offset: const Offset(0, 10),
+          )
         ],
       ),
       child: Column(
@@ -300,13 +342,13 @@ class _TutorialPageState extends State<TutorialPage> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.stars_rounded, color: TutorialTheme.primaryBlue, size: 36), // Increased from 28
+                const Icon(Icons.stars_rounded, color: TutorialTheme.primaryBlue, size: 48), // Increased 
                 const SizedBox(width: 15),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(m['title']!, style: GoogleFonts.luckiestGuy(fontSize: 26, color: titleColor)), // Increased from 22
+                      Text(m['title']!, style: GoogleFonts.luckiestGuy(fontSize: 36, color: titleColor)), // Increased
                       const SizedBox(height: 5),
                       Text(m['detail']!, style: TutorialTheme.detailTextStyle),
                     ],
@@ -326,7 +368,7 @@ class _TutorialPageState extends State<TutorialPage> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text("⚡", style: TextStyle(fontSize: 28)), // Increased from 20
+                  const Text("⚡", style: TextStyle(fontSize: 42)), // Increased
                   const SizedBox(width: 12),
                   Expanded(child: Text(b, style: TutorialTheme.detailTextStyle)),
                 ],

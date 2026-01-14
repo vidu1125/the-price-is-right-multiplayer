@@ -9,122 +9,90 @@ import '../theme/room_theme.dart';
 import '../widgets/user_card.dart';
 
 class RoomScreen extends StatefulWidget {
-  final int roomId;
+  final Room room;
   final bool initialIsHost;
 
-  const RoomScreen({super.key, required this.roomId, this.initialIsHost = false});
+  const RoomScreen({super.key, required this.room, this.initialIsHost = false});
 
   @override
   State<RoomScreen> createState() => _RoomScreenState();
 }
 
 class _RoomScreenState extends State<RoomScreen> {
-  Room? _room;
-  bool _isLoading = true;
+  late Room _room;
+  bool _isLoading = false;
   String? _error;
   int? _currentUserId;
   StreamSubscription? _eventSub;
 
-  bool get _isHost => _room != null && _currentUserId != null && _room!.hostId == _currentUserId;
+  bool get _isHost => _room.hostId == _currentUserId;
 
   @override
   void initState() {
     super.initState();
+    _room = widget.room;
     _init();
-    
   }
 
-  @override
-  void dispose() {
-    _eventSub?.cancel();
-    super.dispose();
-  }
+  // ... dispose ...
 
   Future<void> _init() async {
     final authState = await ServiceLocator.authService.getAuthState();
     if (authState["accountId"] != null) {
-      _currentUserId = int.tryParse(authState["accountId"]!);
+      setState(() {
+          _currentUserId = int.tryParse(authState["accountId"]!);
+      });
     }
-
     _eventSub = ServiceLocator.roomService.events.listen(_handleEvent);
-
-    await _fetchRoom();
   }
 
-  Future<void> _fetchRoom() async {
-    if (!mounted) return;
-    
-    // --- MOCK SIMULATION FOR ROOM 999 ---
-    // --- MOCK SIMULATION (ALWAYS ON FOR TESTING) ---
-    // if (widget.roomId == 999) { // Disabled check to force mock for all 
-      await Future.delayed(const Duration(seconds: 1)); // Fake network delay
-      if (mounted) {
-        setState(() {
-          _room = Room(
-            id: widget.roomId, // Use the ID passed in, but mock data
-            name: "Test Room ${widget.roomId}", 
-            code: "TEST${widget.roomId}",
-            hostId: 10,
-            maxPlayers: 5,
-            visibility: "public",
-            mode: "scoring",
-            wagerMode: true,
-            roundTime: 15,
-            members: [
-              RoomMember(accountId: 10, email: "HostUser", ready: true, avatar: null),
-              RoomMember(accountId: 123, email: "PlayerTwo", ready: false, avatar: null),
-              RoomMember(accountId: 14, email: "Alice", ready: true, avatar: null),
-              RoomMember(accountId: 15, email: "Bob", ready: false, avatar: null),
-            ]
-          );
-          _isLoading = false;
-          _currentUserId = 10; // Simulate being Host (changed from 123)
-        });
-      }
-      return;
-    // }
-    // ------------------------------------
-
-    try {
-      final room = await ServiceLocator.roomService.fetchRoom(widget.roomId);
-      if (mounted) {
-        setState(() {
-          _room = room;
-          _isLoading = false;
-          if (room == null) {
-            _error = "Room not found or error loading room";
-          }
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _error = "Error: $e";
-        });
-      }
-    }
-  }
+  // Remove _fetchRoom entirely
 
   void _handleEvent(RoomEvent event) {
     if (!mounted) return;
     
+    setState(() {
+        switch (event.type) {
+            case RoomEventType.playerJoined:
+                // data is Map<String, dynamic> from ntfPlayerJoined
+                // logic to add player
+                final p = event.data;
+                if (p != null) {
+                    // Check duplicate
+                    if (!_room.members.any((m) => m.accountId == p['account_id'])) {
+                        _room.members.add(RoomMember(
+                            accountId: p['account_id'],
+                            email: p['name'] ?? "Unknown",
+                            avatar: null, // Payload might not have avatar?
+                            ready: false
+                        ));
+                        // Update player count if needed (Room model might need updating to be mutable or copyWith)
+                        // For now we modify list in place, but Room has final fields for counts.
+                        // Ideally we use copyWith.
+                    }
+                }
+                break;
+            case RoomEventType.playerLeft:
+                final p = event.data;
+                 if (p != null) {
+                      _room.members.removeWhere((m) => m.accountId == p['account_id']);
+                 }
+                break;
+            default: break;
+        }
+    });
+
     switch (event.type) {
-      case RoomEventType.playerJoined:
-      case RoomEventType.playerLeft:
-      case RoomEventType.memberKicked:
-      case RoomEventType.rulesChanged:
-        _fetchRoom(); // Refresh data
-        break;
+      // ... keep toast/dialog logic which is separate from state update ...
       case RoomEventType.roomClosed:
         _showExitDialog("Room Closed", "The host has closed the room.");
         break;
       case RoomEventType.gameStarted:
-        // TODO: Navigate to Game Screen
          ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Game Starting!")),
         );
         break;
+      default: break;
     }
   }
 
@@ -149,7 +117,7 @@ class _RoomScreenState extends State<RoomScreen> {
   }
 
   Future<void> _leaveRoom() async {
-    await ServiceLocator.roomService.leaveRoom(widget.roomId);
+    await ServiceLocator.roomService.leaveRoom(_room.id);
     if (mounted) Navigator.pop(context);
   }
 
@@ -167,12 +135,12 @@ class _RoomScreenState extends State<RoomScreen> {
     );
 
     if (confirm == true) {
-      await ServiceLocator.roomService.kickMember(widget.roomId, targetId);
+      await ServiceLocator.roomService.kickMember(_room.id, targetId);
     }
   }
   
   Future<void> _startGame() async {
-    final result = await ServiceLocator.gameService.startGame(widget.roomId);
+    final result = await ServiceLocator.gameService.startGame(_room.id);
     if (result['success'] != true) {
         if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -497,9 +465,11 @@ class _RoomScreenState extends State<RoomScreen> {
                       CircleAvatar(
                         radius: avatarRadius,
                         backgroundColor: const Color(0xFFE0E0E0),
-                        backgroundImage: member.avatar != null 
-                          ? NetworkImage(member.avatar!) 
-                          : const AssetImage('assets/images/default-mushroom.jpg') as ImageProvider,
+                        backgroundImage: (member.avatar != null && member.avatar!.isNotEmpty)
+                          ? (member.avatar!.startsWith("http")
+                              ? NetworkImage(member.avatar!)
+                              : AssetImage(member.avatar!) as ImageProvider)
+                          : const AssetImage('assets/images/default-mushroom.jpg'),
                         child: member.avatar == null 
                            ? const SizedBox.shrink()
                            : null,
