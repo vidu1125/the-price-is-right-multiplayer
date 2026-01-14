@@ -5,11 +5,16 @@ FROM gcc:13 AS builder
 
 WORKDIR /app
 
+# Install build dependencies with verbose output
 RUN apt-get update && \
-    apt-get install -y \
-        libcurl4-openssl-dev \
-        libcjson-dev && \
+    apt-get install -y --no-install-recommends \
+    libpq-dev \
+    postgresql-client \
+    libcjson-dev && \
     rm -rf /var/lib/apt/lists/*
+
+# Verify libpq headers are installed
+RUN find /usr -name "libpq-fe.h" 2>/dev/null && echo "Found libpq-fe.h" || echo "ERROR: libpq-fe.h not found"
 
 COPY . .
 
@@ -25,13 +30,9 @@ WORKDIR /app
 
 RUN apt-get update && \
     apt-get install -y \
-        libcurl4 \
-        libcjson1 && \
+    libpq5 \
+    libcjson1 && \
     rm -rf /var/lib/apt/lists/*
-
-# ===== Supabase ENV =====
-ENV SUPABASE_URL=https://ecnfnieobrpfbosucbdz.supabase.co
-ENV SUPABASE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVjbmZuaWVvYnJwZmJvc3VjYmR6Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDY3MDE0OSwiZXhwIjoyMDgwMjQ2MTQ5fQ.GpNNqaxwqC2-dCGjiYuGb2MsplCW4esT_w35kakC5Kg
 
 COPY --from=builder /app/network_server .
 

@@ -92,26 +92,17 @@ db_error_t question_get_excluded_ids(
         strcat(account_list, buf);
     }
 
-    // Query: Get distinct question IDs from recent N matches of these players
+    // SQL query: Get distinct question IDs from match_question table
+    // Join with match_players to filter by account_ids
     snprintf(query, sizeof(query),
-        "select=question_id&match_id=in.("
-        "select distinct match_id from match_players "
-        "where account_id in (%s) "
-        "order by joined_at desc limit %d"
-        ")&select=distinct(question(id))",
-        account_list, recent_match_count * player_count);
-
-    printf("[QUESTION_REPO] Getting excluded IDs from recent %d matches of %d players\n", 
-           recent_match_count, player_count);
-
-    // Simpler approach: Query match_question table directly
-    // Get all questions from matches where any of these players participated recently
-    snprintf(query, sizeof(query),
-        "select=question:data->>id&match_id=in.("
-        "select distinct match_id from match_players "
-        "where account_id in (%s) "
-        "order by joined_at desc limit %d)",
-        account_list, recent_match_count * player_count);
+        "SELECT DISTINCT mq.question->>'id' as question_id "
+        "FROM match_question mq "
+        "JOIN matches m ON mq.match_id = m.id "
+        "JOIN match_players mp ON mp.match_id = m.id "
+        "WHERE mp.account_id IN (%s) "
+        "ORDER BY m.started_at DESC "
+        "LIMIT %d",
+        account_list, recent_match_count * 10);  // Get more to ensure coverage
 
     cJSON *result = NULL;
     db_error_t rc = db_get("match_question", query, &result);
@@ -139,15 +130,19 @@ db_error_t question_get_excluded_ids(
         return DB_ERROR_INTERNAL;
     }
 
-    // Extract question IDs
+    // Extract question IDs from result
     int valid_count = 0;
     for (int i = 0; i < count; i++) {
         cJSON *item = cJSON_GetArrayItem(result, i);
-        cJSON *q_data = cJSON_GetObjectItem(item, "question");
-        if (q_data && cJSON_IsObject(q_data)) {
-            cJSON *id_field = cJSON_GetObjectItem(q_data, "id");
-            if (id_field && cJSON_IsNumber(id_field)) {
+        if (!item) continue;
+        
+        // Result should have question_id field from our SQL
+        cJSON *id_field = cJSON_GetObjectItem(item, "question_id");
+        if (id_field) {
+            if (cJSON_IsNumber(id_field)) {
                 excluded[valid_count++] = id_field->valueint;
+            } else if (cJSON_IsString(id_field)) {
+                excluded[valid_count++] = atoi(id_field->valuestring);
             }
         }
     }
@@ -169,18 +164,21 @@ db_error_t question_get_random(const char *round_type, int count, const int32_t 
 
     *out_json = NULL;
 
-    // Build query with optional category filter
-    // Questions table structure: { id, type (round type), data (JSONB with { type: "lifestyle/electronics/furniture", ... }) }
+    // Build SQL query with JSONB operators
     char query[512];
     
     if (category && strlen(category) > 0) {
-        // Filter by both round type AND category in data->type
-        snprintf(query, sizeof(query), "select=*&type=eq.%s&data->>type=eq.%s", round_type, category);
+        // Filter by both round type AND category in JSONB data
+        snprintf(query, sizeof(query), 
+                 "SELECT * FROM questions WHERE type = '%s' AND data->>'category' = '%s' AND active = true",
+                 round_type, category);
         printf("[QUESTION_REPO] Fetching questions for type='%s', category='%s' (excluding %d IDs)\n", 
                round_type, category, excluded_count);
     } else {
         // Only filter by round type (all categories)
-        snprintf(query, sizeof(query), "select=*&type=eq.%s", round_type);
+        snprintf(query, sizeof(query), 
+                 "SELECT * FROM questions WHERE type = '%s' AND active = true",
+                 round_type);
         printf("[QUESTION_REPO] Fetching questions for type='%s' (all categories, excluding %d IDs)\n", 
                round_type, excluded_count);
     }

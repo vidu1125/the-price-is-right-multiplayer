@@ -3,6 +3,7 @@
 #include <string.h>
 #include <time.h>
 #include <cjson/cJSON.h>
+#include <stdbool.h>
 
 #include "db/repo/match_repo.h"
 #include "db/core/db_client.h"
@@ -34,7 +35,7 @@ static void get_current_iso_time(char *buf, size_t size) {
 static uint32_t get_or_create_dummy_room(int32_t host_id) {
     // 1. Try to find any room
     cJSON *res = NULL;
-    db_error_t err = db_get("rooms", "select=id&limit=1", &res);
+    db_error_t err = db_get("rooms", "SELECT id FROM rooms LIMIT 1", &res);
     if (err == DB_SUCCESS && cJSON_IsArray(res) && cJSON_GetArraySize(res) > 0) {
         cJSON *item = cJSON_GetArrayItem(res, 0);
         cJSON *id_json = cJSON_GetObjectItem(item, "id");
@@ -152,12 +153,9 @@ db_error_t db_match_insert(
     *out_match_id = 0;
 
     // Use hardcoded room_id for testing (will be replaced with actual room data later)
-    (void)room_id; // Suppress warning
-    uint32_t test_room_id = 56; // Hardcoded room ID for testing
-
     // Build match payload
     cJSON *match_payload = cJSON_CreateObject();
-    cJSON_AddNumberToObject(match_payload, "room_id", test_room_id);
+    cJSON_AddNumberToObject(match_payload, "room_id", room_id);
     cJSON_AddStringToObject(match_payload, "mode", mode ? mode : "classic");
     cJSON_AddNumberToObject(match_payload, "max_players", max_players);
     
@@ -212,9 +210,7 @@ db_error_t db_match_players_insert(
     printf("[MATCH_REPO] Inserting %d players for match_id=%lld...\n", 
            player_count, (long long)db_match_id);
 
-    // Build array of player objects
-    cJSON *players_array = cJSON_CreateArray();
-    
+    // Insert players one by one
     for (int i = 0; i < player_count; i++) {
         cJSON *player = cJSON_CreateObject();
         cJSON_AddNumberToObject(player, "match_id", db_match_id);
@@ -224,21 +220,17 @@ db_error_t db_match_players_insert(
         cJSON_AddBoolToObject(player, "eliminated", false);
         cJSON_AddBoolToObject(player, "forfeited", false);
         
-        cJSON_AddItemToArray(players_array, player);
-    }
+        cJSON *response = NULL;
+        db_error_t err = db_post("match_players", player, &response);
+        cJSON_Delete(player);
 
-    // Insert all players at once
-    cJSON *response = NULL;
-    db_error_t err = db_post("match_players", players_array, &response);
-    cJSON_Delete(players_array);
-
-    if (err != DB_SUCCESS) {
-        printf("[MATCH_REPO] Failed to insert match_players: err=%d\n", err);
+        if (err != DB_SUCCESS) {
+            printf("[MATCH_REPO] Failed to insert player %d: err=%d\n", account_ids[i], err);
+            if (response) cJSON_Delete(response);
+            return err;
+        }
         if (response) cJSON_Delete(response);
-        return err;
     }
-
-    if (response) cJSON_Delete(response);
     
     printf("[MATCH_REPO] Successfully inserted %d match_players\n", player_count);
     return DB_SUCCESS;
@@ -257,19 +249,18 @@ db_error_t db_match_get_history(
     *out_count = 0;
     *out_records = NULL;
 
-    /*
-     * Query match_players + embed matches
-     * Lấy thêm rank
-     */
+    // SQL query with JOIN
     char query[512];
     snprintf(
         query,
         sizeof(query),
-        "select=score,rank,winner,match_id,matches(id,mode,ended_at)"
-        "&account_id=eq.%d"
-        "&order=id.desc"
-        "&limit=%d"
-        "&offset=%d",
+        "SELECT mp.score, mp.rank, mp.winner, mp.match_id, "
+        "m.id as match_id, m.mode, m.ended_at "
+        "FROM match_players mp "
+        "JOIN matches m ON mp.match_id = m.id "
+        "WHERE mp.account_id = %d "
+        "ORDER BY mp.id DESC "
+        "LIMIT %d OFFSET %d",
         account_id,
         limit,
         offset
@@ -361,15 +352,22 @@ db_error_t db_match_get_detail(
 ) {
     if (match_id == 0 || !out_json) return DB_ERROR_INVALID_PARAM;
     
+    // Complex SQL with multiple JOINs
+    // Note: This is simplified - full implementation would need multiple queries or CTEs
     char query[2048];
     snprintf(query, sizeof(query), 
-        "id=eq.%u&select=id,mode,player_count:max_players,"
-        "match_players(id,account_id,eliminated,forfeited,account:accounts(profile:profiles(name))),"
-        "questions:match_question(id,round_no,round_type,question_idx,question_text:question,answers:match_answer(player_id,answer,score_delta)),"
-        "events:match_events(player_id,event_type,round_no,question_idx)"
-        "&questions.order=round_no,question_idx",
+        "SELECT m.id, m.mode, m.max_players as player_count "
+        "FROM matches m "
+        "WHERE m.id = %u",
         match_id
     );
+    
+    // TODO: This complex query with nested joins (match_players, match_question, match_answer, profiles)
+    // needs to be handled differently in PostgreSQL. Options:
+    // 1. Use multiple queries and combine results in C code
+    // 2. Create a PostgreSQL function to return the data in desired format
+    // 3. Use PostgreSQL JSON aggregation functions
+    // For now, keeping REST format as placeholder - needs proper implementation
 
     cJSON *res = NULL;
     db_error_t err = db_get("matches", query, &res);

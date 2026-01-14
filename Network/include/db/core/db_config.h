@@ -1,27 +1,12 @@
-// #pragma once
-
-// #define SUPABASE_URL=
-
-// #define SUPABASE_KEY=
-
-// /* REST paths */
-// #define SUPABASE_REST_PATH "/rest/v1"
-// #define SUPABASE_RPC_PATH  "/rest/v1/rpc"
-
-// /* Network config */
-// #define DB_HTTP_TIMEOUT_SEC 5
-// #define DB_HTTP_MAX_URL     512
-
 #pragma once
 
-/* ===== ENV variable names ===== */
-#define ENV_SUPABASE_URL "SUPABASE_URL"
-#define ENV_SUPABASE_KEY "SUPABASE_KEY"
+/* ===== PostgreSQL ENV variable names ===== */
+#define ENV_DB_HOST     "DB_HOST"
+#define ENV_DB_PORT     "DB_PORT"
+#define ENV_DB_NAME     "DB_NAME"
+#define ENV_DB_USER     "DB_USER"
+#define ENV_DB_PASSWORD "DB_PASSWORD"
 
-/* ===== Supabase REST paths ===== */
-#define SUPABASE_REST_PATH "/rest/v1"
-#define SUPABASE_RPC_PATH  "/rest/v1/rpc"
-
-/* ===== HTTP config ===== */
-#define DB_HTTP_TIMEOUT_SEC 5
-#define DB_HTTP_MAX_URL     512
+/* ===== PostgreSQL connection config ===== */
+#define DB_CONN_TIMEOUT_SEC 10
+#define DB_MAX_CONN_STRING  512

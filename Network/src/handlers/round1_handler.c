@@ -516,7 +516,7 @@ static void eliminate_player(MatchPlayerState *mp, const char *reason) {
         cJSON_AddBoolToObject(player_payload, "eliminated", true);
         
         char filter[64];
-        snprintf(filter, sizeof(filter), "id=eq.%d", mp->match_player_id);
+        snprintf(filter, sizeof(filter), "id = %d", mp->match_player_id);
         
         cJSON *player_result = NULL;
         db_patch("match_players", filter, player_payload, &player_result);

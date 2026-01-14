@@ -1,4 +1,25 @@
 services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: tpir-postgres
+    environment:
+      POSTGRES_USER: postgresql
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: tpir
+    ports:
+      - "5432:5432"
+    networks:
+      - tpir-net
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./Database/init:/docker-entrypoint-initdb.d
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgresql -d tpir" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   network:
     build:
       context: ./Network
@@ -8,6 +29,15 @@ services:
       - "5500:5500"
     networks:
       - tpir-net
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: tpir
+      DB_USER: postgresql
+      DB_PASSWORD: password
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
 
   ws-bridge:
@@ -44,3 +74,6 @@ services:
 networks:
   tpir-net:
     driver: bridge
+
+volumes:
+  postgres_data:

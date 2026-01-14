@@ -72,7 +72,7 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
     
     if (player_count < 4) {
         // Add fake players until we have 4
-        int fake_ids[] = {44, 45, 48};
+        int fake_ids[] = {2,3,4};
         int needed = 4 - player_count;
         int added = 0;
         

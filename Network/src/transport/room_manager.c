@@ -247,7 +247,7 @@ void room_close_if_empty(uint32_t room_id) {
     cJSON_AddStringToObject(payload, "status", "closed");
     
     char filter[64];
-    snprintf(filter, sizeof(filter), "id=eq.%u", room_id);
+    snprintf(filter, sizeof(filter), "id = %u", room_id);
     
     cJSON *response = NULL;
     db_error_t rc = db_patch("rooms", filter, payload, &response);
