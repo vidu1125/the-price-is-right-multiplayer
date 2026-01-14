@@ -8,6 +8,7 @@
 #include "protocol/protocol.h"
 #include "handlers/session_manager.h"
 #include "transport/room_manager.h"
+#include "db/core/db_client.h"
 
 #if defined(__GNUC__) || defined(__clang__)
     #define PACKED __attribute__((packed))
@@ -98,19 +99,40 @@ void handle_invite_player(int client_fd, MessageHeader *req, const char *payload
         return;
     }
 
-    // 6. Construct invitation notification
+    // 6. Fetch sender profile to get name
+    char sender_name[64] = "Unknown Player";
+    char query[128];
+    snprintf(query, sizeof(query), "SELECT name FROM profiles WHERE account_id = %u LIMIT 1", sender_session->account_id);
+    
+    cJSON *profile_response = NULL;
+    db_error_t profile_rc = db_get("profiles", query, &profile_response);
+    
+    if (profile_rc == DB_OK && profile_response) {
+        cJSON *first = cJSON_GetArrayItem(profile_response, 0);
+        if (first) {
+            cJSON *name_item = cJSON_GetObjectItem(first, "name");
+            if (name_item && cJSON_IsString(name_item)) {
+                strncpy(sender_name, name_item->valuestring, sizeof(sender_name) - 1);
+                sender_name[sizeof(sender_name) - 1] = '\0';
+            }
+        }
+        cJSON_Delete(profile_response);
+    }
+
+    // 7. Construct invitation notification
     cJSON *notif_json = cJSON_CreateObject();
     cJSON_AddNumberToObject(notif_json, "sender_id", sender_session->account_id);
+    cJSON_AddStringToObject(notif_json, "sender_name", sender_name);
     cJSON_AddNumberToObject(notif_json, "room_id", room_id);
     cJSON_AddStringToObject(notif_json, "room_name", room->name);
     
     char *json_str = cJSON_PrintUnformatted(notif_json);
     uint32_t json_len = strlen(json_str);
 
-    // 7. Send notification to target
+    // 8. Send notification to target
     send_notification_to_fd(target_session->socket_fd, NTF_INVITATION, json_str, json_len);
-    printf("[SERVER] [INVITE_PLAYER] Notification (NTF_INVITATION) sent to account %d (fd=%d)\n", 
-           target_id, target_session->socket_fd);
+    printf("[SERVER] [INVITE_PLAYER] Notification (NTF_INVITATION) sent to account %d (fd=%d) from %s\n", 
+           target_id, target_session->socket_fd, sender_name);
 
     // 8. Respond to sender (success)
     forward_response(client_fd, req, RES_SUCCESS, "Invitation sent", 15);

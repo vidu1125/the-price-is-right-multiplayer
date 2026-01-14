@@ -14,7 +14,7 @@ export default function InvitationOverlay({ invitation, onAccept, onDecline }) {
 
                 <div className="invite-body">
                     <p className="invite-text">
-                        Player <span className="highlight">#{invitation.sender_id}</span> has invited you to join:
+                        Player <span className="highlight">{invitation.sender_name || `#${invitation.sender_id}`}</span> has invited you to join:
                     </p>
                     <div className="room-badge">
                         <span className="room-name">{invitation.room_name}</span>

@@ -5,10 +5,12 @@ import RoomTitle from "./RoomTitle";
 import GameRulesPanel from "./GameRulesPanel";
 import MemberListPanel from "./MemberListPanel";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useState, useEffect } from "react";
-import { registerHandler } from "../../../network/receiver";
+import { useState, useEffect, useCallback } from "react";
+import { registerHandler, unregisterHandler } from "../../../network/receiver";
 import { OPCODE } from "../../../network/opcode";
 import { startGame } from "../../../services/gameService";
+import { invitePlayer } from "../../../services/roomService";
+import { getFriendList } from "../../../services/friendService";
 
 export default function WaitingRoom() {
   const location = useLocation();
@@ -49,6 +51,8 @@ export default function WaitingRoom() {
   // Invite Modal State
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [invitePlayerId, setInvitePlayerId] = useState("");
+  const [onlineFriends, setOnlineFriends] = useState([]);
+  const [isFriendsLoading, setIsFriendsLoading] = useState(false);
 
   useEffect(() => {
     // 2. Validate Room ID
@@ -165,7 +169,32 @@ export default function WaitingRoom() {
       }
     });
 
-  }, [roomId, roomCode, navigate]);
+  }, [roomId, roomCode, navigate, isHost]);
+
+  // Fetch friends who are in Lobby (not in a game)
+  const fetchFriends = useCallback(async () => {
+    setIsFriendsLoading(true);
+    try {
+      const res = await getFriendList();
+      if (res?.success && res.friends) {
+        // Filter: Online AND NOT in a game (Lobby state) AND not already in the room
+        const lobbyFriends = res.friends.filter(f =>
+          f.online && !f.in_game && !room.players.find(p => p.account_id === f.id)
+        );
+        setOnlineFriends(lobbyFriends);
+      }
+    } catch (err) {
+      console.error("[WaitingRoom] Failed to fetch friends list:", err);
+    } finally {
+      setIsFriendsLoading(false);
+    }
+  }, [room.players]);
+
+  useEffect(() => {
+    if (isInviteModalOpen) {
+      fetchFriends();
+    }
+  }, [isInviteModalOpen, fetchFriends]);
 
   const handleRulesChange = (newRules) => {
     setRoom(prev => ({ ...prev, rules: newRules }));
@@ -175,14 +204,13 @@ export default function WaitingRoom() {
     startGame(room.id);
   };
 
-  const handleInvitePlayer = () => {
-    const targetId = parseInt(invitePlayerId);
-    if (isNaN(targetId)) {
-      alert("Please enter a valid Player ID (number).");
+  const handleInvitePlayer = (targetId) => {
+    const finalId = targetId || parseInt(invitePlayerId);
+    if (!finalId || isNaN(finalId)) {
+      alert("Please enter a valid Player ID.");
       return;
     }
-    const { invitePlayer } = require('../../../services/roomService');
-    invitePlayer(targetId, room.id);
+    invitePlayer(finalId, room.id);
   };
 
   if (!roomId) return null;
@@ -248,20 +276,47 @@ export default function WaitingRoom() {
       {/* Invite Modal */}
       {isInviteModalOpen && (
         <div className="invite-modal-overlay">
-          <div className="invite-modal">
+          <div className="invite-modal wider">
             <h3>INVITE PLAYER</h3>
-            <div className="invite-input-group">
+
+            <div className="invite-direct-section">
               <label>Enter Player ID:</label>
-              <input
-                type="number"
-                value={invitePlayerId}
-                onChange={(e) => setInvitePlayerId(e.target.value)}
-                placeholder="Ex: 123"
-              />
+              <div className="invite-input-row">
+                <input
+                  type="number"
+                  value={invitePlayerId}
+                  onChange={(e) => setInvitePlayerId(e.target.value)}
+                  placeholder="Ex: 123"
+                />
+                <button className="confirm-btn mini-btn" onClick={() => handleInvitePlayer()}>INVITE</button>
+              </div>
             </div>
+
+            <div className="friends-list-section">
+              <h4>Online Friends (Lobby)</h4>
+              <div className="friends-scroll-view">
+                {isFriendsLoading ? (
+                  <div className="status-text">Loading...</div>
+                ) : onlineFriends.length > 0 ? (
+                  onlineFriends.map(friend => (
+                    <div key={friend.id} className="friend-invite-row">
+                      <div className="friend-details">
+                        <span className="friend-name">{friend.name}</span>
+                        <span className="friend-id">#{friend.id}</span>
+                      </div>
+                      <button className="invite-action-btn" onClick={() => handleInvitePlayer(friend.id)}>
+                        INVITE
+                      </button>
+                    </div>
+                  ))
+                ) : (
+                  <div className="status-text">No friends available in lobby</div>
+                )}
+              </div>
+            </div>
+
             <div className="invite-modal-actions">
-              <button className="confirm-btn" onClick={handleInvitePlayer}>INVITE</button>
-              <button className="cancel-btn" onClick={() => setIsInviteModalOpen(false)}>CANCEL</button>
+              <button className="cancel-btn" onClick={() => setIsInviteModalOpen(false)}>CLOSE</button>
             </div>
           </div>
         </div>
