@@ -444,16 +444,6 @@ void handle_logout(
     // Remove player from any active rooms
     room_remove_member_all(client_fd);
 
-<<<<<<< HEAD
-    // Get account ID before clearing session for presence cleanup
-    int32_t account_id = session->account_id;
-
-    // Mark session disconnected in DB and keep record
-    printf("[AUTH] Marking session disconnected: %s\n", session_id);
-    db_error_t update_err = session_update_connected(session_id, false);
-    if (update_err != DB_SUCCESS) {
-        printf("[AUTH] Failed to update session connected status: err=%d\n", update_err);
-=======
     // Delete session from database (complete logout)
     printf("[AUTH] Deleting session: %s (account_id=%d)\n", session_id, account_id);
     db_error_t delete_err = session_delete(session_id);
@@ -467,19 +457,11 @@ void handle_logout(
     
     if (delete_err != DB_SUCCESS) {
         printf("[AUTH] Failed to delete session: err=%d\n", delete_err);
->>>>>>> main
     } else {
         printf("[AUTH] Session deleted successfully\n");
     }
 
-<<<<<<< HEAD
-    // Unregister user from online status
-    presence_unregister_offline(account_id);
-
-    // Clear binding and session state
-=======
     // Clear binding and session state from memory
->>>>>>> main
     clear_client_session(client_fd);
     if (us) {
         session_destroy(us);
@@ -595,7 +577,6 @@ void handle_reconnect(
         profile_create(account->id, NULL, NULL, NULL, &profile);
     }
 
-<<<<<<< HEAD
     // Register user as online in presence manager (reconnect)
     const char *profile_name = profile && profile->name ? profile->name : "User";
     const char *profile_avatar = profile && profile->avatar ? profile->avatar : "";
@@ -603,8 +584,6 @@ void handle_reconnect(
 
     // TODO: Restore room state if player was in a room
 
-=======
->>>>>>> main
     // Build success response
     cJSON *response = cJSON_CreateObject();
     cJSON_AddBoolToObject(response, "success", true);

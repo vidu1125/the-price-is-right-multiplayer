@@ -127,9 +127,15 @@ void handle_friend_add(
     friend_request_t *request = NULL;
     db_error_t err = friend_request_create(user_id, friend_id, &request);
 
+    if (err == DB_ERROR_INVALID_PARAM) {
+        cJSON_Delete(json);
+        send_error(client_fd, header, ERR_BAD_REQUEST, "Cannot add yourself as friend");
+        return;
+    }
+
     if (err == DB_ERR_CONFLICT) {
         cJSON_Delete(json);
-        send_error(client_fd, header, ERR_CONFLICT, "Friend request already sent");
+        send_error(client_fd, header, ERR_CONFLICT, "Friend request already sent or already friends");
         return;
     }
 
@@ -525,14 +531,44 @@ void handle_search_user(
 
     const char *search_query = query_json->valuestring;
 
-    // Search for users by email (simple implementation)
-    // TODO: Implement full text search on profiles table
+    // Parse query as account ID (numeric)
+    char *endptr;
+    int32_t search_account_id = (int32_t)strtol(search_query, &endptr, 10);
+    
+    // If not a valid number, treat as error
+    if (*endptr != '\0' || search_account_id <= 0) {
+        cJSON_Delete(json);
+        cJSON *response = cJSON_CreateObject();
+        cJSON_AddBoolToObject(response, "success", true);
+        cJSON_AddItemToObject(response, "users", cJSON_CreateArray());
+        cJSON_AddNumberToObject(response, "count", 0);
+        send_response(client_fd, header, RES_SUCCESS, response);
+        cJSON_Delete(response);
+        printf("[FRIEND] Invalid search query (not a number): query='%s'\n", search_query);
+        return;
+    }
+
+    // Search for user by account ID
     account_t *account = NULL;
-    db_error_t err = account_find_by_email(search_query, &account);
+    db_error_t err = account_find_by_id(search_account_id, &account);
 
     cJSON *users_array = cJSON_CreateArray();
 
     if (err == DB_SUCCESS && account) {
+        // Don't show self in search results
+        if (account->id == user_id) {
+            cJSON *response = cJSON_CreateObject();
+            cJSON_AddBoolToObject(response, "success", true);
+            cJSON_AddItemToObject(response, "users", cJSON_CreateArray());
+            cJSON_AddNumberToObject(response, "count", 0);
+            send_response(client_fd, header, RES_SUCCESS, response);
+            cJSON_Delete(response);
+            cJSON_Delete(json);
+            account_free(account);
+            printf("[FRIEND] Search result is self, returning empty results\n");
+            return;
+        }
+
         // Found user by exact email match
         profile_t *profile = NULL;
         profile_find_by_account(account->id, &profile);

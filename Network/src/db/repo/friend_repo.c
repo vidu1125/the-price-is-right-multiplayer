@@ -20,6 +20,9 @@ static friend_request_t* parse_friend_request_from_json(cJSON *json) {
     cJSON *id = cJSON_GetObjectItem(json, "id");
     cJSON *sender_id = cJSON_GetObjectItem(json, "sender_id");
     cJSON *receiver_id = cJSON_GetObjectItem(json, "receiver_id");
+    // Fallback to friends table naming
+    if (!sender_id) sender_id = cJSON_GetObjectItem(json, "requester_id");
+    if (!receiver_id) receiver_id = cJSON_GetObjectItem(json, "addressee_id");
     cJSON *status = cJSON_GetObjectItem(json, "status");
 
     if (id && cJSON_IsNumber(id)) req->id = id->valueint;
@@ -76,14 +79,61 @@ db_error_t friend_request_create(
         return DB_ERROR_INVALID_PARAM;
     }
 
-    cJSON *payload = cJSON_CreateObject();
-    cJSON_AddNumberToObject(payload, "sender_id", sender_id);
-    cJSON_AddNumberToObject(payload, "receiver_id", receiver_id);
-    cJSON_AddStringToObject(payload, "status", "PENDING");
+    // Check if already friends (either direction is ACCEPTED)
+    char check_friends_query[512];
+    snprintf(check_friends_query, sizeof(check_friends_query),
+        "SELECT id FROM friends WHERE "
+        "((requester_id = %d AND addressee_id = %d) OR (requester_id = %d AND addressee_id = %d)) "
+        "AND status = 'ACCEPTED' LIMIT 1",
+        sender_id, receiver_id, receiver_id, sender_id);
+
+    cJSON *friends_response = NULL;
+    db_error_t check_err = db_get(NULL, check_friends_query, &friends_response);
+    if (check_err == DB_SUCCESS && cJSON_IsArray(friends_response) && cJSON_GetArraySize(friends_response) > 0) {
+        cJSON_Delete(friends_response);
+        printf("[FRIEND] Error: Already friends with user %d\n", receiver_id);
+        return DB_ERR_CONFLICT;
+    }
+    if (friends_response) cJSON_Delete(friends_response);
+
+    // Check if pending request already exists FROM sender TO receiver
+    char check_pending_query[256];
+    snprintf(check_pending_query, sizeof(check_pending_query),
+        "SELECT id FROM friends WHERE requester_id = %d AND addressee_id = %d AND status = 'PENDING' LIMIT 1",
+        sender_id, receiver_id);
+
+    cJSON *pending_response = NULL;
+    check_err = db_get(NULL, check_pending_query, &pending_response);
+    if (check_err == DB_SUCCESS && cJSON_IsArray(pending_response) && cJSON_GetArraySize(pending_response) > 0) {
+        cJSON_Delete(pending_response);
+        printf("[FRIEND] Error: Pending request already exists from %d to %d\n", sender_id, receiver_id);
+        return DB_ERR_CONFLICT;
+    }
+    if (pending_response) cJSON_Delete(pending_response);
+
+    // Check if receiver already sent a pending request TO sender (mutual request case)
+    char check_mutual_query[256];
+    snprintf(check_mutual_query, sizeof(check_mutual_query),
+        "SELECT id FROM friends WHERE requester_id = %d AND addressee_id = %d AND status = 'PENDING' LIMIT 1",
+        receiver_id, sender_id);
+
+    cJSON *mutual_response = NULL;
+    check_err = db_get(NULL, check_mutual_query, &mutual_response);
+    if (check_err == DB_SUCCESS && cJSON_IsArray(mutual_response) && cJSON_GetArraySize(mutual_response) > 0) {
+        cJSON_Delete(mutual_response);
+        printf("[FRIEND] Error: Receiver has already sent pending request to sender\n");
+        return DB_ERR_CONFLICT;
+    }
+    if (mutual_response) cJSON_Delete(mutual_response);
+
+    // All checks passed, create the request
+    char query[256];
+    snprintf(query, sizeof(query),
+        "INSERT INTO friends (requester_id, addressee_id, status) VALUES (%d, %d, 'PENDING') RETURNING id, requester_id AS sender_id, addressee_id AS receiver_id, status, created_at, updated_at",
+        sender_id, receiver_id);
 
     cJSON *response = NULL;
-    db_error_t err = db_post("friend_requests", payload, &response);
-    cJSON_Delete(payload);
+    db_error_t err = db_get(NULL, query, &response);
 
     if (err != DB_SUCCESS) {
         printf("[FRIEND] Error creating friend request: %d\n", err);
@@ -114,12 +164,12 @@ db_error_t friend_request_list(
     }
 
     char query[256];
-    snprintf(query, sizeof(query), 
-        "select=*&receiver_id=eq.%d&status=eq.PENDING&order=created_at.desc",
+    snprintf(query, sizeof(query),
+        "SELECT id, requester_id AS sender_id, addressee_id AS receiver_id, status, created_at, updated_at FROM friends WHERE addressee_id = %d AND status = 'PENDING' ORDER BY created_at DESC",
         receiver_id);
 
     cJSON *response = NULL;
-    db_error_t err = db_get("friend_requests", query, &response);
+    db_error_t err = db_get(NULL, query, &response);
 
     if (err != DB_SUCCESS) {
         printf("[FRIEND] Error fetching requests: %d\n", err);
@@ -170,31 +220,57 @@ db_error_t friend_request_accept(
         return DB_ERROR_INVALID_PARAM;
     }
 
-    // Update request status to ACCEPTED
-    char filter[64];
-    snprintf(filter, sizeof(filter), "id=eq.%d", request_id);
+    // First, get the original request to know requester and addressee
+    char get_query[256];
+    snprintf(get_query, sizeof(get_query),
+        "SELECT id, requester_id, addressee_id, status FROM friends WHERE id=%d",
+        request_id);
 
-    cJSON *payload = cJSON_CreateObject();
-    cJSON_AddStringToObject(payload, "status", "ACCEPTED");
+    cJSON *get_response = NULL;
+    db_error_t err = db_get(NULL, get_query, &get_response);
+    if (err != DB_SUCCESS || !cJSON_IsArray(get_response) || cJSON_GetArraySize(get_response) == 0) {
+        if (get_response) cJSON_Delete(get_response);
+        return DB_ERROR_PARSE;
+    }
 
-    cJSON *response = NULL;
-    db_error_t err = db_patch("friend_requests", filter, payload, &response);
-    cJSON_Delete(payload);
+    cJSON *request_item = cJSON_GetArrayItem(get_response, 0);
+    int32_t requester_id = cJSON_GetObjectItem(request_item, "requester_id")->valueint;
+    int32_t addressee_id = cJSON_GetObjectItem(request_item, "addressee_id")->valueint;
+
+    // Update the original request to ACCEPTED
+    char update_query[256];
+    snprintf(update_query, sizeof(update_query),
+        "UPDATE friends SET status='ACCEPTED', updated_at=NOW() WHERE id=%d RETURNING id, requester_id AS sender_id, addressee_id AS receiver_id, status, created_at, updated_at",
+        request_id);
+
+    cJSON *update_response = NULL;
+    err = db_get(NULL, update_query, &update_response);
+    cJSON_Delete(get_response);
 
     if (err != DB_SUCCESS) {
         printf("[FRIEND] Error updating request: %d\n", err);
-        if (response) cJSON_Delete(response);
+        if (update_response) cJSON_Delete(update_response);
         return err;
     }
 
-    if (cJSON_IsArray(response) && cJSON_GetArraySize(response) > 0) {
-        cJSON *item = cJSON_GetArrayItem(response, 0);
+    // Insert reverse friendship (addressee -> requester) as ACCEPTED
+    char insert_query[512];
+    snprintf(insert_query, sizeof(insert_query),
+        "INSERT INTO friends (requester_id, addressee_id, status) VALUES (%d, %d, 'ACCEPTED') ON CONFLICT (requester_id, addressee_id) DO UPDATE SET status='ACCEPTED', updated_at=NOW() RETURNING id",
+        addressee_id, requester_id);
+
+    cJSON *insert_response = NULL;
+    err = db_get(NULL, insert_query, &insert_response);
+    if (insert_response) cJSON_Delete(insert_response);
+
+    if (cJSON_IsArray(update_response) && cJSON_GetArraySize(update_response) > 0) {
+        cJSON *item = cJSON_GetArrayItem(update_response, 0);
         *out_request = parse_friend_request_from_json(item);
-        cJSON_Delete(response);
+        cJSON_Delete(update_response);
         return *out_request ? DB_SUCCESS : DB_ERROR_PARSE;
     }
 
-    cJSON_Delete(response);
+    cJSON_Delete(update_response);
     return DB_ERROR_PARSE;
 }
 
@@ -208,15 +284,13 @@ db_error_t friend_request_reject(
         return DB_ERROR_INVALID_PARAM;
     }
 
-    char filter[64];
-    snprintf(filter, sizeof(filter), "id=eq.%d", request_id);
-
-    cJSON *payload = cJSON_CreateObject();
-    cJSON_AddStringToObject(payload, "status", "REJECTED");
+    char query[256];
+    snprintf(query, sizeof(query),
+        "UPDATE friends SET status='REJECTED', updated_at=NOW() WHERE id=%d RETURNING id, requester_id AS sender_id, addressee_id AS receiver_id, status, created_at, updated_at",
+        request_id);
 
     cJSON *response = NULL;
-    db_error_t err = db_patch("friend_requests", filter, payload, &response);
-    cJSON_Delete(payload);
+    db_error_t err = db_get(NULL, query, &response);
 
     if (err != DB_SUCCESS) {
         if (response) cJSON_Delete(response);
@@ -249,11 +323,14 @@ db_error_t friend_list_get_ids(
         return DB_ERROR_INVALID_PARAM;
     }
 
-    // Query friendships where requester_id = user_id (and status = ACCEPTED)
-    char query[256];
+    // Query friendships where requester_id = user_id OR addressee_id = user_id (and status = ACCEPTED)
+    // Get addressee_id when requester_id = user_id, or requester_id when addressee_id = user_id
+    char query[512];
     snprintf(query, sizeof(query), 
-        "select=addressee_id&requester_id=eq.%d&status=eq.accepted",
-        user_id);
+        "SELECT addressee_id FROM friends WHERE requester_id = %d AND status = 'ACCEPTED' "
+        "UNION "
+        "SELECT requester_id FROM friends WHERE addressee_id = %d AND status = 'ACCEPTED'",
+        user_id, user_id);
 
     cJSON *response = NULL;
     db_error_t err = db_get("friends", query, &response);
@@ -311,10 +388,13 @@ db_error_t friend_list_get_full(
         return DB_ERROR_INVALID_PARAM;
     }
 
-    char query[256];
+    char query[512];
     snprintf(query, sizeof(query), 
-        "select=*&requester_id=eq.%d&status=eq.accepted&order=created_at.desc",
-        user_id);
+        "SELECT * FROM friends WHERE requester_id = %d AND status = 'ACCEPTED' "
+        "UNION ALL "
+        "SELECT * FROM friends WHERE addressee_id = %d AND status = 'ACCEPTED' "
+        "ORDER BY created_at DESC",
+        user_id, user_id);
 
     cJSON *response = NULL;
     db_error_t err = db_get("friends", query, &response);
@@ -366,7 +446,7 @@ db_error_t friend_check_relationship(
 
     char query[256];
     snprintf(query, sizeof(query), 
-        "select=id&requester_id=eq.%d&addressee_id=eq.%d&status=eq.accepted&limit=1",
+        "SELECT id FROM friends WHERE requester_id = %d AND addressee_id = %d AND status = 'accepted' LIMIT 1",
         user_id_1, user_id_2);
 
     cJSON *response = NULL;

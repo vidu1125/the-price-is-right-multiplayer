@@ -16,6 +16,7 @@ export default function FriendsManager() {
   const [pendingRequests, setPendingRequests] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
+  const [hasSearched, setHasSearched] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -99,11 +100,13 @@ export default function FriendsManager() {
     e.preventDefault();
     if (!searchQuery.trim()) {
       setSearchResults([]);
+      setHasSearched(false);
       return;
     }
 
     setLoading(true);
     setError("");
+    setHasSearched(true);
 
     try {
       const res = await searchUser(searchQuery);
@@ -182,8 +185,15 @@ export default function FriendsManager() {
     <div className="friends-manager">
       <div className="friends-card">
         <div className="friends-header">
-          <h2>Friends & Social</h2>
-          <p>Manage your friends and connect with other players</p>
+          <div className="header-content">
+            <div>
+              <h2>Friends & Social</h2>
+              <p>Manage your friends and connect with other players</p>
+            </div>
+            <button className="back-to-lobby-btn" onClick={() => window.location.href = '/'}>
+              ← Back to Lobby
+            </button>
+          </div>
         </div>
 
         {/* Tabs */}
@@ -265,16 +275,16 @@ export default function FriendsManager() {
               <div className="requests-list">
                 {pendingRequests.map((request) => (
                   <div key={request.id} className="request-item">
-                    {request.avatar && (
+                    {request.sender_avatar && (
                       <img
-                        src={request.avatar}
-                        alt={request.name}
+                        src={request.sender_avatar}
+                        alt={request.sender_name}
                         className="request-avatar"
                       />
                     )}
                     <div className="request-info">
-                      <h3>{request.name}</h3>
-                      <p className="request-email">{request.email}</p>
+                      <h3>{request.sender_name || "Unknown"}</h3>
+                      <p className="request-email">{request.sender_email}</p>
                     </div>
                     <div className="request-actions">
                       <button
@@ -304,7 +314,7 @@ export default function FriendsManager() {
             <form className="search-form" onSubmit={handleSearchUsers}>
               <input
                 type="text"
-                placeholder="Search by email, username, or account ID..."
+                placeholder="Search by account ID"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="search-input"
@@ -350,7 +360,7 @@ export default function FriendsManager() {
               </div>
             )}
 
-            {!loading && searchResults.length === 0 && searchQuery && (
+            {!loading && hasSearched && searchResults.length === 0 && (
               <div className="empty-state">
                 <p>No users found matching "{searchQuery}"</p>
               </div>

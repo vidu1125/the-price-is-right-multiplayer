@@ -37,7 +37,6 @@
 #define CMD_HIST            0x0502
 #define CMD_REPLAY          0x0503
 #define CMD_LEAD            0x0504
-
 // Social Extended (0x0505 - 0x050F)
 #define CMD_FRIEND_ACCEPT   0x0505  // Accept friend request
 #define CMD_FRIEND_REJECT   0x0506  // Reject friend request
@@ -71,41 +70,16 @@
 // Profile
 #define RES_PROFILE_UPDATED 0x00E2  // 226
 #define RES_PROFILE_FOUND   0x00E3  // 227
-#define RES_PASSWORD_CHANGED 0x00E5 // 229
-
+#define RES_PASSWORD_CHANGED 0x00E4 // 228
 // Social
-#define RES_FRIEND_ADDED    228
-#define RES_FRIEND_REQUEST_ACCEPTED 229
-#define RES_FRIEND_REQUEST_REJECTED 230
-#define RES_FRIEND_REMOVED  231
-#define RES_FRIEND_LIST     232
-#define RES_FRIEND_REQUESTS 233
-#define RES_STATUS_UPDATED  234
-
+#define RES_FRIEND_ADDED    0x00E5  // 229
+#define RES_FRIEND_REQUEST_ACCEPTED 0x00E6  // 230
+#define RES_FRIEND_REQUEST_REJECTED 0x00E7  // 231
+#define RES_FRIEND_REMOVED  0x00E8  // 232
+#define RES_FRIEND_LIST     0x00E9  // 233
+#define RES_FRIEND_REQUESTS 0x00EA  // 234
+#define RES_STATUS_UPDATED  0x00EB  // 235
 // Error
-<<<<<<< HEAD
-#define ERR_BAD_REQUEST     400
-#define ERR_NOT_LOGGED_IN   401
-#define ERR_INVALID_USERNAME 402
-#define ERR_ROOM_FULL       403
-#define ERR_GAME_STARTED    404
-#define ERR_PAYLOAD_LARGE   405
-#define ERR_NOT_HOST        406
-#define ERR_TIMEOUT         408
-
-// Social Errors (40x - 41x)
-#define ERR_FORBIDDEN       403
-#define ERR_NOT_FOUND       404
-#define ERR_CONFLICT        409
-#define ERR_FRIEND_NOT_FOUND 410
-#define ERR_ALREADY_FRIENDS 411
-#define ERR_FRIEND_REQ_DUPLICATE 412
-#define ERR_SELF_ADD        413
-#define ERR_FRIEND_REQ_NOT_FOUND 414
-
-#define ERR_SERVER_ERROR    500
-#define ERR_SERVICE_UNAVAILABLE 501
-=======
 #define ERR_BAD_REQUEST     0x0190  // 400
 #define ERR_NOT_LOGGED_IN   0x0191  // 401
 #define ERR_INVALID_USERNAME 0x0192  // 402
@@ -114,9 +88,19 @@
 #define ERR_PAYLOAD_LARGE   0x0195  // 405
 #define ERR_NOT_HOST        0x0196  // 406
 #define ERR_TIMEOUT         0x0198  // 408
+
+// Social Errors (40x - 41x)
+#define ERR_FORBIDDEN       0x0193  // 403
+#define ERR_NOT_FOUND       0x0194  // 404
+#define ERR_CONFLICT        0x0199  // 409
+#define ERR_FRIEND_NOT_FOUND 0x019A // 410
+#define ERR_ALREADY_FRIENDS 0x019B // 411
+#define ERR_FRIEND_REQ_DUPLICATE 0x019C // 412
+#define ERR_SELF_ADD        0x019D // 413
+#define ERR_FRIEND_REQ_NOT_FOUND 0x019E // 414
+
 #define ERR_SERVER_ERROR    0x01F4  // 500
 #define ERR_SERVICE_UNAVAILABLE 0x01F5  // 501
->>>>>>> main
 
 //==============================================================================
 // NOTIFICATION CODES
@@ -137,13 +121,12 @@
 #define NTF_RULES_CHANGED   0x02C9  //713
 #define NTF_MEMBER_KICKED   0x02CA  //714
 #define NTF_ROOM_CLOSED     0x02CB  //715
-
 // Social Notifications (71x)
-#define NTF_FRIEND_REQUEST  716   // Friend request received
-#define NTF_FRIEND_ACCEPTED 717   // Friend request accepted
-#define NTF_FRIEND_STATUS   718   // Friend's presence status changed
-#define NTF_FRIEND_ADDED    719   // Friend added (mutual)
-#define NTF_FRIEND_REMOVED  720   // Friend removed
+#define NTF_FRIEND_REQUEST  0x02CC  // 716 Friend request received
+#define NTF_FRIEND_ACCEPTED 0x02CD  // 717 Friend request accepted
+#define NTF_FRIEND_STATUS   0x02CE  // 718 Friend's presence status changed
+#define NTF_FRIEND_ADDED    0x02CF  // 719 Friend added (mutual)
+#define NTF_FRIEND_REMOVED  0x02D0  // 720 Friend removed
 
 // Round 1 - Quiz (0x0601 - 0x061F)
 #define OP_C2S_ROUND1_READY       0x0601  // Client ready to start

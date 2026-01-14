@@ -76,7 +76,7 @@ export function handleIncoming(buffer) {
     for (const handler of defaultHandlers) {
       try {
         console.log("[Receiver] invoking default handler for opcode", "0x" + command.toString(16));
-        handler(command, payload);
+        handler(command, payload, seqNum);
         handled = true; // treat any default handler call as handled
       } catch (err) {
         console.error("[Receiver] default handler error", err);
@@ -97,7 +97,7 @@ export function handleIncoming(buffer) {
 
   for (const handler of list) {
     try {
-      handler(payload);
+      handler(payload, seqNum);
     } catch (err) {
       console.error("[Receiver] handler error for opcode", "0x" + command.toString(16), err);
     }

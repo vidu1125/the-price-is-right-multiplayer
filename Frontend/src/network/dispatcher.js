@@ -1,10 +1,24 @@
 import { sendRaw, isConnected, ensureConnected } from "./socketClient";
-import { OPCODE } from "./opcode";
+// OPCODE import removed because not used here
 
 const MAGIC = 0x4347;        // ⚠️ PHẢI KHỚP server
 const VERSION = 1;
 
 let seqNum = 1;
+let pendingCallbacks = new Map(); // Track pending requests by seqNum
+
+// Export function to handle responses by seqNum
+export function registerPendingCallback(seqNum, callback) {
+  pendingCallbacks.set(seqNum, callback);
+}
+
+export function getPendingCallback(seqNum) {
+  return pendingCallbacks.get(seqNum);
+}
+
+export function removePendingCallback(seqNum) {
+  pendingCallbacks.delete(seqNum);
+}
 
 export async function sendPacket(command, payload = null) {
   // Ensure socket is connected
@@ -31,7 +45,9 @@ export async function sendPacket(command, payload = null) {
   view.setUint8(offset, 0);             offset += 1; // flags
   view.setUint16(offset, command, false); offset += 2;
   view.setUint16(offset, 0);             offset += 2; // reserved
-  view.setUint32(offset, seqNum++, false); offset += 4;
+  const currentSeqNum = seqNum;
+  view.setUint32(offset, currentSeqNum, false); offset += 4;
+  seqNum++;
   view.setUint32(offset, payloadLen, false); offset += 4;
 
   if (payloadLen > 0) {
@@ -45,5 +61,5 @@ export async function sendPacket(command, payload = null) {
   });
 
   sendRaw(buffer);
-  return true;
+  return currentSeqNum; // Return seqNum for tracking
 }

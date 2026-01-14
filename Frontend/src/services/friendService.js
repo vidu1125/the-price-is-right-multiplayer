@@ -1,27 +1,17 @@
-import { sendPacket } from "../network/dispatcher";
-import { registerHandler, registerDefaultHandler } from "../network/receiver";
+import { OPCODE } from "../network/opcode";
+import { sendPacket, registerPendingCallback, getPendingCallback, removePendingCallback } from "../network/dispatcher";
+import { registerDefaultHandler, registerHandler } from "../network/receiver";
 
-// Friend Commands
-const CMD_FRIEND_ADD = 0x0501;
-const CMD_FRIEND_ACCEPT = 0x0505;
-const CMD_FRIEND_REJECT = 0x0506;
-const CMD_FRIEND_REMOVE = 0x0507;
-const CMD_FRIEND_LIST = 0x0508;
-const CMD_FRIEND_REQUESTS = 0x0509;
-const CMD_SEARCH_USER = 0x050C;
+// Use generated opcodes to avoid drift from backend definitions
+const CMD_FRIEND_ADD = OPCODE.CMD_FRIEND_ADD;
+const CMD_FRIEND_ACCEPT = OPCODE.CMD_FRIEND_ACCEPT;
+const CMD_FRIEND_REJECT = OPCODE.CMD_FRIEND_REJECT;
+const CMD_FRIEND_REMOVE = OPCODE.CMD_FRIEND_REMOVE;
+const CMD_FRIEND_LIST = OPCODE.CMD_FRIEND_LIST;
+const CMD_FRIEND_REQUESTS = OPCODE.CMD_FRIEND_REQUESTS;
+const CMD_SEARCH_USER = OPCODE.CMD_SEARCH_USER;
+const RES_SUCCESS = OPCODE.RES_SUCCESS; // generic success used by search
 
-// Response Codes (success = 200, errors 4xx)
-const RES_SUCCESS = 200;
-const RES_FRIEND_ADDED = 228;
-const RES_FRIEND_REQUEST_ACCEPTED = 229;
-const RES_FRIEND_REQUEST_REJECTED = 230;
-const RES_FRIEND_REMOVED = 231;
-const RES_FRIEND_LIST = 232;
-const RES_FRIEND_REQUESTS = 233;
-
-// Map of request IDs to callbacks for tracking responses
-const responseCallbacks = new Map();
-let requestCounter = 0;
 
 // Helper to parse JSON from ArrayBuffer payload
 function parsePayload(buffer) {
@@ -36,45 +26,57 @@ function parsePayload(buffer) {
 }
 
 // Register default handler to capture all responses
-registerDefaultHandler((opcode, buffer) => {
+registerDefaultHandler((opcode, buffer, seqNum) => {
   const data = parsePayload(buffer);
-  console.log("[FriendService] Received opcode 0x" + opcode.toString(16), data);
+  console.log("[FriendService] Received opcode 0x" + opcode.toString(16), "seqNum", seqNum, data);
   
-  // Check if we have a callback for this response
-  // Since we can't correlate by seqNum easily, we use the first waiting callback
-  const callbacks = Array.from(responseCallbacks.values());
-  if (callbacks.length > 0) {
-    const callback = callbacks[0];
-    responseCallbacks.delete(callback.id);
+  // Check if we have a callback for this seqNum
+  const callback = getPendingCallback(seqNum);
+  if (callback) {
+    removePendingCallback(seqNum);
+    clearTimeout(callback.timeoutId);
+    callback.resolve(callback.handler(data));
+  } else {
+    console.warn("[FriendService] No pending callback for seqNum", seqNum);
+  }
+});
+
+// Some friend flows (search) return generic RES_SUCCESS, so handle it explicitly
+registerHandler(RES_SUCCESS, (payload, seqNum) => {
+  const data = parsePayload(payload);
+  const callback = getPendingCallback(seqNum);
+  if (callback) {
+    removePendingCallback(seqNum);
     clearTimeout(callback.timeoutId);
     callback.resolve(callback.handler(data));
   }
 });
 
-// Helper to send request and wait for response
-function makeRequest(command, payload, responseHandler) {
+// Helper to send request and wait for response (await seqNum to keep correlation)
+async function makeRequest(command, payload, responseHandler) {
+  // Send packet and get seqNum
+  const payloadBytes = new TextEncoder().encode(payload);
+  console.log("[FriendService] Sending command 0x" + command.toString(16) + " with payload:", payload);
+  const seqNum = await sendPacket(command, payloadBytes.buffer);
+
+  if (seqNum === false || seqNum === undefined || seqNum === null) {
+    console.error("[FriendService] Failed to send command 0x" + command.toString(16));
+    return { success: false, error: "Socket not connected" };
+  }
+
   return new Promise((resolve) => {
-    const requestId = ++requestCounter;
-    
     // Prepare timeout
     const timeoutId = setTimeout(() => {
-      responseCallbacks.delete(requestId);
       console.error("[FriendService] Request timeout for command 0x" + command.toString(16));
       resolve({ success: false, error: "Request timeout" });
     }, 10000);
 
-    // Store callback
-    responseCallbacks.set(requestId, {
-      id: requestId,
+    // Register callback for this seqNum
+    registerPendingCallback(seqNum, {
       handler: responseHandler,
       resolve,
       timeoutId,
     });
-
-    // Send packet
-    const payloadBytes = new TextEncoder().encode(payload);
-    console.log("[FriendService] Sending command 0x" + command.toString(16) + " with payload:", payload);
-    sendPacket(command, payloadBytes.buffer);
   });
 }
 
