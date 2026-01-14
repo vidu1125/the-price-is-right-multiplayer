@@ -1,17 +1,35 @@
 import { OPCODE } from "../network/opcode";
-import { sendPacket, registerPendingCallback, getPendingCallback, removePendingCallback } from "../network/dispatcher";
-import { registerDefaultHandler, registerHandler } from "../network/receiver";
+import { 
+  sendFriendAdd, 
+  sendFriendAccept, 
+  sendFriendReject, 
+  sendFriendRemove, 
+  sendFriendList, 
+  sendFriendRequests,
+  sendSearchUser 
+} from "../network/dispatcher";
+import { registerHandler } from "../network/receiver";
 
 // Use generated opcodes to avoid drift from backend definitions
-const CMD_FRIEND_ADD = OPCODE.CMD_FRIEND_ADD;
-const CMD_FRIEND_ACCEPT = OPCODE.CMD_FRIEND_ACCEPT;
-const CMD_FRIEND_REJECT = OPCODE.CMD_FRIEND_REJECT;
-const CMD_FRIEND_REMOVE = OPCODE.CMD_FRIEND_REMOVE;
-const CMD_FRIEND_LIST = OPCODE.CMD_FRIEND_LIST;
-const CMD_FRIEND_REQUESTS = OPCODE.CMD_FRIEND_REQUESTS;
-const CMD_SEARCH_USER = OPCODE.CMD_SEARCH_USER;
-const RES_SUCCESS = OPCODE.RES_SUCCESS; // generic success used by search
+const RES_FRIEND_ADDED = OPCODE.RES_FRIEND_ADDED;
+const RES_FRIEND_REQUEST_ACCEPTED = OPCODE.RES_FRIEND_REQUEST_ACCEPTED;
+const RES_FRIEND_REQUEST_REJECTED = OPCODE.RES_FRIEND_REQUEST_REJECTED;
+const RES_FRIEND_REMOVED = OPCODE.RES_FRIEND_REMOVED;
+const RES_FRIEND_LIST = OPCODE.RES_FRIEND_LIST;
+const RES_FRIEND_REQUESTS = OPCODE.RES_FRIEND_REQUESTS;
+const RES_SUCCESS = OPCODE.RES_SUCCESS;
+const ERR_BAD_REQUEST = OPCODE.ERR_BAD_REQUEST;
+const ERR_CONFLICT = OPCODE.ERR_CONFLICT;
+const ERR_FRIEND_NOT_FOUND = OPCODE.ERR_FRIEND_NOT_FOUND;
+const ERR_NOT_FOUND = OPCODE.ERR_NOT_FOUND;
+const ERR_FORBIDDEN = OPCODE.ERR_FORBIDDEN;
+const ERR_SERVER_ERROR = OPCODE.ERR_SERVER_ERROR;
 
+// Callback storage for async responses
+const pendingCallbacks = new Map();
+
+// Sequence number tracking to match requests with responses
+let lastSeqNum = 0;
 
 // Helper to parse JSON from ArrayBuffer payload
 function parsePayload(buffer) {
@@ -25,162 +43,149 @@ function parsePayload(buffer) {
   }
 }
 
-// Register default handler to capture all responses
-registerDefaultHandler((opcode, buffer, seqNum) => {
-  const data = parsePayload(buffer);
-  console.log("[FriendService] Received opcode 0x" + opcode.toString(16), "seqNum", seqNum, data);
-  
-  // Check if we have a callback for this seqNum
-  const callback = getPendingCallback(seqNum);
-  if (callback) {
-    removePendingCallback(seqNum);
-    clearTimeout(callback.timeoutId);
-    callback.resolve(callback.handler(data));
-  } else {
-    console.warn("[FriendService] No pending callback for seqNum", seqNum);
-  }
-});
+// Wrapper to track which seqNum is used for each request
+function trackAndSend(sendFn) {
+  const currentSeqNum = ++lastSeqNum;
+  console.log("[FriendService] Tracking request #" + currentSeqNum);
+  sendFn();
+  return currentSeqNum;
+}
 
-// Some friend flows (search) return generic RES_SUCCESS, so handle it explicitly
-registerHandler(RES_SUCCESS, (payload, seqNum) => {
-  const data = parsePayload(payload);
-  const callback = getPendingCallback(seqNum);
-  if (callback) {
-    removePendingCallback(seqNum);
-    clearTimeout(callback.timeoutId);
-    callback.resolve(callback.handler(data));
-  }
-});
+// Register handlers for all friend responses
+function setupHandlers() {
+  const opcodeMap = {
+    [RES_FRIEND_ADDED]: "RES_FRIEND_ADDED",
+    [RES_FRIEND_REQUEST_ACCEPTED]: "RES_FRIEND_REQUEST_ACCEPTED",
+    [RES_FRIEND_REQUEST_REJECTED]: "RES_FRIEND_REQUEST_REJECTED",
+    [RES_FRIEND_REMOVED]: "RES_FRIEND_REMOVED",
+    [RES_FRIEND_LIST]: "RES_FRIEND_LIST",
+    [RES_FRIEND_REQUESTS]: "RES_FRIEND_REQUESTS",
+    [RES_SUCCESS]: "RES_SUCCESS",
+    [ERR_BAD_REQUEST]: "ERR_BAD_REQUEST",
+    [ERR_CONFLICT]: "ERR_CONFLICT",
+    [ERR_FRIEND_NOT_FOUND]: "ERR_FRIEND_NOT_FOUND",
+    [ERR_NOT_FOUND]: "ERR_NOT_FOUND",
+    [ERR_FORBIDDEN]: "ERR_FORBIDDEN",
+    [ERR_SERVER_ERROR]: "ERR_SERVER_ERROR",
+  };
 
-// Helper to send request and wait for response (await seqNum to keep correlation)
-async function makeRequest(command, payload, responseHandler) {
-  // Send packet and get seqNum
-  const payloadBytes = new TextEncoder().encode(payload);
-  console.log("[FriendService] Sending command 0x" + command.toString(16) + " with payload:", payload);
-  const seqNum = await sendPacket(command, payloadBytes.buffer);
-
-  if (seqNum === false || seqNum === undefined || seqNum === null) {
-    console.error("[FriendService] Failed to send command 0x" + command.toString(16));
-    return { success: false, error: "Socket not connected" };
-  }
-
-  return new Promise((resolve) => {
-    // Prepare timeout
-    const timeoutId = setTimeout(() => {
-      console.error("[FriendService] Request timeout for command 0x" + command.toString(16));
-      resolve({ success: false, error: "Request timeout" });
-    }, 10000);
-
-    // Register callback for this seqNum
-    registerPendingCallback(seqNum, {
-      handler: responseHandler,
-      resolve,
-      timeoutId,
+  Object.keys(opcodeMap).forEach((opcode) => {
+    registerHandler(Number(opcode), (payload, seqNum) => {
+      const data = parsePayload(payload);
+      console.log(`[FriendService] Received ${opcodeMap[opcode]} (0x${Number(opcode).toString(16)}) seqNum:${seqNum}`, data);
+      
+      // Try to match by network seqNum first
+      let callback = pendingCallbacks.get(seqNum);
+      
+      // If not found, match by order (FIFO - first waiting callback)
+      if (!callback) {
+        for (let [key, cb] of pendingCallbacks) {
+          callback = cb;
+          pendingCallbacks.delete(key);
+          break;
+        }
+      } else {
+        pendingCallbacks.delete(seqNum);
+      }
+      
+      if (callback) {
+        clearTimeout(callback.timeoutId);
+        callback.resolve(data);
+      } else {
+        console.warn("[FriendService] No pending callback for seqNum", seqNum);
+      }
     });
   });
+}
+
+// Initialize handlers once
+setupHandlers();
+
+// Helper to create a promise that waits for response
+function waitForResponse(requestId, timeoutMs = 10000) {
+  let timeoutId;
+  
+  const promise = new Promise((resolve) => {
+    timeoutId = setTimeout(() => {
+      pendingCallbacks.delete(requestId);
+      console.error("[FriendService] Request timeout");
+      resolve({ success: false, error: "Request timeout" });
+    }, timeoutMs);
+
+    pendingCallbacks.set(requestId, { resolve, timeoutId });
+  });
+
+  return promise;
 }
 
 export async function sendFriendRequest(friendId) {
   console.log("[FriendService] Sending friend request to account ID:", friendId);
   
-  return makeRequest(
-    CMD_FRIEND_ADD,
-    JSON.stringify({ friend_id: friendId }),
-    (data) => {
-      if (data?.success) {
-        return { success: true, message: "Friend request sent" };
-      }
-      return { success: false, error: data?.error || "Failed to send request" };
-    }
-  );
+  const requestId = trackAndSend(() => sendFriendAdd(friendId));
+  const promise = waitForResponse(requestId);
+  
+  return promise;
 }
 
 export async function acceptFriendRequest(requestId) {
   console.log("[FriendService] Accepting friend request:", requestId);
   
-  return makeRequest(
-    CMD_FRIEND_ACCEPT,
-    JSON.stringify({ request_id: requestId }),
-    (data) => {
-      if (data?.success) {
-        return { success: true, message: "Friend request accepted" };
-      }
-      return { success: false, error: data?.error || "Failed to accept request" };
-    }
-  );
+  const trackId = trackAndSend(() => sendFriendAccept(requestId));
+  const promise = waitForResponse(trackId);
+  
+  return promise;
 }
 
 export async function rejectFriendRequest(requestId) {
   console.log("[FriendService] Rejecting friend request:", requestId);
   
-  return makeRequest(
-    CMD_FRIEND_REJECT,
-    JSON.stringify({ request_id: requestId }),
-    (data) => {
-      if (data?.success) {
-        return { success: true, message: "Friend request rejected" };
-      }
-      return { success: false, error: data?.error || "Failed to reject request" };
-    }
-  );
+  const trackId = trackAndSend(() => sendFriendReject(requestId));
+  const promise = waitForResponse(trackId);
+  
+  return promise;
 }
 
 export async function removeFriend(friendId) {
   console.log("[FriendService] Removing friend:", friendId);
   
-  return makeRequest(
-    CMD_FRIEND_REMOVE,
-    JSON.stringify({ friend_id: friendId }),
-    (data) => {
-      if (data?.success) {
-        return { success: true, message: "Friend removed" };
-      }
-      return { success: false, error: data?.error || "Failed to remove friend" };
-    }
-  );
+  const trackId = trackAndSend(() => sendFriendRemove(friendId));
+  const promise = waitForResponse(trackId);
+  
+  return promise;
 }
 
 export async function getFriendList() {
   console.log("[FriendService] Fetching friend list");
   
-  return makeRequest(
-    CMD_FRIEND_LIST,
-    JSON.stringify({}),
-    (data) => {
-      if (data?.success) {
-        return { success: true, friends: data.friends || [] };
-      }
-      return { success: false, error: data?.error || "Failed to fetch friends", friends: [] };
-    }
-  );
+  const trackId = trackAndSend(() => sendFriendList());
+  const promise = waitForResponse(trackId);
+  
+  return promise;
 }
 
 export async function getFriendRequests() {
   console.log("[FriendService] Fetching pending friend requests");
   
-  return makeRequest(
-    CMD_FRIEND_REQUESTS,
-    JSON.stringify({}),
-    (data) => {
-      if (data?.success) {
-        return { success: true, requests: data.requests || [] };
-      }
-      return { success: false, error: data?.error || "Failed to fetch requests", requests: [] };
-    }
-  );
+  const trackId = trackAndSend(() => sendFriendRequests());
+  const promise = waitForResponse(trackId);
+  
+  return promise;
 }
 
 export async function searchUser(query) {
   console.log("[FriendService] Searching for user:", query);
   
-  return makeRequest(
-    CMD_SEARCH_USER,
-    JSON.stringify({ query }),
-    (data) => {
-      if (data?.success) {
-        return { success: true, results: data.users || data.results || [] };
-      }
-      return { success: false, error: data?.error || "No users found", results: [] };
-    }
-  );
+  const trackId = trackAndSend(() => sendSearchUser(query));
+  const response = await waitForResponse(trackId);
+  
+  // Map backend 'users' field to frontend 'results' field for consistency
+  if (response?.success && response.users) {
+    return {
+      success: true,
+      results: response.users,
+      count: response.count
+    };
+  }
+  
+  return response;
 }
