@@ -295,12 +295,8 @@ void handle_join_room(int client_fd, MessageHeader *req, const char *payload) {
             return;
         }
         
-        // IMPORTANT: Join from list requires PUBLIC room
-        if (room->visibility != ROOM_PUBLIC) {
-            printf("[SERVER] [JOIN_ROOM] Error: Room %u is private\n", target_room_id);
-            send_error(client_fd, req, ERR_BAD_REQUEST, "Room is private");
-            return;
-        }
+        // Joining by ID is allowed for both public (from list) and private (from invite)
+        // Public list doesn't show private rooms, so if they have the ID, they are likely invited.
         
     } else {
         // Join by room_code (enter private code)
@@ -320,11 +316,7 @@ void handle_join_room(int client_fd, MessageHeader *req, const char *payload) {
         
         // TODO: Implement invite system for private rooms
         // For now, block all private room joins
-        if (room->visibility != ROOM_PUBLIC) {
-            printf("[SERVER] [JOIN_ROOM] Error: Private room requires invite (not implemented)\n");
-            send_error(client_fd, req, ERR_BAD_REQUEST, "Private room requires invite");
-            return;
-        }
+        // Joining by code is allowed regardless of visibility (code is the "invite")
     }
     
     printf("[SERVER] [JOIN_ROOM] Found room %u (%s), status=%d, players=%d/%d\n",

@@ -11,6 +11,7 @@
 #include "handlers/forfeit_handler.h"
 #include "handlers/session_context.h"
 #include "handlers/auth_guard.h"
+#include "handlers/invite_player_handler.h"
 #include "protocol/opcode.h"
 #include "protocol/protocol.h"
 
@@ -88,6 +89,9 @@ void dispatch_command(
         break;
     case CMD_KICK:
         handle_kick_member(client_fd, header, payload);
+        break;
+    case CMD_INVITE_FRIEND:
+        handle_invite_player(client_fd, header, payload);
         break;
     case CMD_GET_ROOM_LIST:
         handle_get_room_list(client_fd, header, payload);
