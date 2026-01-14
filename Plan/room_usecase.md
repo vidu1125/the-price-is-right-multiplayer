@@ -624,6 +624,7 @@ Payload đại diện cho **toàn bộ cấu hình cuối cùng** mà host muố
 
    * ELIMINATION → `max_players == 4`
    * SCORING → `4 ≤ max_players ≤ 6`
+   * `max_players >= current_player_count` (không được giảm xuống dưới số người hiện tại)
 
 3. **Commit rule**:
 
@@ -671,7 +672,8 @@ NTF_PLAYER_LIST  (0x02BE)
 | -------------------- | --------------------- |
 | Không phải host      | ERR_NOT_HOST (406)    |
 | Room không ở WAITING | ERR_BAD_REQUEST (400) |
-| Rule sai             | ERR_BAD_REQUEST (400) |
+| Rule sai (mode/max_players) | ERR_BAD_REQUEST (400) |
+| max_players < current_players | ERR_BAD_REQUEST (400) |
 
 ---
 
