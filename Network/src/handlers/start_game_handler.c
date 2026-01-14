@@ -70,47 +70,13 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
     // =========================================================================
     uint8_t player_count = room->player_count;
     
-    if (player_count < 4) {
-        // Add fake players until we have 4
-        int fake_ids[] = {44, 45, 48};
-        int needed = 4 - player_count;
-        int added = 0;
-        
-        for (int i = 0; i < 3 && added < needed; i++) {
-            // Find empty slot
-            if (room->player_count < MAX_ROOM_MEMBERS) {
-                int idx = room->player_count;
-                room->players[idx].account_id = fake_ids[i];
-                room->players[idx].connected = 1; // Mark as connected
-                // room->players[idx].socket_fd field does not exist in RoomPlayerState
-                room->player_count++;
-                added++;
-                printf("[HANDLER] <startgame> Added fake player: %d\n", fake_ids[i]);
-            }
-        }
-        player_count = room->player_count; // Update local count
-    }
-
-    if (room->mode == MODE_ELIMINATION) {
-        if (player_count != 4) {
-            printf("[HANDLER] <startgame> Error: Elimination mode requires exactly 4 players (current: %d)\n", 
-                   player_count);
-            forward_response(client_fd, req, ERR_BAD_REQUEST, 
-                           "Elimination mode requires exactly 4 players", 45);
-            return;
-        }
-    } else if (room->mode == MODE_SCORING) {
-        // Scoring mode: MUST have 4-6 players
-        if (player_count < 4 || player_count > 6) {
-            printf("[HANDLER] <startgame> Error: Scoring mode requires 4-6 players (current: %d)\n", 
-                   player_count);
-            forward_response(client_fd, req, ERR_BAD_REQUEST, 
-                           "Scoring mode requires 4-6 players", 35);
-            return;
-        }
-    } else {
-        printf("[HANDLER] <startgame> Error: Invalid game mode %d\n", room->mode);
-        forward_response(client_fd, req, ERR_BAD_REQUEST, "Invalid game mode", 17);
+    // Minimum 2 players required to start a game
+    int min_players = 2;
+    
+    printf("[HANDLER] <startgame> Player count: %d (min=%d)\n", player_count, min_players);
+    if (player_count < min_players) {
+        printf("[HANDLER] <startgame> Error: Need at least %d players\n", min_players);
+        forward_response(client_fd, req, ERR_BAD_REQUEST, "Need at least 2 players", 23);
         return;
     }
 
