@@ -40,6 +40,7 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
     const currentIdxRef = useRef(0);
     const scoreRef = useRef(0);
     const gameStartedRef = useRef(false);
+    const showingResultRef = useRef(false); // Track if we're showing answer result
 
     //==========================================================================
     // AUTO-CONNECT: Khi vào game, chờ socket kết nối rồi gửi signal
@@ -161,7 +162,20 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
                 return;
             }
 
+            // IGNORE new questions while showing result (wait for 2s delay)
+            if (showingResultRef.current) {
+                console.log('[Round1] Ignoring question - still showing result');
+                return;
+            }
+
             questionReceivedRef.current = true;
+
+            // SYNC question index from server (important for timeout auto-advance)
+            if (data.question_idx !== undefined) {
+                console.log('[Round1] Syncing question index from server:', data.question_idx);
+                currentIdxRef.current = data.question_idx;
+                setCurrentQuestionIdx(data.question_idx);
+            }
 
             setQuestionData(data);
             setSelectedAnswer(null);
@@ -205,6 +219,9 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
             clearInterval(timerRef.current);
             setIsAnswered(true);
             setCorrectIndex(data.correct_index);
+            showingResultRef.current = true; // Block new questions while showing result
+
+            console.log('[Round1] Correct index:', data.correct_index);
 
             // Add score
             const addedScore = data.score || 0;
@@ -220,6 +237,7 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
 
             // Wait 2s then load next question
             setTimeout(() => {
+                showingResultRef.current = false; // Allow new questions now
                 const nextIdx = currentIdxRef.current + 1;
 
                 if (nextIdx < 10) {

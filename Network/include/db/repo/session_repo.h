@@ -94,6 +94,26 @@ db_error_t session_delete_by_account(
 );
 
 /**
+ * Update session connection status by account_id
+ * 
+ * @param account_id Account ID whose session to update
+ * @param connected true to mark as connected, false for disconnected
+ * @return DB_SUCCESS on success, error code otherwise
+ */
+db_error_t session_update_connected_by_account(
+    int32_t account_id,
+    bool connected
+);
+
+/**
+ * Cleanup old disconnected sessions from database
+ * Deletes sessions where connected=false and updated_at > 5 minutes ago
+ * 
+ * @return DB_SUCCESS on success, error code otherwise
+ */
+db_error_t session_cleanup_old_disconnected(void);
+
+/**
  * Check if session is valid and connected
  * 
  * @param session_id Session UUID to check

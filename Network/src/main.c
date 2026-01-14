@@ -3,6 +3,7 @@
 #include <string.h>
 #include <signal.h>
 #include <time.h>
+#include <cjson/cJSON.h>
 
 #include "transport/socket_server.h"
 #include "db/core/db_client.h"   // 🔹 THÊM
@@ -59,6 +60,40 @@ int main(int argc, char *argv[]) {
     } else {
         printf("[DB] Supabase NOT reachable\n");
     }
+
+    // =====================================================
+    // 🔹 CLEANUP ZOMBIE ROOMS FROM PREVIOUS RUN
+    // =====================================================
+    printf("[DB] Cleaning zombie rooms from previous run...\n");
+    
+    // Close all rooms that were waiting or playing
+    cJSON *payload = cJSON_CreateObject();
+    cJSON_AddStringToObject(payload, "status", "closed");
+    cJSON *response = NULL;
+    
+    db_error_t rc = db_patch("rooms", "status IN ('waiting', 'playing')", payload, &response);
+    
+    if (rc == DB_OK) {
+        printf("[DB] Closed zombie rooms\n");
+    } else {
+        printf("[DB] Warning: Failed to close zombie rooms (rc=%d)\n", rc);
+    }
+    
+    cJSON_Delete(payload);
+    if (response) cJSON_Delete(response);
+    
+    // Clear all room members
+    response = NULL;
+    rc = db_delete("room_members", "room_id > 0", &response);
+    
+    if (rc == DB_OK) {
+        printf("[DB] Cleared room members\n");
+    } else {
+        printf("[DB] Warning: Failed to clear room members (rc=%d)\n", rc);
+    }
+    
+    if (response) cJSON_Delete(response);
+    printf("[DB] Cleanup complete\n");
 
     initialize_server();
     main_loop();

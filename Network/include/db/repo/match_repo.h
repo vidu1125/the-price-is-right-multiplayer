@@ -17,6 +17,21 @@ db_error_t db_match_create(
     uint32_t *out_match_id
 );
 
+// Insert match only (without players) - for game start
+db_error_t db_match_insert(
+    uint32_t room_id,
+    const char *mode,
+    int max_players,
+    int64_t *out_match_id
+);
+
+// Insert match_players for a match
+db_error_t db_match_players_insert(
+    int64_t db_match_id,
+    const int32_t *account_ids,
+    int player_count
+);
+
 // Fetches history records for an account
 db_error_t db_match_get_history(
     int32_t account_id,
@@ -36,4 +51,13 @@ int match_repo_start(
 db_error_t db_match_get_detail(
     uint32_t match_id,
     cJSON **out_json
+);
+
+// Insert a match event (FORFEIT, ELIMINATED, etc.)
+db_error_t db_match_event_insert(
+    int64_t db_match_id,
+    int32_t player_id,
+    const char *event_type,
+    int round_no,
+    int question_idx
 );

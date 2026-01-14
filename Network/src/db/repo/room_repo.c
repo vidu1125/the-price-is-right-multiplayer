@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>                 // time()
+#include <stdbool.h>
 
 //==============================================================================
 // HELPER: Generate random 6-char room code
@@ -23,6 +24,7 @@ static void generate_room_code(char *out_code) {
 // CREATE ROOM
 //==============================================================================
 int room_repo_create(
+    uint32_t account_id,
     const char *name,
     uint8_t visibility,
     uint8_t mode,
@@ -41,13 +43,13 @@ int room_repo_create(
     cJSON_AddStringToObject(payload, "name", name);
     cJSON_AddStringToObject(payload, "code", code);
     cJSON_AddStringToObject(payload, "visibility", visibility ? "private" : "public");
-    cJSON_AddNumberToObject(payload, "host_id", 1); //TODO: Get from session
+    cJSON_AddNumberToObject(payload, "host_id", account_id); // Use actual account_id
     cJSON_AddStringToObject(payload, "status", "waiting");
-    cJSON_AddStringToObject(payload, "mode", mode ? "elimination" : "scoring");
+    cJSON_AddStringToObject(payload, "mode", mode ? "scoring" : "elimination"); // MODE_ELIMINATION=0, MODE_SCORING=1
     cJSON_AddNumberToObject(payload, "max_players", max_players);
     cJSON_AddBoolToObject(payload, "wager_mode", wager_enabled);
     
-    printf("[ROOM_REPO] Creating room: name='%s', code='%s'\n", name, code);
+    printf("[ROOM_REPO] Creating room: name='%s', code='%s', host_id=%u\n", name, code, account_id);
     
     // 3. POST to Supabase
     cJSON *response = NULL;
@@ -85,7 +87,7 @@ int room_repo_create(
     // 5. Insert host into room_members table
     cJSON *member_payload = cJSON_CreateObject();
     cJSON_AddNumberToObject(member_payload, "room_id", *room_id);
-    cJSON_AddNumberToObject(member_payload, "account_id", 1); // TODO: Get from session
+    cJSON_AddNumberToObject(member_payload, "account_id", account_id); // Use actual account_id
     // cJSON_AddBoolToObject(member_payload, "ready", false);
     
     cJSON *member_resp = NULL;
@@ -100,9 +102,8 @@ int room_repo_create(
     }
     
     // 6. Build success response
-    snprintf(out_buf, out_size, 
-        "{\"success\":true,\"room_id\":%d,\"room_code\":\"%s\"}",
-        *room_id, code_item->valuestring);
+    // 6. Return room code directly (not JSON)
+    snprintf(out_buf, out_size, "%s", code_item->valuestring);
     
     cJSON_Delete(response);
     return 0;
@@ -152,9 +153,9 @@ int room_repo_set_rules(
     cJSON_AddNumberToObject(payload, "max_players", max_players);
     cJSON_AddBoolToObject(payload, "wager_mode", wager_enabled);
     
-    // PATCH /rooms?id=eq.{room_id}
+    // Build SQL WHERE clause
     char query[128];
-    snprintf(query, sizeof(query), "id=eq.%u", room_id);
+    snprintf(query, sizeof(query), "id = %u", room_id);
     
     // Note: db_client doesn't have PATCH yet, use POST to RPC or build custom
     // For now, use workaround: DELETE old + INSERT new is bad
@@ -163,7 +164,7 @@ int room_repo_set_rules(
     // Workaround: Use RPC function
     cJSON *rpc_payload = cJSON_CreateObject();
     cJSON_AddNumberToObject(rpc_payload, "p_room_id", room_id);
-    cJSON_AddStringToObject(rpc_payload, "p_mode", mode ? "elimination" : "scoring");
+    cJSON_AddStringToObject(rpc_payload, "p_mode", mode ? "scoring" : "elimination"); // MODE_ELIMINATION=0, MODE_SCORING=1
     cJSON_AddNumberToObject(rpc_payload, "p_max_players", max_players);
     cJSON_AddBoolToObject(rpc_payload, "p_wager_mode", wager_enabled);
     
@@ -250,13 +251,13 @@ int room_repo_get_by_code(const char *code, room_t *out_room) {
 
     char query[128];
     snprintf(query, sizeof(query),
-             "code=eq.%s&select=*", code);
+             "SELECT * FROM rooms WHERE code = '%s'", code);
 
     cJSON *json = NULL;
     db_error_t rc = db_get("rooms", query, &json);
     if (rc != DB_OK || !json) return -1;
 
-    // Supabase trả về ARRAY
+    // Response is ARRAY
     cJSON *item = cJSON_GetArrayItem(json, 0);
     if (!item) {
         cJSON_Delete(json);
