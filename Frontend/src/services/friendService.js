@@ -70,29 +70,21 @@ function setupHandlers() {
   };
 
   Object.keys(opcodeMap).forEach((opcode) => {
-    registerHandler(Number(opcode), (payload, seqNum) => {
+    registerHandler(Number(opcode), (payload) => {
       const data = parsePayload(payload);
-      console.log(`[FriendService] Received ${opcodeMap[opcode]} (0x${Number(opcode).toString(16)}) seqNum:${seqNum}`, data);
+      console.log(`[FriendService] Received ${opcodeMap[opcode]} (0x${Number(opcode).toString(16)})`, data);
       
-      // Try to match by network seqNum first
-      let callback = pendingCallbacks.get(seqNum);
-      
-      // If not found, match by order (FIFO - first waiting callback)
-      if (!callback) {
-        for (let [key, cb] of pendingCallbacks) {
-          callback = cb;
+      // Match by FIFO order - first waiting callback gets the response
+      if (pendingCallbacks.size > 0) {
+        for (let [key, callback] of pendingCallbacks) {
           pendingCallbacks.delete(key);
+          clearTimeout(callback.timeoutId);
+          callback.resolve(data);
+          console.log(`[FriendService] Resolved request #${key} with ${opcodeMap[opcode]}`);
           break;
         }
       } else {
-        pendingCallbacks.delete(seqNum);
-      }
-      
-      if (callback) {
-        clearTimeout(callback.timeoutId);
-        callback.resolve(data);
-      } else {
-        console.warn("[FriendService] No pending callback for seqNum", seqNum);
+        console.warn("[FriendService] No pending callback for", opcodeMap[opcode]);
       }
     });
   });
