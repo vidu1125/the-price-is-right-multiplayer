@@ -1,5 +1,23 @@
 import { sendPacket } from "../network/dispatcher";
 import { OPCODE } from "../network/opcode";
+import { registerHandler } from "../network/receiver";
+
+// ============================================================================
+// Register handler for NTF_ELIMINATION (0x02C2)
+// When player is eliminated, dispatch event for UI to handle
+// ============================================================================
+registerHandler(OPCODE.NTF_ELIMINATION, (payload) => {
+    try {
+        const text = new TextDecoder().decode(payload);
+        const data = JSON.parse(text);
+        console.log('[gameService] 🚫 ELIMINATION received:', data);
+        
+        // Dispatch custom event for App.js to handle (redirect to lobby)
+        window.dispatchEvent(new CustomEvent('playerEliminated', { detail: data }));
+    } catch (err) {
+        console.error('[gameService] Failed to parse elimination:', err);
+    }
+});
 
 /**
  * Start a match in the specified room

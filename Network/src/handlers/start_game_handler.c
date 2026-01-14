@@ -70,66 +70,13 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
     // =========================================================================
     uint8_t player_count = room->player_count;
     
-<<<<<<< HEAD
-    // // Minimum 2 players required to start a game
-    // int min_players = 2;
+    // ⭐ HARDCODE FOR TESTING: Require 2 players
+    printf("[HANDLER] <startgame> TEST MODE: Starting with %d player(s)\n", player_count);
     
-    // printf("[HANDLER] <startgame> Player count: %d (min=%d)\n", player_count, min_players);
-    // if (player_count < min_players) {
-    //     printf("[HANDLER] <startgame> Error: Need at least %d players\n", min_players);
-    //     forward_response(client_fd, req, ERR_BAD_REQUEST, "Need at least 2 players", 23);
-    //     return;
-    // }
-    // ⭐ HARDCODE FOR TESTING: Allow 1 player, skip validation
-    printf("[HANDLER] <startgame> TEST MODE: Allowing %d player(s)\n", player_count);
-    
-    // Skip player count validation for testing
-    (void)room->mode; // Suppress unused warning
-=======
-    if (player_count < 4) {
-        // Add fake players until we have 4
-        int fake_ids[] = {2,3,4};
-        int needed = 4 - player_count;
-        int added = 0;
-        
-        for (int i = 0; i < 3 && added < needed; i++) {
-            // Find empty slot
-            if (room->player_count < MAX_ROOM_MEMBERS) {
-                int idx = room->player_count;
-                room->players[idx].account_id = fake_ids[i];
-                room->players[idx].connected = 1; // Mark as connected
-                // room->players[idx].socket_fd field does not exist in RoomPlayerState
-                room->player_count++;
-                added++;
-                printf("[HANDLER] <startgame> Added fake player: %d\n", fake_ids[i]);
-            }
-        }
-        player_count = room->player_count; // Update local count
-    }
-
-    if (room->mode == MODE_ELIMINATION) {
-        if (player_count != 4) {
-            printf("[HANDLER] <startgame> Error: Elimination mode requires exactly 4 players (current: %d)\n", 
-                   player_count);
-            forward_response(client_fd, req, ERR_BAD_REQUEST, 
-                           "Elimination mode requires exactly 4 players", 45);
-            return;
-        }
-    } else if (room->mode == MODE_SCORING) {
-        // Scoring mode: MUST have 4-6 players
-        if (player_count < 4 || player_count > 6) {
-            printf("[HANDLER] <startgame> Error: Scoring mode requires 4-6 players (current: %d)\n", 
-                   player_count);
-            forward_response(client_fd, req, ERR_BAD_REQUEST, 
-                           "Scoring mode requires 4-6 players", 35);
-            return;
-        }
-    } else {
-        printf("[HANDLER] <startgame> Error: Invalid game mode %d\n", room->mode);
-        forward_response(client_fd, req, ERR_BAD_REQUEST, "Invalid game mode", 17);
+    if (player_count < 2) {
+        forward_response(client_fd, req, ERR_BAD_REQUEST, "Need 2 players to start", 23);
         return;
     }
->>>>>>> e73574328230d6e12877681e5b5ef50a7bb7df68
 
     // =========================================================================
     // VALIDATION: Check all players are connected
@@ -157,9 +104,12 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
         printf("[HANDLER] <startgame> Failed to create match\n");
         return;
     }
+    
+    // ⭐ IMPORTANT: Copy game mode from room to match
+    match->mode = room->mode;
 
-    printf("[HANDLER] <startgame> Step 1: Match created via manager (ID: %u)\n", 
-           match->runtime_match_id);
+    printf("[HANDLER] <startgame> Step 1: Match created via manager (ID: %u, mode=%s)\n", 
+           match->runtime_match_id, room->mode == MODE_ELIMINATION ? "elimination" : "scoring");
 
     // Insert match into database
     int64_t db_match_id = 0;
@@ -273,8 +223,8 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
     
     RoundType round_types[] = {ROUND_MCQ, ROUND_BID, ROUND_WHEEL};
     const char *round_type_names[] = {"mcq", "bid", "wheel"};
-    // ⭐ HARDCODE FOR TESTING: Reduced questions (MCQ=2, BID=2, WHEEL=1)
-    int questions_per_round[] = {2, 2, 1};
+    // Questions per round (MCQ=5, BID=5, WHEEL=1)
+    int questions_per_round[] = {5, 5, 1};
     
     match->round_count = 3;
     int total_questions_loaded = 0;

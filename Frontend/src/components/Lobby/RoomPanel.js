@@ -5,6 +5,7 @@ import { createRoom } from "../../services/hostService";
 import JoinByCodeModal from "./JoinByCodeModal";
 import React, { useState, useEffect, useRef } from "react";
 import { registerHandler } from "../../network/receiver";
+import { sendPacket } from "../../network/dispatcher";
 import { OPCODE } from "../../network/opcode";
 import { useNavigate } from "react-router-dom";
 
@@ -100,15 +101,9 @@ export default function RoomPanel() {
     };
     window.addEventListener('room_joined', onRoomJoined);
 
-    registerHandler(OPCODE.ERR_BAD_REQUEST, (payload) => {
-      const text = new TextDecoder().decode(payload);
-      try {
-        const data = JSON.parse(text);
-        alert(`❌ Error: ${data.error || text}`);
-      } catch (err) {
-        alert(`❌ Error: ${text}`);
-      }
-    });
+    // NOTE: Removed global ERR_BAD_REQUEST alert handler
+    // It was showing alerts for all errors including game-related ones
+    // Room-specific errors should be handled in roomService.js
 
     return () => {
       window.removeEventListener('room_created', onRoomCreated);
@@ -128,7 +123,10 @@ export default function RoomPanel() {
         <RoomList />
       </div>
       <div className="room-actions">
-        <button onClick={() => console.log("Reload")}>Reload</button>
+        <button onClick={() => {
+          console.log("[RoomPanel] Reloading room list...");
+          sendPacket(OPCODE.CMD_GET_ROOM_LIST);
+        }}>Reload</button>
         <button onClick={() => setShowFindModal(true)}>Find room</button>
         <button className="create-room-btn" onClick={() => setShowModal(true)}>
           + Create new room

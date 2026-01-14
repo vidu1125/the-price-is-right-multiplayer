@@ -1,4 +1,5 @@
 services:
+  # ===== PostgreSQL Database =====
   postgres:
     image: postgres:15-alpine
     container_name: tpir-postgres
@@ -6,40 +7,43 @@ services:
       POSTGRES_USER: postgresql
       POSTGRES_PASSWORD: password
       POSTGRES_DB: tpir
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d
     ports:
       - "5432:5432"
     networks:
       - tpir-net
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./Database/init:/docker-entrypoint-initdb.d
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U postgresql -d tpir" ]
+      test: ["CMD-SHELL", "pg_isready -U postgresql -d tpir"]
       interval: 5s
       timeout: 5s
       retries: 5
 
+  # ===== Network Server =====
   network:
     build:
       context: ./Network
       dockerfile: Dockerfile
     container_name: tpir-network
-    ports:
-      - "5500:5500"
-    networks:
-      - tpir-net
+    depends_on:
+      postgres:
+        condition: service_healthy
     environment:
+      # PostgreSQL connection (for libpq)
       DB_HOST: postgres
       DB_PORT: 5432
       DB_NAME: tpir
       DB_USER: postgresql
       DB_PASSWORD: password
-    depends_on:
-      postgres:
-        condition: service_healthy
+    ports:
+      - "5500:5500"
+    networks:
+      - tpir-net
     restart: unless-stopped
 
+  # ===== WebSocket Bridge =====
   ws-bridge:
     build: ./ws-bridge
     container_name: tpir-ws-bridge
@@ -54,6 +58,7 @@ services:
       C_SERVER_PORT: 5500
     restart: unless-stopped
 
+  # ===== Frontend =====
   frontend:
     build:
       context: .

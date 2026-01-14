@@ -5,7 +5,7 @@ import '../../../services/round1Service';
 import { getQuestion, submitAnswer, endRound1, playerReady } from '../../../services/round1Service';
 import { waitForConnection } from '../../../network/socketClient';
 
-const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
+const Round1 = ({ matchId = 1, playerId = 1, previousScore = 0, onRoundComplete }) => {
     // Game phase: 'connecting' -> 'playing' -> 'waiting' -> 'summary'
     const [gamePhase, setGamePhase] = useState('connecting');
 
@@ -19,7 +19,7 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
     const [questionData, setQuestionData] = useState(null);
     const [selectedAnswer, setSelectedAnswer] = useState(null);
     const [timeLeft, setTimeLeft] = useState(15);
-    const [score, setScore] = useState(0);
+    const [score, setScore] = useState(previousScore);
     const [isAnswered, setIsAnswered] = useState(false);
     const [correctIndex, setCorrectIndex] = useState(null);
 
@@ -40,9 +40,15 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
     const connectionTimerRef = useRef(null);
     const questionReceivedRef = useRef(false);
     const currentIdxRef = useRef(0);
-    const scoreRef = useRef(0);
+    const scoreRef = useRef(previousScore);
     const gameStartedRef = useRef(false);
     const showingResultRef = useRef(false); // Track if we're showing answer result
+    
+    // Sync scoreRef when previousScore changes
+    useEffect(() => {
+        scoreRef.current = previousScore;
+        setScore(previousScore);
+    }, [previousScore]);
 
     //==========================================================================
     // AUTO-CONNECT: Khi vào game, chờ socket kết nối rồi gửi signal
@@ -516,14 +522,14 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
                             ))
                         ) : (
                             <div className="waiting-for-players">
-                                <div className="connecting-spinner">🔄</div>
+                                <div className="connecting-spinner"></div>
                                 Waiting for players to connect...
                             </div>
                         )}
                     </div>
 
                     <div className="connecting-status">
-                        <div className="connecting-spinner">🔄</div>
+                        <div className="connecting-spinner"></div>
                         <p>Auto-starting when all players connect...</p>
                         {connectionCountdown > 0 && (
                             <p className="connection-countdown">Timeout in {connectionCountdown}s</p>
@@ -560,7 +566,7 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
                         </div>
                     </div>
 
-                    <div className="waiting-spinner">🔄</div>
+                    <div className="waiting-spinner"></div>
                 </div>
             </div>
         );
@@ -573,7 +579,7 @@ const Round1 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
         return (
             <div className="round1-wrapper-quiz">
                 <div className="reconnect-waiting-content">
-                    <h1 className="reconnect-title">🔄 WELCOME BACK! 🔄</h1>
+                    <h1 className="reconnect-title"> WELCOME BACK! </h1>
                     <p className="reconnect-subtitle">You've reconnected to the game</p>
 
                     <div className="reconnect-info-box">

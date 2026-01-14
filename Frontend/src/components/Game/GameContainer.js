@@ -355,6 +355,7 @@ import { useNavigate } from 'react-router-dom';
 // Import services to ensure handlers are registered
 import '../../services/round1Service';
 import '../../services/round2Service';
+import '../../services/round3Service';
 
 const GameContainer = () => {
     // ============ STATE MANAGEMENT ============
@@ -397,12 +398,13 @@ const GameContainer = () => {
         return () => window.removeEventListener('timerUpdate', handleTimerUpdate);
     }, []);
 
-    // ============ LISTEN TO SCORE UPDATES ============
+    // ============ LISTEN TO SCORE UPDATES (Round 1 & Round 2) ============
     useEffect(() => {
         let hideTimeout = null;
 
         const handleScoreUpdate = (e) => {
             const { score: addedScore, totalScore } = e.detail;
+            console.log('[GameContainer] Score update:', { addedScore, totalScore });
             setPointsGained(addedScore);
             setScore(totalScore);
 
@@ -423,9 +425,14 @@ const GameContainer = () => {
             });
         };
 
+        // Listen to Round 1, Round 2, and Round 3 score updates
         window.addEventListener('round1ScoreUpdate', handleScoreUpdate);
+        window.addEventListener('round2ScoreUpdate', handleScoreUpdate);
+        window.addEventListener('round3ScoreUpdate', handleScoreUpdate);
         return () => {
             window.removeEventListener('round1ScoreUpdate', handleScoreUpdate);
+            window.removeEventListener('round2ScoreUpdate', handleScoreUpdate);
+            window.removeEventListener('round3ScoreUpdate', handleScoreUpdate);
             if (hideTimeout) clearTimeout(hideTimeout);
         };
     }, [playerId]);
@@ -465,15 +472,21 @@ const GameContainer = () => {
     const renderRound = () => {
         switch (currentRound) {
             case 1:
-                return <Round1 matchId={matchId} playerId={playerId} onRoundComplete={handleRoundComplete} />;
+                return <Round1 matchId={matchId} playerId={playerId} previousScore={score} onRoundComplete={handleRoundComplete} />;
             case 2:
                 return <Round2
                     matchId={matchId}
                     playerId={playerId}
+                    previousScore={score}
                     onRoundComplete={handleRoundComplete}
                 />;
             case 3:
-                return <Round3 totalPlayers={4} onRoundComplete={handleRoundComplete} />;
+                return <Round3 
+                    matchId={matchId}
+                    playerId={playerId}
+                    previousScore={score}
+                    onRoundComplete={handleRoundComplete}
+                />;
             case 4:
             case 'bonus':
                 return <RoundBonus

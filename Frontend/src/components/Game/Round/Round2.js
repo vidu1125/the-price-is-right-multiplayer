@@ -5,7 +5,7 @@ import '../../../services/round2Service';
 import { getProduct, submitBid, playerReady } from '../../../services/round2Service';
 import { waitForConnection } from '../../../network/socketClient';
 
-const Round2 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
+const Round2 = ({ matchId = 1, playerId = 1, previousScore = 0, onRoundComplete }) => {
     // Game phase: 'connecting' -> 'playing' -> 'result' -> 'summary'
     const [gamePhase, setGamePhase] = useState('connecting');
 
@@ -18,12 +18,12 @@ const Round2 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
     const [productData, setProductData] = useState(null);
     const [totalProducts, setTotalProducts] = useState(5);
     const [timeLeft, setTimeLeft] = useState(15);
-    const [score, setScore] = useState(0);
+    const [score, setScore] = useState(previousScore);
 
     // Bid state
     const [bidValue, setBidValue] = useState('');
     const [hasBid, setHasBid] = useState(false);
-    const [isWagerActive, setIsWagerActive] = useState(false);
+    const [isWagerActive, setIsWagerActive] = useState(false); 
 
     // Turn result state
     const [turnResult, setTurnResult] = useState(null);
@@ -41,9 +41,15 @@ const Round2 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
     const connectionTimerRef = useRef(null);
     const productReceivedRef = useRef(false);
     const currentIdxRef = useRef(0);
-    const scoreRef = useRef(0);
+    const scoreRef = useRef(previousScore);
     const gameStartedRef = useRef(false);
     const showingResultRef = useRef(false);
+    
+    // Sync scoreRef when previousScore changes
+    useEffect(() => {
+        scoreRef.current = previousScore;
+        setScore(previousScore);
+    }, [previousScore]);
 
     //==========================================================================
     // AUTO-CONNECT: Khi vào round 2, chờ socket và gửi ready
@@ -219,12 +225,15 @@ const Round2 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
                 scoreRef.current += myResult.score_delta;
                 setScore(scoreRef.current);
 
+                console.log('[Round2] Score: +' + myResult.score_delta + ', Total: ' + scoreRef.current);
+
+                // Dispatch score update with current total (use scoreRef.current for consistency)
                 window.dispatchEvent(new CustomEvent('round2ScoreUpdate', {
-                    detail: { score: myResult.score_delta, totalScore: myResult.total_score }
+                    detail: { score: myResult.score_delta, totalScore: scoreRef.current }
                 }));
             }
 
-            // After 3 seconds, advance to next product or end
+            // After 2 seconds (less than backend's 3s), prepare for next
             setTimeout(() => {
                 showingResultRef.current = false;
                 const nextIdx = currentIdxRef.current + 1;
@@ -233,10 +242,10 @@ const Round2 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
                     productReceivedRef.current = false;
                     // Server will send next product
                 } else {
-                    console.log('[Round2] All products done!');
+                    console.log('[Round2] All products done, waiting for final results...');
                     setGamePhase('waiting');
                 }
-            }, 3000);
+            }, 2000);
         };
 
         window.addEventListener('round2TurnResult', handleTurnResult);
@@ -251,12 +260,15 @@ const Round2 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
             const data = e.detail;
             console.log('[Round2] 🏆 ALL_FINISHED received!', data);
 
+            // Clear any pending timers
+            if (timerRef.current) clearInterval(timerRef.current);
+            showingResultRef.current = false;
+
             const allPlayers = data.players || data.rankings || [];
             setActivePlayers(allPlayers.filter(p => p.connected !== false));
             setSummaryData(data);
             setGamePhase('summary');
-            // ⭐ HARDCODE FOR TESTING: Reduced countdown (3 seconds)
-            setSummaryCountdown(3);
+            setSummaryCountdown(5); // 5 seconds to view summary
 
             if (summaryTimerRef.current) clearInterval(summaryTimerRef.current);
             summaryTimerRef.current = setInterval(() => {
@@ -403,6 +415,23 @@ const Round2 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
     }
 
     //==========================================================================
+    // RENDER: Waiting for final results
+    //==========================================================================
+    if (gamePhase === 'waiting') {
+        return (
+            <div className="round2-wrapper-quiz">
+                <div className="connecting-content">
+                    <h1 className="connecting-title">ROUND 2 COMPLETE!</h1>
+                    <div className="connecting-status">
+                        <div className="connecting-spinner"></div>
+                        <p>Calculating final scores...</p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    //==========================================================================
     // RENDER: Summary screen
     //==========================================================================
     if (gamePhase === 'summary') {
@@ -455,10 +484,10 @@ const Round2 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
                     </div>
                     {!hasBid && (
                         <button 
-                            className={`wager-badge-btn ${isWagerActive ? 'active' : ''}`} 
+                        className={`wager-badge-btn ${isWagerActive ? 'active' : ''}`} 
                             onClick={() => setIsWagerActive(!isWagerActive)}
                         >
-                            ⭐ WAGER
+                        ⭐ WAGER
                         </button>
                     )}
                 </div>
@@ -469,13 +498,16 @@ const Round2 = ({ matchId = 1, playerId = 1, onRoundComplete }) => {
                     </h2>
                 </div>
 
-                <div className="product-image-container">
-                    <img 
-                        src={productData?.product_image || "/bg/iphone15.jpg"} 
-                        alt="Product" 
-                        className="product-image" 
-                    />
-                </div>
+                {/* Only show image if product has actual image data */}
+                {productData?.product_image && (
+                    <div className="product-image-container">
+                        <img 
+                            src={productData.product_image} 
+                            alt="Product" 
+                            className="product-image" 
+                        />
+                    </div>
+                )}
 
                 <div className="input-section">
                     <input 

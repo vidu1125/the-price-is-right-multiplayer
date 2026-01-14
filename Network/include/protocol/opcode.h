@@ -37,6 +37,15 @@
 #define CMD_HIST            0x0502
 #define CMD_REPLAY          0x0503
 #define CMD_LEAD            0x0504
+// Social Extended (0x0505 - 0x050F)
+#define CMD_FRIEND_ACCEPT   0x0505  // Accept friend request
+#define CMD_FRIEND_REJECT   0x0506  // Reject friend request
+#define CMD_FRIEND_REMOVE   0x0507  // Remove friend
+#define CMD_FRIEND_LIST     0x0508  // Get list of friends with status
+#define CMD_FRIEND_REQUESTS 0x0509  // Get pending friend requests
+#define CMD_STATUS_UPDATE   0x050A  // Update presence status (ONLINE_IDLE, PLAYING, OFFLINE)
+#define CMD_GET_FRIEND_STATUS 0x050B // Get specific friend's status
+#define CMD_SEARCH_USER     0x050C  // Search users by name/email
 
 
 // System
@@ -58,11 +67,19 @@
 #define RES_MEMBER_KICKED   0x00E1  // 225
 #define RES_ROOM_LIST       0x00E4  // 228
 #define RES_GAME_STARTED    0x012D  // 301
+#define RES_READY_OK        0x00EC  // 236
 // Profile
 #define RES_PROFILE_UPDATED 0x00E2  // 226
 #define RES_PROFILE_FOUND   0x00E3  // 227
-#define RES_PASSWORD_CHANGED 0x00E5 // 229
-
+#define RES_PASSWORD_CHANGED 0x00E4 // 228
+// Social
+#define RES_FRIEND_ADDED    0x00E5  // 229
+#define RES_FRIEND_REQUEST_ACCEPTED 0x00E6  // 230
+#define RES_FRIEND_REQUEST_REJECTED 0x00E7  // 231
+#define RES_FRIEND_REMOVED  0x00E8  // 232
+#define RES_FRIEND_LIST     0x00E9  // 233
+#define RES_FRIEND_REQUESTS 0x00EA  // 234
+#define RES_STATUS_UPDATED  0x00EB  // 235
 // Error
 #define ERR_BAD_REQUEST     0x0190  // 400
 #define ERR_NOT_LOGGED_IN   0x0191  // 401
@@ -72,6 +89,17 @@
 #define ERR_PAYLOAD_LARGE   0x0195  // 405
 #define ERR_NOT_HOST        0x0196  // 406
 #define ERR_TIMEOUT         0x0198  // 408
+
+// Social Errors (40x - 41x)
+#define ERR_FORBIDDEN       0x0193  // 403
+#define ERR_NOT_FOUND       0x0194  // 404
+#define ERR_CONFLICT        0x0199  // 409
+#define ERR_FRIEND_NOT_FOUND 0x019A // 410
+#define ERR_ALREADY_FRIENDS 0x019B // 411
+#define ERR_FRIEND_REQ_DUPLICATE 0x019C // 412
+#define ERR_SELF_ADD        0x019D // 413
+#define ERR_FRIEND_REQ_NOT_FOUND 0x019E // 414
+
 #define ERR_SERVER_ERROR    0x01F4  // 500
 #define ERR_SERVICE_UNAVAILABLE 0x01F5  // 501
 
@@ -94,6 +122,12 @@
 #define NTF_RULES_CHANGED   0x02C9  //713
 #define NTF_MEMBER_KICKED   0x02CA  //714
 #define NTF_ROOM_CLOSED     0x02CB  //715
+// Social Notifications (71x)
+#define NTF_FRIEND_REQUEST  0x02CC  // 716 Friend request received
+#define NTF_FRIEND_ACCEPTED 0x02CD  // 717 Friend request accepted
+#define NTF_FRIEND_STATUS   0x02CE  // 718 Friend's presence status changed
+#define NTF_FRIEND_ADDED    0x02CF  // 719 Friend added (mutual)
+#define NTF_FRIEND_REMOVED  0x02D0  // 720 Friend removed
 
 // Round 1 - Quiz (0x0601 - 0x061F)
 #define OP_C2S_ROUND1_READY       0x0601  // Client ready to start
@@ -124,3 +158,15 @@
 #define OP_S2C_ROUND2_BID_ACK       0x0633  // Bid acknowledged
 #define OP_S2C_ROUND2_TURN_RESULT   0x0634  // Turn result (all bids + scores)
 #define OP_S2C_ROUND2_ALL_FINISHED  0x0635  // Round finished, show final results
+
+// Round 3 - Bonus Wheel (0x0640 - 0x065F)
+#define OP_C2S_ROUND3_READY         0x0640  // Client ready to start round 3
+#define OP_C2S_ROUND3_PLAYER_READY  0x0641  // Player clicks ready
+#define OP_S2C_ROUND3_READY_STATUS  0x0650  // Broadcast ready status
+#define OP_S2C_ROUND3_ALL_READY     0x0651  // All players ready, round starts
+#define OP_C2S_ROUND3_SPIN          0x0642  // Request spin
+#define OP_S2C_ROUND3_SPIN_RESULT   0x0652  // Spin result (5-100)
+#define OP_C2S_ROUND3_DECISION      0x0643  // Continue (spin again) or Stop
+#define OP_S2C_ROUND3_DECISION_ACK  0x0653  // Decision acknowledged
+#define OP_S2C_ROUND3_FINAL_RESULT  0x0654  // Final bonus + updated scores
+#define OP_S2C_ROUND3_ALL_FINISHED  0x0655  // Round finished, show final results

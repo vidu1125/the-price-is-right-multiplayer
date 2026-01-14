@@ -1,3 +1,4 @@
+/* eslint-disable no-undef */
 import { sendPacket } from "../network/dispatcher";
 import { registerHandler } from "../network/receiver";
 

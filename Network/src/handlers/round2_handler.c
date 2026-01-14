@@ -55,7 +55,7 @@
 // CONSTANTS
 //==============================================================================
 // ⭐ HARDCODE FOR TESTING: Reduced time (10 seconds)
-#define TIME_PER_PRODUCT    10000  // 10 seconds in milliseconds
+#define TIME_PER_PRODUCT    15000  // 20 seconds for testing
 #define SCORE_CLOSEST       100    // Score for closest bid without going over
 #define SCORE_OVERBID       50     // Score if all overbid (closest overbid wins)
 #define MAX_PRODUCTS        5      // 5 products per round
@@ -521,6 +521,44 @@ static void eliminate_player(MatchPlayerState *mp, const char *reason) {
     printf("[Round2] Player %d ELIMINATED at round %d (reason: %s, score=%d)\n", 
            mp->account_id, g_r2.round_index + 1, reason, mp->score);
     
+    // =========================================================================
+    // SEND NTF_ELIMINATION to the eliminated player
+    // =========================================================================
+    UserSession *elim_session = session_get_by_account(mp->account_id);
+    int elim_fd = elim_session ? elim_session->socket_fd : -1;
+    
+    if (elim_fd > 0) {
+        cJSON *ntf = cJSON_CreateObject();
+        cJSON_AddNumberToObject(ntf, "player_id", mp->account_id);
+        cJSON_AddStringToObject(ntf, "reason", reason);
+        cJSON_AddNumberToObject(ntf, "round", g_r2.round_index + 1);
+        cJSON_AddNumberToObject(ntf, "final_score", mp->score);
+        cJSON_AddStringToObject(ntf, "message", "You have been eliminated!");
+        
+        char *ntf_json = cJSON_PrintUnformatted(ntf);
+        cJSON_Delete(ntf);
+        
+        if (ntf_json) {
+            MessageHeader hdr = {0};
+            hdr.magic = htons(MAGIC_NUMBER);
+            hdr.version = PROTOCOL_VERSION;
+            hdr.command = htons(NTF_ELIMINATION);
+            hdr.length = htonl((uint32_t)strlen(ntf_json));
+            
+            send(elim_fd, &hdr, sizeof(hdr), 0);
+            send(elim_fd, ntf_json, strlen(ntf_json), 0);
+            printf("[Round2] Sent NTF_ELIMINATION to player %d\n", mp->account_id);
+            free(ntf_json);
+        }
+        
+        // Change session state back to LOBBY so player can join new games
+        session_mark_lobby(elim_session);
+        printf("[Round2] Changed player %d session state to LOBBY\n", mp->account_id);
+    }
+    
+    // =========================================================================
+    // Save elimination event to database
+    // =========================================================================
     if (mp->match_player_id > 0) {
         cJSON *event_payload = cJSON_CreateObject();
         cJSON_AddNumberToObject(event_payload, "match_id", g_r2.match_id);
@@ -827,8 +865,8 @@ static void process_turn_results(MessageHeader *req) {
     }
     
     // Wait a bit for clients to see result, then advance
-    // ⭐ HARDCODE FOR TESTING: Reduced delay (1 second)
-    sleep(1);
+    // Wait for clients to see result (match frontend's 3-second display)
+    sleep(3);
     
     advance_to_next_product(req);
 }
@@ -1026,7 +1064,8 @@ static void handle_player_ready(int fd, MessageHeader *req, const char *payload)
     printf("[Round2] Check start: ready=%d, expected=%d, round_status=%d\n",
            g_r2.ready_count, expected, round ? round->status : -1);
            
-    if (g_r2.ready_count >= 1 && round && round->status == ROUND_PENDING) {
+    // Start when all non-eliminated players are ready
+    if (g_r2.ready_count >= expected && expected > 0 && round && round->status == ROUND_PENDING) {
         printf("[Round2] All ready, starting round\n");
         
         round->status = ROUND_PLAYING;

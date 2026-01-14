@@ -450,3 +450,17 @@ int room_get_count(void) {
     return g_room_count;
 }
 
+
+/**
+ * Find room by player account ID
+ * Option A: Iterate g_rooms + room_has_player() for consistency with JOIN/CREATE
+ * No account → room map needed
+ */
+uint32_t room_find_by_player_account(uint32_t account_id) {
+    for (int i = 0; i < g_room_count; i++) {
+        if (room_has_player(g_rooms[i].id, account_id)) {
+            return g_rooms[i].id;
+        }
+    }
+    return 0;  // Not in any room
+}

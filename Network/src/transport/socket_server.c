@@ -16,6 +16,8 @@
 #include "protocol/protocol.h"
 #include "handlers/dispatcher.h"
 #include "handlers/round1_handler.h"
+#include "handlers/round2_handler.h"
+#include "handlers/round3_handler.h"
 #include "handlers/session_manager.h"
 #include "handlers/match_manager.h"
 #include "handlers/room_disconnect_handler.h"
@@ -198,8 +200,11 @@ void handle_client_disconnect(int client_idx) {
             room_handle_disconnect(fd, account_id);
         } 
         else if (state == SESSION_PLAYING) {
-            printf("[Socket] → Calling handle_round1_disconnect() [GAME]\n");
+            // Call all round disconnect handlers (they check if player is in that round)
+            printf("[Socket] → Calling round disconnect handlers [GAME]\n");
             handle_round1_disconnect(fd);
+            handle_round2_disconnect(fd);
+            handle_round3_disconnect(fd);
         }
         
         // Mark session disconnected (grace period for reconnect)
