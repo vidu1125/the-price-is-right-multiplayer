@@ -73,4 +73,14 @@ void handle_get_room_list(
     const char *payload
 );
 
+/**
+ * Handle CMD_READY (0x0203)
+ * Player toggles ready state
+ */
+void handle_ready(
+    int client_fd,
+    MessageHeader *req,
+    const char *payload
+);
+
 #endif // ROOM_HANDLER_H

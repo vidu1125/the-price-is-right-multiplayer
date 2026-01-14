@@ -29,12 +29,21 @@ export default function GameRulesPanel({ isHost, roomId, gameRules, onRulesChang
   // Hàm commit rules khi bấm Done
   const handleDone = async () => {
     if (isHost) {
+      // Save current rules before sending to server
+      const previousRules = { ...gameRules };
+
       try {
         await setRules(roomId, gameRules);
         console.log("✅ Game rules committed:", gameRules);
         setEditMode(false);
       } catch (error) {
         console.error("❌ Failed to commit rules:", error);
+
+        // Revert to previous rules on error
+        onRulesChange(previousRules);
+
+        // Show error message to user
+        alert("❌ Cannot update rules: " + (error.message || "Invalid rule settings (e.g., max_players cannot be less than current player count)"));
       }
     }
   };

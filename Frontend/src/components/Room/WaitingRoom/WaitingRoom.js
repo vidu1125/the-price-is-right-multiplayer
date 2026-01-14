@@ -129,7 +129,30 @@ export default function WaitingRoom() {
       }
     });
 
-    // 5. NTF_ROOM_CLOSED
+    // 5. NTF_PLAYER_READY
+    registerHandler(OPCODE.NTF_PLAYER_READY, (payload) => {
+      const text = new TextDecoder().decode(payload);
+      try {
+        const data = JSON.parse(text);
+        console.log("[NTF] Player Ready:", data);
+
+        // Update specific player's ready state
+        setRoom(prev => ({
+          ...prev,
+          players: prev.players.map(p =>
+            p.account_id === data.account_id
+              ? { ...p, is_ready: data.is_ready }
+              : p
+          )
+        }));
+
+        console.log(`🔔 Player ${data.account_id} is now ${data.is_ready ? 'READY' : 'NOT READY'}`);
+      } catch (e) {
+        console.error("Failed to parse player ready ntf:", e);
+      }
+    });
+
+    // 6. NTF_ROOM_CLOSED
     registerHandler(OPCODE.NTF_ROOM_CLOSED, (payload) => {
       alert("Host closed the room.");
       navigate('/lobby');
@@ -143,12 +166,12 @@ export default function WaitingRoom() {
         const data = JSON.parse(text);
         const matchId = data.match_id;
         console.log("[NTF] Match ID:", matchId);
-        
+
         // Get player_id from profile in localStorage
         const profile = JSON.parse(localStorage.getItem('profile') || '{}');
         const playerId = profile.account_id;
         const playerName = profile.name || `Player${playerId}`;
-        
+
         console.log("[NTF] Player ID:", playerId, "Name:", playerName);
         navigate(`/round?match_id=${matchId}&player_id=${playerId}&name=${encodeURIComponent(playerName)}`, {
           state: { roomId, roomCode, isHost, matchId, playerId, playerName }
@@ -237,6 +260,18 @@ export default function WaitingRoom() {
             <button className="start-game-btn" onClick={handleStartGame}>START GAME</button>
           )}
           <button className="invite-btn">INVITE FRIENDS</button>
+
+          {/* READY BUTTON */}
+          <button
+            className={`ready-toggle-btn ${room.players.find(p => p.account_id === profile.account_id)?.is_ready ? 'ready' : 'not-ready'}`}
+            onClick={() => {
+              const { toggleReady } = require('../../../services/roomService');
+              toggleReady();
+            }}
+          >
+            {room.players.find(p => p.account_id === profile.account_id)?.is_ready ? 'NOT READY' : 'READY'}
+          </button>
+
           <button className="leave-btn" onClick={() => navigate('/lobby')}>LEAVE ROOM</button>
         </div>
 

@@ -77,6 +77,9 @@ void dispatch_command(
     case CMD_LEAVE_ROOM:
         handle_leave_room(client_fd, header, payload);
         break;
+    case CMD_READY:
+        handle_ready(client_fd, header, payload);
+        break;
     case CMD_CLOSE_ROOM:
         handle_close_room(client_fd, header, payload);
         break;

@@ -62,6 +62,7 @@
 #define RES_PROFILE_UPDATED 0x00E2  // 226
 #define RES_PROFILE_FOUND   0x00E3  // 227
 #define RES_PASSWORD_CHANGED 0x00E5 // 229
+#define RES_READY_OK        0x00E6  // 230
 
 // Error
 #define ERR_BAD_REQUEST     0x0190  // 400

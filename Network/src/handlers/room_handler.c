@@ -863,3 +863,91 @@ void handle_set_rule(int client_fd, MessageHeader *req, const char *payload) {
     
     printf("[SetGameRule] ✅ SUCCESS: room_id=%u, all players notified\n", room_id);
 }
+//==============================================================================
+// READY
+//==============================================================================
+void handle_ready(int client_fd, MessageHeader *req, const char *payload) {
+    printf("[HANDLER] <READY> Request from fd=%d\n", client_fd);
+    
+    // STEP 1: Validate session
+    UserSession *session = session_get_by_socket(client_fd);
+    if (!session || session->state != SESSION_LOBBY) {
+        send_error(client_fd, req, ERR_NOT_LOGGED_IN, "Not logged in or not in lobby");
+        return;
+    }
+    
+    // STEP 2: Find room
+    uint32_t room_id = room_find_by_player_account(session->account_id);
+    if (room_id == 0) {
+        send_error(client_fd, req, ERR_BAD_REQUEST, "Not in any room");
+        return;
+    }
+    
+    RoomState *room = room_get_state(room_id);
+    if (!room) {
+        send_error(client_fd, req, ERR_BAD_REQUEST, "Room not found");
+        return;
+    }
+    
+    // STEP 3: Find player in RoomPlayerState array
+    RoomPlayerState *player = NULL;
+    int player_index = -1;
+    for (int i = 0; i < room->player_count; i++) {
+        if (room->players[i].account_id == session->account_id) {
+            player = &room->players[i];
+            player_index = i;
+            break;
+        }
+    }
+    
+    if (!player) {
+        send_error(client_fd, req, ERR_BAD_REQUEST, "Player not found in room");
+        return;
+    }
+    
+    // STEP 4: Log BEFORE state
+    printf("[Ready] BEFORE toggle:\n");
+    printf("  - Player: %s (id=%u, index=%d)\n", player->name, player->account_id, player_index);
+    printf("  - Current is_ready: %s\n", player->is_ready ? "true" : "false");
+    
+    // STEP 5: Toggle ready state in RoomPlayerState
+    bool old_state = player->is_ready;
+    player->is_ready = !player->is_ready;
+    
+    printf("[Ready] AFTER toggle:\n");
+    printf("  - New is_ready: %s\n", player->is_ready ? "true" : "false");
+    printf("  - Change: %s -> %s\n", 
+           old_state ? "true" : "false",
+           player->is_ready ? "true" : "false");
+    
+    // STEP 6: Log ALL players' ready status
+    printf("[Ready] Current ready status of ALL players in room %u:\n", room_id);
+    int ready_count = 0;
+    for (int i = 0; i < room->player_count; i++) {
+        printf("  [%d] %s (id=%u): %s%s\n",
+               i,
+               room->players[i].name,
+               room->players[i].account_id,
+               room->players[i].is_ready ? "✅ READY" : "❌ NOT READY",
+               room->players[i].is_host ? " (HOST)" : "");
+        if (room->players[i].is_ready) ready_count++;
+    }
+    printf("[Ready] Summary: %d/%d players ready\n", ready_count, room->player_count);
+    
+    // STEP 7: Send response (empty payload)
+    forward_response(client_fd, req, RES_READY_OK, "", 0);
+    
+    // STEP 8: Broadcast NTF_PLAYER_READY
+    cJSON *notif = cJSON_CreateObject();
+    cJSON_AddNumberToObject(notif, "account_id", session->account_id);
+    cJSON_AddBoolToObject(notif, "is_ready", player->is_ready);
+    
+    char *notif_str = cJSON_PrintUnformatted(notif);
+    printf("[Ready] Broadcasting NTF_PLAYER_READY: %s\n", notif_str);
+    room_broadcast(room_id, NTF_PLAYER_READY, notif_str, strlen(notif_str), -1);
+    free(notif_str);
+    cJSON_Delete(notif);
+    
+    printf("[Ready] ✅ SUCCESS: room_id=%u, account_id=%u, is_ready=%s\n",
+           room_id, session->account_id, player->is_ready ? "true" : "false");
+}
