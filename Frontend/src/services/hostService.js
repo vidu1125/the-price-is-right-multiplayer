@@ -214,7 +214,7 @@ export function kickMember(targetAccountId) {
 
 registerHandler(OPCODE.RES_MEMBER_KICKED, (payload) => {
     console.log('[HOST_SERVICE] ✅ Member kicked successfully');
-    // Payload rỗng, không cần parse
+    alert('✅ Đã kick thành công!');
     // UI sẽ tự động cập nhật qua NTF_PLAYER_LEFT và NTF_PLAYER_LIST
 });
 

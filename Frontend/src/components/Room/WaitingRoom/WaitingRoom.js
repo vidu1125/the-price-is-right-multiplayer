@@ -103,12 +103,28 @@ export default function WaitingRoom() {
     registerHandler(OPCODE.NTF_PLAYER_LEFT, (payload) => {
       const text = new TextDecoder().decode(payload);
       try {
-        const { account_id } = JSON.parse(text);
-        console.log("[NTF] Player Left:", account_id);
-        setRoom(prev => ({
-          ...prev,
-          players: prev.players.filter(m => m.account_id !== account_id)
-        }));
+        const { account_id, reason } = JSON.parse(text);
+        console.log("[NTF] Player Left:", account_id, "Reason:", reason);
+
+        // Cập nhật state và hiển thị thông báo
+        setRoom(prev => {
+          // Tìm tên người chơi từ state hiện tại (TRƯỚC KHI filter)
+          const leftPlayer = prev.players.find(p => p.account_id === account_id);
+          const playerName = leftPlayer ? leftPlayer.name : `Player ${account_id}`;
+
+          // Hiển thị thông báo khác nhau dựa vào lý do
+          if (reason === "kicked") {
+            alert(`⚠️ ${playerName} đã bị kick khỏi phòng`);
+          } else {
+            alert(`👋 ${playerName} đã rời phòng`);
+          }
+
+          // Trả về state mới với player đã bị xóa
+          return {
+            ...prev,
+            players: prev.players.filter(m => m.account_id !== account_id)
+          };
+        });
       } catch (e) {
         console.error("Failed to parse leave ntf:", e);
       }

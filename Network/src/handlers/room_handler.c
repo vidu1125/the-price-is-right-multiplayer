@@ -739,6 +739,7 @@ void handle_kick_member(int client_fd, MessageHeader *req, const char *payload) 
     // (Target đã bị xóa, nên sẽ không nhận broadcast này)
     cJSON *left_json = cJSON_CreateObject();
     cJSON_AddNumberToObject(left_json, "account_id", target_id);
+    cJSON_AddStringToObject(left_json, "reason", "kicked");  // Phân biệt kicked vs left
     char *left_str = cJSON_PrintUnformatted(left_json);
     
     printf("[Kick Member] Broadcasting NTF_PLAYER_LEFT: %s\n", left_str);
@@ -914,15 +915,17 @@ void handle_leave_room(int client_fd, MessageHeader *req, const char *payload) {
     
     // STEP 10: Broadcast to remaining players
     if (!room_empty) {
-        // Broadcast NTF_PLAYER_LEFT
-        cJSON *left_json = cJSON_CreateObject();
-        cJSON_AddNumberToObject(left_json, "account_id", leaver_id);
-        char *left_str = cJSON_PrintUnformatted(left_json);
+     // ========== BƯỚC 8: BROADCAST NTF_PLAYER_LEFT ==========
+    // Notify remaining players
+    cJSON *left_json = cJSON_CreateObject();
+    cJSON_AddNumberToObject(left_json, "account_id", leaver_id);
+    cJSON_AddStringToObject(left_json, "reason", "left");  // Phân biệt kicked vs left
+    char *json_str = cJSON_PrintUnformatted(left_json);
+    
+    printf("[Leave Room] Broadcasting NTF_PLAYER_LEFT: %s\n", json_str);
+    room_broadcast(room_id, NTF_PLAYER_LEFT, json_str, strlen(json_str), -1);
         
-        printf("[Leave Room] Broadcasting NTF_PLAYER_LEFT: %s\n", left_str);
-        room_broadcast(room_id, NTF_PLAYER_LEFT, left_str, strlen(left_str), -1);
-        
-        free(left_str);
+        free(json_str);
         cJSON_Delete(left_json);
         
         // Broadcast NTF_HOST_CHANGED if host transferred
