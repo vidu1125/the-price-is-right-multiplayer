@@ -65,14 +65,41 @@
 .wager-badge-btn.active:hover {
     background-color: #ff5e4d;
 }
+/* Khung câu hỏi nổi bật */
+.question-box {
+    background: linear-gradient(135deg, rgba(231, 76, 60, 0.9) 0%, rgba(192, 57, 43, 0.9) 100%);
+    border: 4px solid #FFD32A;
+    border-radius: 20px;
+    padding: 25px 30px;
+    margin-bottom: 20px;
+    box-shadow: 
+        0 8px 0 rgba(0, 0, 0, 0.3),
+        0 0 30px rgba(255, 211, 42, 0.3);
+    animation: questionPulse 2s ease-in-out infinite;
+}
+
+@keyframes questionPulse {
+    0%, 100% { 
+        box-shadow: 
+            0 8px 0 rgba(0, 0, 0, 0.3),
+            0 0 20px rgba(255, 211, 42, 0.2);
+    }
+    50% { 
+        box-shadow: 
+            0 8px 0 rgba(0, 0, 0, 0.3),
+            0 0 40px rgba(255, 211, 42, 0.5);
+    }
+}
+
 .quiz-question {
     font-family: 'Sniglet', sans-serif;
     font-size: 1.8rem;
     color: white;
-    text-align: left;
-    margin: 0 0 25px 0;
-    line-height: 1.3;
-    min-height: 90px;
+    text-align: center;
+    margin: 0;
+    line-height: 1.4;
+    font-weight: 600;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 .product-image-container {
@@ -136,6 +163,301 @@
 .submit-answer-btn:active {
     transform: translateY(2px);
     box-shadow: 0 2px 0 #1e8449;
+}
+
+/* Submitted state */
+.answer-input.submitted {
+    background-color: #d5f5e3;
+    border-color: #27ae60;
+}
+
+.submit-answer-btn.submitted {
+    background-color: #95a5a6;
+    box-shadow: 0 4px 0 #7f8c8d;
+    cursor: default;
+}
+
+.submit-answer-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+/* Waiting message */
+.waiting-message {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 15px;
+    margin-top: 20px;
+    color: white;
+    font-family: 'Sniglet', sans-serif;
+    font-size: 1.2rem;
+}
+
+/* Connecting screen */
+.connecting-content {
+    text-align: center;
+    color: white;
+}
+
+.connecting-title {
+    font-family: 'Luckiest Guy', cursive;
+    font-size: 2.5rem;
+    color: #FFDE00;
+    text-shadow: 3px 3px 0 #2d3436;
+    margin-bottom: 30px;
+}
+
+.connecting-status {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 30px;
+}
+
+.connecting-spinner {
+    width: 50px;
+    height: 50px;
+    border: 5px solid rgba(255,255,255,0.3);
+    border-top-color: #FFDE00;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.countdown-text {
+    font-family: 'Luckiest Guy', cursive;
+    font-size: 1.5rem;
+    color: #FFDE00;
+}
+
+.player-list {
+    background: rgba(0,0,0,0.3);
+    border-radius: 15px;
+    padding: 20px;
+    max-width: 400px;
+    margin: 0 auto;
+}
+
+.player-list h3 {
+    font-family: 'Luckiest Guy', cursive;
+    color: #FFDE00;
+    margin-bottom: 15px;
+}
+
+.player-item {
+    padding: 10px 15px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    font-family: 'Sniglet', sans-serif;
+}
+
+.player-item.ready {
+    background: rgba(46, 204, 113, 0.3);
+    border: 2px solid #2ecc71;
+}
+
+/* Result screen */
+.result-content {
+    text-align: center;
+    color: white;
+    width: 100%;
+    max-width: 600px;
+}
+
+.result-title {
+    font-family: 'Luckiest Guy', cursive;
+    font-size: 2rem;
+    color: #FFDE00;
+    margin-bottom: 20px;
+}
+
+.correct-price {
+    font-family: 'Sniglet', sans-serif;
+    font-size: 1.5rem;
+    background: rgba(0,0,0,0.3);
+    padding: 15px 30px;
+    border-radius: 15px;
+    margin-bottom: 20px;
+    display: inline-block;
+}
+
+.correct-price strong {
+    color: #2ecc71;
+    font-size: 2rem;
+    display: block;
+    margin-top: 5px;
+}
+
+.bids-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.bid-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 10px;
+    font-family: 'Sniglet', sans-serif;
+}
+
+.bid-item.is-me {
+    background: rgba(52, 152, 219, 0.3);
+    border: 2px solid #3498db;
+}
+
+.bid-item.winner {
+    background: rgba(46, 204, 113, 0.3);
+    border: 2px solid #2ecc71;
+}
+
+.bid-item.overbid {
+    opacity: 0.7;
+}
+
+.bid-player {
+    font-weight: bold;
+}
+
+.bid-value {
+    font-size: 1.2rem;
+}
+
+.bid-score {
+    color: #2ecc71;
+    font-weight: bold;
+}
+
+.overbid-badge {
+    background: #e74c3c;
+    color: white;
+    padding: 3px 8px;
+    border-radius: 5px;
+    font-size: 0.8rem;
+}
+
+.result-next {
+    color: rgba(255,255,255,0.7);
+    font-family: 'Sniglet', sans-serif;
+}
+
+/* Summary screen */
+.summary-content {
+    text-align: center;
+    color: white;
+    width: 100%;
+    max-width: 700px;
+}
+
+.summary-header {
+    margin-bottom: 30px;
+}
+
+.summary-title {
+    font-family: 'Luckiest Guy', cursive;
+    font-size: 2.5rem;
+    color: #FFDE00;
+    text-shadow: 3px 3px 0 #2d3436;
+    margin-bottom: 10px;
+}
+
+.summary-countdown {
+    font-family: 'Sniglet', sans-serif;
+    font-size: 1.2rem;
+}
+
+.countdown-number {
+    color: #FFDE00;
+    font-weight: bold;
+}
+
+.summary-scoreboard {
+    background: rgba(0,0,0,0.3);
+    border-radius: 20px;
+    padding: 25px;
+    margin-bottom: 20px;
+}
+
+.scoreboard-title {
+    font-family: 'Luckiest Guy', cursive;
+    color: #FFDE00;
+    margin-bottom: 20px;
+}
+
+.player-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 15px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 10px;
+    margin-bottom: 8px;
+    font-family: 'Sniglet', sans-serif;
+}
+
+.player-row.is-me {
+    background: rgba(52, 152, 219, 0.3);
+    border: 2px solid #3498db;
+}
+
+.player-row.eliminated {
+    opacity: 0.5;
+    text-decoration: line-through;
+}
+
+.player-rank {
+    font-weight: bold;
+    color: #FFDE00;
+    width: 50px;
+}
+
+.player-name {
+    flex: 1;
+    text-align: left;
+    margin-left: 10px;
+}
+
+.player-score {
+    font-weight: bold;
+    min-width: 80px;
+    text-align: right;
+}
+
+.eliminated-badge {
+    background: #e74c3c;
+    color: white;
+    padding: 3px 8px;
+    border-radius: 5px;
+    font-size: 0.8rem;
+    margin-left: 10px;
+}
+
+.skip-button {
+    background: #3498db;
+    color: white;
+    border: 3px solid #2d3436;
+    border-radius: 15px;
+    padding: 15px 40px;
+    font-family: 'Luckiest Guy', cursive;
+    font-size: 1.3rem;
+    cursor: pointer;
+    box-shadow: 0 4px 0 #2980b9;
+    transition: all 0.15s;
+}
+
+.skip-button:hover {
+    background: #2980b9;
+    transform: translateY(-2px);
 }
 
 /* Mobile Responsive */

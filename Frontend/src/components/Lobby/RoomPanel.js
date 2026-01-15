@@ -101,15 +101,9 @@ export default function RoomPanel() {
     };
     window.addEventListener('room_joined', onRoomJoined);
 
-    registerHandler(OPCODE.ERR_BAD_REQUEST, (payload) => {
-      const text = new TextDecoder().decode(payload);
-      try {
-        const data = JSON.parse(text);
-        alert(`❌ Error: ${data.error || text}`);
-      } catch (err) {
-        alert(`❌ Error: ${text}`);
-      }
-    });
+    // NOTE: Removed global ERR_BAD_REQUEST alert handler
+    // It was showing alerts for all errors including game-related ones
+    // Room-specific errors should be handled in roomService.js
 
     return () => {
       window.removeEventListener('room_created', onRoomCreated);
