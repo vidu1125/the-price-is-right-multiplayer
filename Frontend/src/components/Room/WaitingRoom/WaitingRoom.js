@@ -5,12 +5,10 @@ import RoomTitle from "./RoomTitle";
 import GameRulesPanel from "./GameRulesPanel";
 import MemberListPanel from "./MemberListPanel";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useState, useEffect, useCallback } from "react";
-import { registerHandler, unregisterHandler } from "../../../network/receiver";
+import { useState, useEffect } from "react";
+import { registerHandler } from "../../../network/receiver";
 import { OPCODE } from "../../../network/opcode";
 import { startGame } from "../../../services/gameService";
-import { invitePlayer } from "../../../services/roomService";
-import { getFriendList } from "../../../services/friendService";
 
 export default function WaitingRoom() {
   const location = useLocation();
@@ -48,12 +46,6 @@ export default function WaitingRoom() {
 
   console.log("[WaitingRoom] Initial room state:", room);
 
-  // Invite Modal State
-  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
-  const [invitePlayerId, setInvitePlayerId] = useState("");
-  const [onlineFriends, setOnlineFriends] = useState([]);
-  const [isFriendsLoading, setIsFriendsLoading] = useState(false);
-
   useEffect(() => {
     // 2. Validate Room ID
     if (!roomId) {
@@ -63,18 +55,29 @@ export default function WaitingRoom() {
     }
 
     console.log(`[WaitingRoom] Listening for updates for Room ${roomId} (${roomCode})`);
+    console.log("[WaitingRoom] Registering NTF_PLAYER_LIST handler");
 
     // --- SOCKET NOTIFICATION HANDLERS ---
 
-    // 1. NTF_PLAYER_LIST
+    // 1. NTF_PLAYER_LIST (Snapshot of members)
     registerHandler(OPCODE.NTF_PLAYER_LIST, (payload) => {
+      console.log("[WaitingRoom] NTF_PLAYER_LIST handler called!");
       const text = new TextDecoder().decode(payload);
+      console.log("[WaitingRoom] Raw payload:", text);
       try {
         const data = JSON.parse(text);
+        console.log("[WaitingRoom] Parsed Player List:", data);
+
         if (data.members && Array.isArray(data.members)) {
-          setRoom(prev => ({ ...prev, players: data.members }));
+          console.log("[WaitingRoom] Updating players:", data.members);
+          setRoom(prev => ({
+            ...prev,
+            players: data.members
+          }));
         }
-      } catch (e) { console.error("Parse error:", e); }
+      } catch (e) {
+        console.error("[WaitingRoom] Failed to parse player list:", e);
+      }
     });
 
     // 2. NTF_PLAYER_JOINED
@@ -82,11 +85,18 @@ export default function WaitingRoom() {
       const text = new TextDecoder().decode(payload);
       try {
         const newPlayer = JSON.parse(text);
+        console.log("[NTF] Player Joined:", newPlayer);
         setRoom(prev => {
-          if (prev.players.find(m => m.account_id === newPlayer.account_id)) return prev;
-          return { ...prev, players: [...prev.players, newPlayer] };
+          // Avoid duplicates
+          if (prev.players.find(m => m.id === newPlayer.id)) return prev;
+          return {
+            ...prev,
+            players: [...prev.players, newPlayer]
+          };
         });
-      } catch (e) { }
+      } catch (e) {
+        console.error("Failed to parse join ntf:", e);
+      }
     });
 
     // 3. NTF_PLAYER_LEFT
@@ -94,23 +104,52 @@ export default function WaitingRoom() {
       const text = new TextDecoder().decode(payload);
       try {
         const { account_id } = JSON.parse(text);
+        console.log("[NTF] Player Left:", account_id);
         setRoom(prev => ({
           ...prev,
           players: prev.players.filter(m => m.account_id !== account_id)
         }));
-      } catch (e) { }
+      } catch (e) {
+        console.error("Failed to parse leave ntf:", e);
+      }
     });
 
-    // 4. NTF_RULES_CHANGED
+    // 4. NTF_HOST_CHANGED
+    registerHandler(OPCODE.NTF_HOST_CHANGED, (payload) => {
+      const text = new TextDecoder().decode(payload);
+      try {
+        const { new_host_id } = JSON.parse(text);
+        console.log('[WaitingRoom] 👑 New host:', new_host_id);
+
+        setRoom(prev => ({
+          ...prev,
+          hostId: new_host_id,
+          players: prev.players.map(p => ({
+            ...p,
+            is_host: p.account_id === new_host_id
+          }))
+        }));
+
+        // Show notification
+        alert(`🔔 New host assigned!`);
+      } catch (e) {
+        console.error('[WaitingRoom] Failed to parse NTF_HOST_CHANGED:', e);
+      }
+    });
+
+    // 5. NTF_RULES_CHANGED
     registerHandler(OPCODE.NTF_RULES_CHANGED, (payload) => {
       const text = new TextDecoder().decode(payload);
       try {
         const newRules = JSON.parse(text);
+        console.log("[NTF] Rules Changed:", newRules);
         setRoom(prev => ({
           ...prev,
           rules: { ...prev.rules, ...newRules }
         }));
-      } catch (e) { }
+      } catch (e) {
+        console.error("Failed to parse rules ntf:", e);
+      }
     });
 
     // 5. NTF_PLAYER_READY
@@ -118,99 +157,82 @@ export default function WaitingRoom() {
       const text = new TextDecoder().decode(payload);
       try {
         const data = JSON.parse(text);
+        console.log("[NTF] Player Ready:", data);
+
+        // Update specific player's ready state
         setRoom(prev => ({
           ...prev,
           players: prev.players.map(p =>
-            p.account_id === data.account_id ? { ...p, is_ready: data.is_ready } : p
+            p.account_id === data.account_id
+              ? { ...p, is_ready: data.is_ready }
+              : p
           )
         }));
-      } catch (e) { }
+
+        console.log(`🔔 Player ${data.account_id} is now ${data.is_ready ? 'READY' : 'NOT READY'}`);
+      } catch (e) {
+        console.error("Failed to parse player ready ntf:", e);
+      }
     });
 
     // 6. NTF_ROOM_CLOSED
-    registerHandler(OPCODE.NTF_ROOM_CLOSED, () => {
+    registerHandler(OPCODE.NTF_ROOM_CLOSED, (payload) => {
       alert("Host closed the room.");
       navigate('/lobby');
     });
 
-    // 7. NTF_GAME_START
+    // 6. NTF_GAME_START
     registerHandler(OPCODE.NTF_GAME_START || 0x02C4, (payload) => {
+      console.log("[NTF] Game Started! Parsing payload...");
       try {
         const text = new TextDecoder().decode(payload);
         const data = JSON.parse(text);
         const matchId = data.match_id;
+        console.log("[NTF] Match ID:", matchId);
+
+        // Get player_id from profile in localStorage
         const profile = JSON.parse(localStorage.getItem('profile') || '{}');
         const playerId = profile.account_id;
         const playerName = profile.name || `Player${playerId}`;
 
+        console.log("[NTF] Player ID:", playerId, "Name:", playerName);
         navigate(`/round?match_id=${matchId}&player_id=${playerId}&name=${encodeURIComponent(playerName)}`, {
           state: { roomId, roomCode, isHost, matchId, playerId, playerName }
         });
       } catch (e) {
+        console.error("[NTF] Failed to parse NTF_GAME_START:", e);
+        // Fallback without match_id
         navigate('/round', { state: { roomId, roomCode, isHost } });
       }
     });
 
-    // Handle generic success/error for приглашение (invite)
-    registerHandler(OPCODE.RES_SUCCESS || 0x00C8, (payload) => {
-      const text = new TextDecoder().decode(payload);
-      if (text.includes("Invitation sent")) {
-        alert("Invitation successfully sent!");
-        setIsInviteModalOpen(false);
-        setInvitePlayerId("");
-      }
-    });
+    // Cleanup listeners? 
+    // Ideally receiver.js should support unregister, but if not, 
+    // subsequent renders normally override if using named keys or singleton.
+    // Assuming registerHandler replaces old handler for same opcode.
 
-    registerHandler(OPCODE.ERR_BAD_REQUEST || 0x0190, (payload) => {
-      const text = new TextDecoder().decode(payload);
-      // We check if it's related to invitation
-      if (text.includes("user is currently") || text.includes("user is currently busy")) {
-        alert("Error: " + text);
-      }
-    });
+  }, [roomId, roomCode, navigate]);
 
-  }, [roomId, roomCode, navigate, isHost]);
-
-  // Fetch friends who are in Lobby (not in a game)
-  const fetchFriends = useCallback(async () => {
-    setIsFriendsLoading(true);
-    try {
-      const res = await getFriendList();
-      if (res?.success && res.friends) {
-        // Filter: Online AND NOT in a game (Lobby state) AND not already in the room
-        const lobbyFriends = res.friends.filter(f =>
-          f.online && !f.in_game && !room.players.find(p => p.account_id === f.id)
-        );
-        setOnlineFriends(lobbyFriends);
-      }
-    } catch (err) {
-      console.error("[WaitingRoom] Failed to fetch friends list:", err);
-    } finally {
-      setIsFriendsLoading(false);
-    }
-  }, [room.players]);
-
-  useEffect(() => {
-    if (isInviteModalOpen) {
-      fetchFriends();
-    }
-  }, [isInviteModalOpen, fetchFriends]);
-
+  // Handle Game Rules UI Change (only for Host)
   const handleRulesChange = (newRules) => {
+    // NOTE: Here we should SEND packet to server to update rules
+    // For now, we optimistically update local state or wait for server Ack?
+    // Better to just send packet. 
+    // Since sendPacket is not fully integrated in this snippet, we just update local state
+    // but ideally this should trigger a CMD_SET_RULE
+    console.log("Host changed rules:", newRules);
+
+    // Optimistic update
     setRoom(prev => ({ ...prev, rules: newRules }));
+
+    // TODO: Implement sendPacket(OPCODE.CMD_SET_RULE, rulesPayload);
   };
 
+
+  // Handle Start Game
   const handleStartGame = () => {
+    console.log("Host initiating game start...");
     startGame(room.id);
-  };
-
-  const handleInvitePlayer = (targetId) => {
-    const finalId = targetId || parseInt(invitePlayerId);
-    if (!finalId || isNaN(finalId)) {
-      alert("Please enter a valid Player ID.");
-      return;
-    }
-    invitePlayer(finalId, room.id);
   };
 
   if (!roomId) return null;
@@ -230,6 +252,8 @@ export default function WaitingRoom() {
       <RoomTitle title={`Room Code: ${room.code}`} />
 
       <div className="waiting-room-content">
+
+        {/* LEFT: Game Rules */}
         <div className="wr-left">
           <GameRulesPanel
             isHost={isHost}
@@ -240,25 +264,28 @@ export default function WaitingRoom() {
           />
         </div>
 
+        {/* CENTER: Members */}
         <div className="wr-center">
           <MemberListPanel
             isHost={isHost}
             roomId={room.id}
-            hostId={room.hostId}
+            hostId={room.hostId} // Might be null initially
             roomName={room.name || "My Room"}
             roomCode={room.code}
             maxPlayers={room.rules.maxPlayers}
             members={room.players}
-            onRefresh={() => { }}
+            onRefresh={() => { }} // Disabled manual refresh
           />
         </div>
 
+        {/* RIGHT: Actions */}
         <div className="wr-right-actions">
           {isHost && (
             <button className="start-game-btn" onClick={handleStartGame}>START GAME</button>
           )}
-          <button className="invite-btn" onClick={() => setIsInviteModalOpen(true)}>INVITE FRIENDS</button>
+          <button className="invite-btn">INVITE FRIENDS</button>
 
+          {/* READY BUTTON */}
           <button
             className={`ready-toggle-btn ${room.players.find(p => p.account_id === profile.account_id)?.is_ready ? 'ready' : 'not-ready'}`}
             onClick={() => {
@@ -269,58 +296,13 @@ export default function WaitingRoom() {
             {room.players.find(p => p.account_id === profile.account_id)?.is_ready ? 'NOT READY' : 'READY'}
           </button>
 
-          <button className="leave-btn" onClick={() => navigate('/lobby')}>LEAVE ROOM</button>
+          <button className="leave-btn" onClick={() => {
+            const { leaveRoom } = require('../../../services/roomService');
+            leaveRoom();
+          }}>LEAVE ROOM</button>
         </div>
+
       </div>
-
-      {/* Invite Modal */}
-      {isInviteModalOpen && (
-        <div className="invite-modal-overlay">
-          <div className="invite-modal wider">
-            <h3>INVITE PLAYER</h3>
-
-            <div className="invite-direct-section">
-              <label>Enter Player ID:</label>
-              <div className="invite-input-row">
-                <input
-                  type="number"
-                  value={invitePlayerId}
-                  onChange={(e) => setInvitePlayerId(e.target.value)}
-                  placeholder="Ex: 123"
-                />
-                <button className="confirm-btn mini-btn" onClick={() => handleInvitePlayer()}>INVITE</button>
-              </div>
-            </div>
-
-            <div className="friends-list-section">
-              <h4>Online Friends (Lobby)</h4>
-              <div className="friends-scroll-view">
-                {isFriendsLoading ? (
-                  <div className="status-text">Loading...</div>
-                ) : onlineFriends.length > 0 ? (
-                  onlineFriends.map(friend => (
-                    <div key={friend.id} className="friend-invite-row">
-                      <div className="friend-details">
-                        <span className="friend-name">{friend.name}</span>
-                        <span className="friend-id">#{friend.id}</span>
-                      </div>
-                      <button className="invite-action-btn" onClick={() => handleInvitePlayer(friend.id)}>
-                        INVITE
-                      </button>
-                    </div>
-                  ))
-                ) : (
-                  <div className="status-text">No friends available in lobby</div>
-                )}
-              </div>
-            </div>
-
-            <div className="invite-modal-actions">
-              <button className="cancel-btn" onClick={() => setIsInviteModalOpen(false)}>CLOSE</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

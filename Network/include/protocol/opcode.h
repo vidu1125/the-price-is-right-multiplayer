@@ -122,6 +122,7 @@
 #define NTF_RULES_CHANGED   0x02C9  //713
 #define NTF_MEMBER_KICKED   0x02CA  //714
 #define NTF_ROOM_CLOSED     0x02CB  //715
+#define NTF_HOST_CHANGED    0x02D1  //721
 // Social Notifications (71x)
 #define NTF_FRIEND_REQUEST  0x02CC  // 716 Friend request received
 #define NTF_FRIEND_ACCEPTED 0x02CD  // 717 Friend request accepted

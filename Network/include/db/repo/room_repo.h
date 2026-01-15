@@ -36,3 +36,30 @@ int room_repo_leave(
     char *out_buf,
     size_t out_size
 );
+
+//==============================================================================
+// LEAVE ROOM OPERATIONS
+//==============================================================================
+
+/**
+ * Remove player from room (DB only)
+ * @param room_id Room ID
+ * @param account_id Player account ID
+ * @return 0 on success, -1 on error
+ */
+int room_repo_remove_player(uint32_t room_id, uint32_t account_id);
+
+/**
+ * Update room host (DB only)
+ * @param room_id Room ID
+ * @param new_host_id New host account ID
+ * @return 0 on success, -1 on error
+ */
+int room_repo_update_host(uint32_t room_id, uint32_t new_host_id);
+
+/**
+ * Close room (set status = 'closed')
+ * @param room_id Room ID
+ * @return 0 on success, -1 on error
+ */
+int room_repo_close_room(uint32_t room_id);
