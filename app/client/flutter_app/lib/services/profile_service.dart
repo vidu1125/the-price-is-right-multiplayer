@@ -32,8 +32,19 @@ class ProfileService {
 
       if (response.command == Command.resProfileFound) {
         if (data["success"] == true && data["profile"] != null) {
-          final profile = UserProfile.fromJson(data["profile"]);
-          await _saveToCache(data["profile"]);
+          Map<String, dynamic> profileJson = data["profile"];
+          
+          // Ensure account_id is present from cache if missing
+          if (profileJson["account_id"] == null || profileJson["account_id"] == 0) {
+             final prefs = await SharedPreferences.getInstance();
+             final savedId = prefs.getString("account_id");
+             if (savedId != null) {
+               profileJson["account_id"] = int.tryParse(savedId);
+             }
+          }
+
+          final profile = UserProfile.fromJson(profileJson);
+          await _saveToCache(profileJson);
           return profile;
         }
       }
@@ -128,7 +139,17 @@ class ProfileService {
     final str = prefs.getString("profile");
     if (str != null) {
       try {
-        return UserProfile.fromJson(jsonDecode(str));
+        Map<String, dynamic> json = jsonDecode(str);
+        
+        // Ensure account_id is present from cache if missing
+        if (json["account_id"] == null || json["account_id"] == 0) {
+            final savedId = prefs.getString("account_id");
+            if (savedId != null) {
+              json["account_id"] = int.tryParse(savedId);
+            }
+        }
+        
+        return UserProfile.fromJson(json);
       } catch (e) {
         print("Error parsing cached profile: $e");
       }

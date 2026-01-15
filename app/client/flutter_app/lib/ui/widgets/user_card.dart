@@ -64,13 +64,14 @@ class _UserCardState extends State<UserCard> {
     }
 
     final screenWidth = MediaQuery.of(context).size.width;
-    final double nameFontSize = (screenWidth * 0.015).clamp(14.0, 24.0);
-    final double avatarSize = (screenWidth * 0.04).clamp(40.0, 60.0);
+    // Slightly reduced sizes as requested
+    final double nameFontSize = (screenWidth * 0.018).clamp(16.0, 32.0);
+    final double avatarSize = (screenWidth * 0.05).clamp(50.0, 80.0);
 
     return Container(
       // 1. Box hình viên thuốc (Pill shape) từ CSS .user-card
       decoration: LobbyTheme.userCardDecoration,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12), // Increased padding
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -109,21 +110,37 @@ class _UserCardState extends State<UserCard> {
             ),
           ),
           
-          const SizedBox(width: 12),
+          const SizedBox(width: 16), // Increased spacing
           
           // 3. Player Name với Shadow đặc trưng từ CSS
-          Text(
-            name,
-            style: TextStyle(
-              fontFamily: 'LuckiestGuy',
-              fontSize: nameFontSize,
-              color: LobbyTheme.primaryDark,
-              // Hiệu ứng text-shadow: 1px 1px 0 #fff trong CSS
-              shadows: const [
-                Shadow(offset: Offset(1, 1), color: Colors.white),
-                Shadow(offset: Offset(-1, -1), color: Colors.white),
-              ],
-            ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                name,
+                style: TextStyle(
+                  fontFamily: 'LuckiestGuy',
+                  fontSize: nameFontSize,
+                  color: LobbyTheme.primaryDark,
+                  // Hiệu ứng text-shadow: 1px 1px 0 #fff trong CSS
+                  shadows: const [
+                    Shadow(offset: Offset(1, 1), color: Colors.white),
+                    Shadow(offset: Offset(-1, -1), color: Colors.white),
+                  ],
+                ),
+              ),
+              if (_profile != null && _profile!.accountId > 0)
+                Text(
+                  "ID: ${_profile!.accountId}",
+                  style: TextStyle(
+                    fontFamily: 'LuckiestGuy',
+                    fontSize: nameFontSize * 0.8, // Significantly larger ID
+                    color: Colors.blueGrey,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+            ],
           ),
         ],
       ),

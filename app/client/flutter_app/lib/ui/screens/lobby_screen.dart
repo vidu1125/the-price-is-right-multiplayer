@@ -114,6 +114,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
                   clipBehavior: Clip.none,
                   children: [
                       Container(
+                         width: 72,
+                         height: 72,
                          decoration: BoxDecoration(
                            color: LobbyTheme.yellowGame,
                            shape: BoxShape.circle,
@@ -128,6 +130,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                          ),
                          child: IconButton(
                            icon: const Icon(Icons.person_add, color: LobbyTheme.primaryDark),
+                           iconSize: 32,
                            onPressed: () {
                               showDialog(
                                 context: context,
