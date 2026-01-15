@@ -122,3 +122,14 @@
     transform: translateY(4px);
     box-shadow: 0 2px 0 #000;
 }
+.invite-timer {
+  font-family: 'Parkinsans', sans-serif;
+  font-size: 16px;
+  color: #FF5252;
+  font-weight: bold;
+  margin-top: 15px;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 5px 10px;
+  border-radius: 10px;
+  display: inline-block;
+}

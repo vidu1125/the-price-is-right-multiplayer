@@ -4,6 +4,7 @@ import UserCard from "../../Lobby/UserCard";
 import RoomTitle from "./RoomTitle";
 import GameRulesPanel from "./GameRulesPanel";
 import MemberListPanel from "./MemberListPanel";
+import InviteFriendModal from "./InviteFriendModal";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { registerHandler } from "../../../network/receiver";
@@ -43,6 +44,8 @@ export default function WaitingRoom() {
       roundTime: 15
     }
   });
+
+  const [showInviteModal, setShowInviteModal] = useState(false);
 
   console.log("[WaitingRoom] Initial room state:", room);
 
@@ -114,9 +117,9 @@ export default function WaitingRoom() {
 
           // Hiển thị thông báo khác nhau dựa vào lý do
           if (reason === "kicked") {
-            alert(`⚠️ ${playerName} đã bị kick khỏi phòng`);
+            // alert(`⚠️ ${playerName} đã bị kick khỏi phòng`);
           } else {
-            alert(`👋 ${playerName} đã rời phòng`);
+            // alert(`👋 ${playerName} đã rời phòng`);
           }
 
           // Trả về state mới với player đã bị xóa
@@ -315,7 +318,7 @@ export default function WaitingRoom() {
           {isHost && (
             <button className="start-game-btn" onClick={handleStartGame}>START GAME</button>
           )}
-          <button className="invite-btn">INVITE FRIENDS</button>
+          <button className="invite-btn" onClick={() => setShowInviteModal(true)}>INVITE FRIENDS</button>
 
           {/* READY BUTTON */}
           <button
@@ -335,6 +338,13 @@ export default function WaitingRoom() {
         </div>
 
       </div>
+
+      {showInviteModal && (
+        <InviteFriendModal
+          roomId={room.id}
+          onClose={() => setShowInviteModal(false)}
+        />
+      )}
     </div>
   );
 }

@@ -1,7 +1,29 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import './InvitationOverlay.css';
 
 export default function InvitationOverlay({ invitation, onAccept, onDecline }) {
+    const [timeLeft, setTimeLeft] = useState(60);
+
+    useEffect(() => {
+        if (!invitation) return;
+
+        // Reset timer when a new invitation appears
+        setTimeLeft(60);
+
+        const timer = setInterval(() => {
+            setTimeLeft(prev => {
+                if (prev <= 1) {
+                    clearInterval(timer);
+                    onDecline(); // Auto decline
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+
+        return () => clearInterval(timer);
+    }, [invitation, onDecline]);
+
     if (!invitation) return null;
 
     return (
@@ -19,6 +41,7 @@ export default function InvitationOverlay({ invitation, onAccept, onDecline }) {
                     <div className="room-badge">
                         <span className="room-name">{invitation.room_name}</span>
                     </div>
+                    <p className="invite-timer">Expires in {timeLeft}s</p>
                 </div>
 
                 <div className="invite-footer">
