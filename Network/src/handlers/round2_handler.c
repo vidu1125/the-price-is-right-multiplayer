@@ -37,7 +37,9 @@
 #include "handlers/session_manager.h"
 #include "handlers/match_manager.h"
 #include "handlers/start_game_handler.h"
+#include "handlers/bonus_handler.h"
 #include "db/core/db_client.h"
+#include "db/repo/match_repo.h"         // For db_match_event_insert, db_match_answer_insert
 #include "protocol/opcode.h"
 #include "protocol/protocol.h"
 #include <cjson/cJSON.h>
@@ -559,21 +561,22 @@ static void eliminate_player(MatchPlayerState *mp, const char *reason) {
     // =========================================================================
     // Save elimination event to database
     // =========================================================================
-    if (mp->match_player_id > 0) {
-        cJSON *event_payload = cJSON_CreateObject();
-        cJSON_AddNumberToObject(event_payload, "match_id", g_r2.match_id);
-        cJSON_AddNumberToObject(event_payload, "player_id", mp->match_player_id);
-        cJSON_AddStringToObject(event_payload, "event_type", "ELIMINATED");
-        cJSON_AddNumberToObject(event_payload, "round_no", g_r2.round_index + 1);
-        cJSON_AddNumberToObject(event_payload, "question_idx", 0);
-        
-        cJSON *event_result = NULL;
-        db_error_t event_err = db_post("match_events", event_payload, &event_result);
-        if (event_err == DB_OK) {
+    MatchState *match = get_match();
+    if (mp->account_id > 0 && match && match->db_match_id > 0) {
+        // Use db_match_event_insert from match_repo
+        // Note: player_id in match_events refers to accounts.id, not match_players.id
+        db_error_t event_err = db_match_event_insert(
+            match->db_match_id,
+            mp->account_id,  // Use account_id, not match_player_id
+            "ELIMINATED",
+            g_r2.round_index + 1,
+            0
+        );
+        if (event_err == DB_SUCCESS) {
             printf("[Round2] Saved elimination event to DB\n");
+        } else {
+            printf("[Round2] Failed to save elimination event: err=%d\n", event_err);
         }
-        cJSON_Delete(event_payload);
-        if (event_result) cJSON_Delete(event_result);
         
         cJSON *player_payload = cJSON_CreateObject();
         cJSON_AddNumberToObject(player_payload, "score", mp->score);
@@ -589,9 +592,10 @@ static void eliminate_player(MatchPlayerState *mp, const char *reason) {
     }
 }
 
-static void perform_elimination(void) {
+// Returns true if bonus round was triggered
+static bool perform_elimination(void) {
     MatchState *match = get_match();
-    if (!match) return;
+    if (!match) return false;
     
     // MODE_SCORING: No elimination
     if (match->mode == MODE_SCORING) {
@@ -603,7 +607,7 @@ static void perform_elimination(void) {
             }
         }
         printf("[Round2] Scoring mode - no elimination\n");
-        return;
+        return false;
     }
     
     // MODE_ELIMINATION: Eliminate disconnected + lowest scorer
@@ -634,7 +638,7 @@ static void perform_elimination(void) {
     
     if (count < 2) {
         printf("[Round2] Only %d connected players remaining, no further elimination\n", count);
-        return;
+        return false;
     }
     
     // Sort ascending
@@ -656,8 +660,23 @@ static void perform_elimination(void) {
     }
     
     if (tie_count >= 2) {
-        printf("[Round2] %d players tied at lowest (%d), need bonus round\n", tie_count, lowest);
-        return;
+        printf("[Round2] %d players tied at lowest (%d), triggering bonus round\n", tie_count, lowest);
+        
+        // Collect tied players
+        int32_t tied_players[MAX_MATCH_PLAYERS];
+        int tied_count = 0;
+        for (int i = 0; i < count && tied_count < MAX_MATCH_PLAYERS; i++) {
+            if (scores[i].score == lowest) {
+                tied_players[tied_count++] = scores[i].account_id;
+            }
+        }
+        
+        // Trigger bonus round
+        if (match && tied_count >= 2) {
+            check_and_trigger_bonus(match->runtime_match_id, 2);
+            return true;  // Bonus triggered
+        }
+        return false;
     }
     
     // Eliminate lowest scorer
@@ -665,6 +684,8 @@ static void perform_elimination(void) {
     if (elim_player) {
         eliminate_player(elim_player, "LOWEST_SCORE");
     }
+    
+    return false;
 }
 
 //==============================================================================
@@ -806,28 +827,28 @@ static void process_turn_results(MessageHeader *req) {
                results[i].account_id, (long long)results[i].bid, 
                results[i].score, mp->score);
         
-        // Save to match_answer (use db_post directly)
+        // Save to match_answer using db_match_answer_insert
         if (mp->match_player_id > 0 && round->questions[product_idx].question_id > 0) {
-            cJSON *ans_payload = cJSON_CreateObject();
-            cJSON_AddNumberToObject(ans_payload, "question_id", round->questions[product_idx].question_id);
-            cJSON_AddNumberToObject(ans_payload, "player_id", mp->match_player_id);
-            cJSON_AddNumberToObject(ans_payload, "score_delta", results[i].score);
-            cJSON_AddNumberToObject(ans_payload, "action_idx", 0);
-            
+            // Build answer JSON string
             cJSON *ans_obj = cJSON_CreateObject();
             cJSON_AddNumberToObject(ans_obj, "bid", results[i].bid);
             cJSON_AddNumberToObject(ans_obj, "correct_price", correct_price);
             cJSON_AddBoolToObject(ans_obj, "overbid", results[i].over);
-            cJSON_AddItemToObject(ans_payload, "answer", ans_obj);
+            char *ans_json = cJSON_PrintUnformatted(ans_obj);
+            cJSON_Delete(ans_obj);
             
-            cJSON *db_result = NULL;
-            db_error_t db_err = db_post("match_answer", ans_payload, &db_result);
-            if (db_err == DB_OK) {
+            db_error_t db_err = db_match_answer_insert(
+                round->questions[product_idx].question_id,
+                mp->match_player_id,
+                ans_json,
+                results[i].score,
+                1  // action_idx = 1
+            );
+            if (db_err == DB_SUCCESS) {
                 printf("[Round2] Saved bid to DB: p=%d bid=%lld\n", 
                        mp->match_player_id, (long long)results[i].bid);
             }
-            cJSON_Delete(ans_payload);
-            if (db_result) cJSON_Delete(db_result);
+            if (ans_json) free(ans_json);
         }
         
         // Add to bids array for response
@@ -888,8 +909,13 @@ static void advance_to_next_product(MessageHeader *req) {
         round->ended_at = time(NULL);
         g_r2.is_active = false;
         
-        // Perform elimination
-        perform_elimination();
+        // Perform elimination - returns true if bonus triggered
+        bool bonus_triggered = perform_elimination();
+        
+        if (bonus_triggered) {
+            printf("[Round2] Bonus round active - waiting for bonus to complete\n");
+            return;
+        }
         
         // Advance match to next round
         MatchState *match = get_match();

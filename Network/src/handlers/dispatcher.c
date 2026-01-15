@@ -9,6 +9,7 @@
 #include "handlers/round1_handler.h"
 #include "handlers/round2_handler.h"
 #include "handlers/round3_handler.h"
+#include "handlers/bonus_handler.h"
 #include "handlers/social_handler.h"
 #include "handlers/presence_handler.h"
 #include "handlers/friend_handler.h"
@@ -143,7 +144,13 @@ void dispatch_command(
     case OP_C2S_ROUND3_SPIN:
     case OP_C2S_ROUND3_DECISION:
         handle_round3(client_fd, header, payload);
-        break;        
+        break;
+
+    // Bonus Round - Tiebreaker
+    case OP_C2S_BONUS_READY:
+    case OP_C2S_BONUS_DRAW_CARD:
+        handle_bonus(client_fd, header, payload);
+        break;
     
     case CMD_REPLAY:
         printf("[DISPATCH] Parsing to replayHandler\n");       

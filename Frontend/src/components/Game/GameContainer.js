@@ -356,6 +356,7 @@ import { useNavigate } from 'react-router-dom';
 import '../../services/round1Service';
 import '../../services/round2Service';
 import '../../services/round3Service';
+import '../../services/bonusService';
 
 const GameContainer = () => {
     // ============ STATE MANAGEMENT ============
@@ -450,6 +451,51 @@ const GameContainer = () => {
         return () => window.removeEventListener('leaderboardUpdate', handleLeaderboardUpdate);
     }, []);
 
+    // ============ BONUS ROUND STATE ============
+    const [bonusData, setBonusData] = useState(null);
+    
+    // ============ LISTEN TO BONUS ROUND TRIGGER ============
+    useEffect(() => {
+        const handleBonusParticipant = (e) => {
+            const data = e.detail;
+            console.log('[GameContainer] Bonus round triggered - I am participant:', data);
+            setBonusData(data);
+            setCurrentRound('bonus');
+        };
+
+        const handleBonusSpectator = (e) => {
+            const data = e.detail;
+            console.log('[GameContainer] Bonus round triggered - I am spectator:', data);
+            setBonusData(data);
+            setCurrentRound('bonus');
+        };
+
+        const handleBonusTransition = (e) => {
+            const data = e.detail;
+            console.log('[GameContainer] Bonus transition:', data);
+            
+            setBonusData(null); // Clear bonus data
+            
+            if (data.next_phase === 'NEXT_ROUND') {
+                // Continue to next round after bonus
+                setCurrentRound(data.next_round);
+            } else if (data.next_phase === 'MATCH_ENDED') {
+                // Match ended after bonus
+                setCurrentRound('end');
+            }
+        };
+
+        window.addEventListener('bonusParticipant', handleBonusParticipant);
+        window.addEventListener('bonusSpectator', handleBonusSpectator);
+        window.addEventListener('bonusTransition', handleBonusTransition);
+        
+        return () => {
+            window.removeEventListener('bonusParticipant', handleBonusParticipant);
+            window.removeEventListener('bonusSpectator', handleBonusSpectator);
+            window.removeEventListener('bonusTransition', handleBonusTransition);
+        };
+    }, []);
+
     // ============ HANDLE ROUND COMPLETE ============
     const handleRoundComplete = (nextRound, data) => {
         console.log(`[GameContainer] Round complete, moving to round ${nextRound}`, data);
@@ -490,9 +536,10 @@ const GameContainer = () => {
             case 4:
             case 'bonus':
                 return <RoundBonus
-                    currentQuestion={1}
-                    totalQuestions={1}
-                    productImage="/bg/iphone15.jpg"
+                    matchId={matchId}
+                    playerId={playerId}
+                    initialData={bonusData}
+                    onRoundComplete={handleRoundComplete}
                 />;
             default:
                 return <Round1 matchId={matchId} playerId={playerId} onRoundComplete={handleRoundComplete} />;

@@ -32,8 +32,9 @@ import {
 } from "./services/authGuard";
 import { useAuthBootstrap } from "./services/authBootstrap";
 
-// Import game services to register NTF_ELIMINATION handler early
+// Import game services to register handlers early
 import "./services/gameService";
+import "./services/bonusService";
 
 import "./App.css";
 

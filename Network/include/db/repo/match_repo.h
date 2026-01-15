@@ -61,3 +61,30 @@ db_error_t db_match_event_insert(
     int round_no,
     int question_idx
 );
+
+// Insert a match_question and return the ID
+db_error_t db_match_question_insert(
+    int64_t db_match_id,
+    int round_no,
+    const char *round_type,
+    int question_idx,
+    const char *question_json,
+    int64_t *out_question_id
+);
+
+// Insert a match_answer
+db_error_t db_match_answer_insert(
+    int64_t question_id,
+    int32_t player_id,
+    const char *answer_json,
+    int score_delta,
+    int action_idx
+);
+
+// Get match_player IDs after inserting match_players
+db_error_t db_match_players_get_ids(
+    int64_t db_match_id,
+    int32_t *account_ids,
+    int32_t *out_player_ids,
+    int player_count
+);
