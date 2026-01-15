@@ -277,4 +277,74 @@ int room_repo_get_by_code(const char *code, room_t *out_room) {
 
     cJSON_Delete(json);
     return 0;
+}//==============================================================================
+// LEAVE ROOM OPERATIONS
+//==============================================================================
+
+int room_repo_remove_player(uint32_t room_id, uint32_t account_id) {
+    printf("[ROOM_REPO] Removing player %u from room %u\n", account_id, room_id);
+    
+    char filter[128];
+    snprintf(filter, sizeof(filter), "room_id = %u AND account_id = %u", room_id, account_id);
+    
+    cJSON *response = NULL;
+    db_error_t rc = db_delete("room_members", filter, &response);
+    
+    if (response) cJSON_Delete(response);
+    
+    if (rc != DB_OK) {
+        printf("[ROOM_REPO] Failed to remove player %u from room %u\n", account_id, room_id);
+        return -1;
+    }
+    
+    printf("[ROOM_REPO] Successfully removed player %u from room %u\n", account_id, room_id);
+    return 0;
+}
+
+int room_repo_update_host(uint32_t room_id, uint32_t new_host_id) {
+    printf("[ROOM_REPO] Updating host for room %u to %u\n", room_id, new_host_id);
+    
+    cJSON *payload = cJSON_CreateObject();
+    cJSON_AddNumberToObject(payload, "host_id", new_host_id);
+    
+    char filter[64];
+    snprintf(filter, sizeof(filter), "id = %u", room_id);
+    
+    cJSON *response = NULL;
+    db_error_t rc = db_patch("rooms", filter, payload, &response);
+    
+    cJSON_Delete(payload);
+    if (response) cJSON_Delete(response);
+    
+    if (rc != DB_OK) {
+        printf("[ROOM_REPO] Failed to update host for room %u\n", room_id);
+        return -1;
+    }
+    
+    printf("[ROOM_REPO] Successfully updated host for room %u to %u\n", room_id, new_host_id);
+    return 0;
+}
+
+int room_repo_close_room(uint32_t room_id) {
+    printf("[ROOM_REPO] Closing room %u\n", room_id);
+    
+    cJSON *payload = cJSON_CreateObject();
+    cJSON_AddStringToObject(payload, "status", "closed");
+    
+    char filter[64];
+    snprintf(filter, sizeof(filter), "id = %u", room_id);
+    
+    cJSON *response = NULL;
+    db_error_t rc = db_patch("rooms", filter, payload, &response);
+    
+    cJSON_Delete(payload);
+    if (response) cJSON_Delete(response);
+    
+    if (rc != DB_OK) {
+        printf("[ROOM_REPO] Failed to close room %u\n", room_id);
+        return -1;
+    }
+    
+    printf("[ROOM_REPO] Successfully closed room %u\n", room_id);
+    return 0;
 }

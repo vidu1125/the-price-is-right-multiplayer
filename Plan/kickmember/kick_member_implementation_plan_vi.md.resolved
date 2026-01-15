@@ -1,0 +1,706 @@
+# Plan Triển Khai KICK_MEMBER
+
+## 📋 Tổng Quan
+
+**Mục tiêu:** Triển khai tính năng kick member (đuổi người chơi) khỏi phòng chờ
+
+**Tham khảo chính:** [handle_leave_room()](file:///home/duyen/DAIHOC/NetworkProgramming/Final/the-price-is-right-multiplayer/Network/src/handlers/room_handler.c#625-815) (90% giống nhau)
+
+**Độ ưu tiên:** HIGH - Tính năng cơ bản cho host
+
+---
+
+## 🎯 Yêu Cầu Chức Năng
+
+### Ai được kick?
+- ✅ Chỉ **host** mới được kick
+- ✅ Kick **bất kỳ member nào** (trừ chính mình)
+- ✅ Chỉ kick khi phòng đang **WAITING** (chưa bắt đầu game)
+
+### Điều gì xảy ra?
+1. **Người bị kick:**
+   - Bị xóa khỏi phòng
+   - Quay về lobby
+   - Nhận thông báo "Bạn đã bị kick"
+
+2. **Host:**
+   - Nhận xác nhận kick thành công
+
+3. **Người chơi còn lại:**
+   - Thấy thông báo "Player X đã rời phòng"
+   - Danh sách người chơi tự động cập nhật
+
+---
+
+## 📦 Cấu Trúc Dữ Liệu
+
+### 1. Payload từ Client → Server
+
+```c
+typedef struct PACKED {
+    uint32_t target_account_id;  // ID người bị kick (network byte order)
+} KickMemberPayload;
+```
+
+**Kích thước:** 4 bytes
+
+**⚠️ LƯU Ý:** 
+- Code cũ dùng 8 bytes (room_id + target_id) - **SAI!**
+- Spec đúng chỉ cần 4 bytes (target_account_id)
+- Server tự tìm room_id từ session
+
+**❓ Câu hỏi: "Nhưng như vậy sao biết xóa người ở phòng nào?"**
+
+**💡 Trả lời:**
+
+Server **KHÔNG CẦN** client gửi `room_id` vì:
+
+1. **Host đang ở trong phòng** → Session của host đã lưu thông tin này
+2. Server tìm room bằng cách:
+   ```c
+   // Lấy account_id của host từ session
+   uint32_t kicker_id = session->account_id;
+   
+   // Tìm room mà host đang ở
+   uint32_t room_id = room_find_by_player_account(kicker_id);
+   ```
+
+3. **Lợi ích:**
+   - ✅ Payload nhỏ hơn (4 bytes thay vì 8 bytes)
+   - ✅ An toàn hơn (client không thể fake room_id)
+   - ✅ Server-authoritative (server quyết định mọi thứ)
+
+**Ví dụ:**
+```
+Host (account_id=7) đang ở room 18
+→ Gửi: {target_account_id: 8}
+→ Server tự biết: "account_id=7 đang ở room 18, muốn kick account_id=8"
+```
+
+### 2. Response từ Server → Host
+
+```
+RES_MEMBER_KICKED (0x00E1)
+Payload: EMPTY (0 bytes)
+```
+
+### 3. Notification đến người bị kick
+
+```
+NTF_MEMBER_KICKED (0x02CA)
+Payload: {"room_id": 123}
+```
+
+**❓ Câu hỏi: "Triển khai cái này như nào?"**
+
+**💡 Trả lời: UNICAST - Gửi cho 1 người cụ thể**
+
+**Vấn đề:** Không có helper function `room_send_to_player()` trong codebase!
+
+**Giải pháp:** Gửi thủ công như `LEAVE_ROOM` đã làm:
+
+```c
+// BƯỚC 1: Tìm socket của người bị kick
+UserSession *target_session = session_get_by_account(target_id);
+int target_fd = -1;
+if (target_session) {
+    target_fd = target_session->socket_fd;
+}
+
+// BƯỚC 2: Tạo JSON payload
+cJSON *kick_json = cJSON_CreateObject();
+cJSON_AddNumberToObject(kick_json, "room_id", room_id);
+char *kick_str = cJSON_PrintUnformatted(kick_json);
+
+// BƯỚC 3: Tạo MessageHeader thủ công
+MessageHeader ntf;
+memset(&ntf, 0, sizeof(ntf));
+ntf.magic = htons(MAGIC_NUMBER);        // 0x4347 ("CG")
+ntf.version = PROTOCOL_VERSION;         // 1
+ntf.command = htons(NTF_MEMBER_KICKED); // 0x02CA
+ntf.seq_num = 0;                        // Notification không cần seq
+ntf.length = htonl(strlen(kick_str));   // Độ dài payload
+
+// BƯỚC 4: Gửi header + payload
+if (target_fd >= 0) {
+    send(target_fd, &ntf, sizeof(ntf), 0);      // Gửi header (16 bytes)
+    send(target_fd, kick_str, strlen(kick_str), 0); // Gửi payload
+}
+
+// BƯỚC 5: Cleanup
+free(kick_str);
+cJSON_Delete(kick_json);
+```
+
+**Tại sao phải làm thủ công?**
+- [room_broadcast()](file:///home/duyen/DAIHOC/NetworkProgramming/Final/the-price-is-right-multiplayer/Network/src/transport/room_manager.c#356-394) gửi cho **TẤT CẢ** người trong phòng
+- `forward_response()` chỉ dùng cho **response**, không phải notification
+- Cần gửi cho **1 NGƯỜI CỤ THỂ** (người bị kick)
+
+### 4. Notification đến người chơi còn lại
+
+```
+NTF_PLAYER_LEFT (0x02BD)
+Payload: {"account_id": 456}
+
+NTF_PLAYER_LIST (0x02BE)
+Payload: [{"account_id": 7, "name": "d1", "is_host": true, "is_ready": false}, ...]
+### 4. Notification đến người chơi còn lại
+
+```
+NTF_PLAYER_LEFT (0x02BD)
+Payload: {"account_id": 456}
+
+NTF_PLAYER_LIST (0x02BE)
+Payload: [{"account_id": 7, "name": "d1", "is_host": true, "is_ready": false}, ...]
+```
+
+**❓ Câu hỏi: "Triển khai như nào?"**
+
+**💡 Trả lời: BROADCAST - Gửi cho TẤT CẢ người còn lại**
+
+**Điểm quan trọng:** Phải xóa người bị kick khỏi room **TRƯỚC KHI** broadcast!
+
+```c
+// ========== QUAN TRỌNG: XÓA TRƯỚC ==========
+// Xóa người bị kick khỏi in-memory
+room_remove_player(room_id, target_id);
+
+// Bây giờ room chỉ còn những người KHÔNG bị kick
+// → Broadcast sẽ KHÔNG gửi cho người bị kick!
+
+// ========== BROADCAST 1: NTF_PLAYER_LEFT ==========
+// Thông báo "Player X đã rời phòng"
+cJSON *left_json = cJSON_CreateObject();
+cJSON_AddNumberToObject(left_json, "account_id", target_id);
+char *left_str = cJSON_PrintUnformatted(left_json);
+
+// Gửi cho TẤT CẢ người còn lại trong room
+room_broadcast(room_id, NTF_PLAYER_LEFT, left_str, strlen(left_str), -1);
+//                                                                      ^^
+//                                                                      -1 = không exclude ai
+
+free(left_str);
+cJSON_Delete(left_json);
+
+// ========== BROADCAST 2: NTF_PLAYER_LIST ==========
+// Cập nhật danh sách đầy đủ
+broadcast_player_list(room_id);
+```
+
+**Cách `room_broadcast()` hoạt động:**
+
+```c
+void room_broadcast(int room_id, uint16_t command, 
+                   const char *payload, uint32_t payload_len, 
+                   int exclude_fd) {
+    RoomState *room = find_room(room_id);
+    
+    // Duyệt qua TẤT CẢ member trong room
+    for (int i = 0; i < room->member_count; i++) {
+        int fd = room->member_fds[i];
+        
+        // Bỏ qua nếu là exclude_fd
+        if (fd == exclude_fd) continue;
+        
+        // Gửi cho member này
+        send(fd, &header, sizeof(header), 0);
+        send(fd, payload, payload_len, 0);
+    }
+}
+```
+
+**Tại sao phải xóa TRƯỚC KHI broadcast?**
+
+```
+❌ SAI (broadcast trước):
+1. room có: [player1, player2, player3_bị_kick]
+2. Broadcast → TẤT CẢ 3 người nhận được
+3. Xóa player3
+→ Player3 vừa bị kick VỪA nhận thông báo "bạn bị kick" (lỗi!)
+
+✅ ĐÚNG (xóa trước):
+1. room có: [player1, player2, player3_bị_kick]
+2. Xóa player3 → room còn: [player1, player2]
+3. Broadcast → CHỈ player1 và player2 nhận được
+→ Player3 KHÔNG nhận broadcast này (đúng!)
+```
+
+**Cách `broadcast_player_list()` hoạt động:**
+
+```c
+void broadcast_player_list(uint32_t room_id) {
+    RoomState *room = find_room(room_id);
+    
+    // Tạo JSON array chứa TẤT CẢ players hiện tại
+    cJSON *members = cJSON_CreateArray();
+    for (int i = 0; i < room->player_count; i++) {
+        cJSON *member = cJSON_CreateObject();
+        cJSON_AddNumberToObject(member, "account_id", room->players[i].account_id);
+        cJSON_AddStringToObject(member, "name", room->players[i].name);
+        cJSON_AddStringToObject(member, "avatar", room->players[i].avatar);
+        cJSON_AddBoolToObject(member, "is_host", room->players[i].is_host);
+        cJSON_AddBoolToObject(member, "is_ready", room->players[i].is_ready);
+        cJSON_AddItemToArray(members, member);
+    }
+    
+    // Broadcast cho TẤT CẢ
+    room_broadcast(room_id, NTF_PLAYER_LIST, json_str, strlen(json_str), -1);
+}
+```
+
+---
+
+## 🔧 Backend Implementation
+
+### File: `room_handler.c`
+
+#### Bước 1: Thêm Payload Struct (Line ~46)
+
+```c
+typedef struct PACKED {
+    uint32_t target_account_id; // network byte order
+} KickMemberPayload;
+```
+
+#### Bước 2: Implement `handle_kick_member()` (Lines 569-623)
+
+**Thay thế stub hiện tại bằng:**
+
+```c
+void handle_kick_member(int client_fd, MessageHeader *req, const char *payload) {
+    printf("[HANDLER] <KICK_MEMBER> Request from fd=%d\n", client_fd);
+    
+    // ========== BƯỚC 1: VALIDATE PAYLOAD ==========
+    if (req->length != sizeof(KickMemberPayload)) {
+        send_error(client_fd, req, ERR_BAD_REQUEST, "Invalid payload");
+        return;
+    }
+    
+    // ========== BƯỚC 2: PARSE PAYLOAD ==========
+    KickMemberPayload data;
+    memcpy(&data, payload, sizeof(data));
+    uint32_t target_id = ntohl(data.target_account_id);
+    
+    printf("[Kick Member] Target account_id: %u\n", target_id);
+    
+    // ========== BƯỚC 3: VALIDATE SESSION ==========
+    UserSession *session = session_get_by_socket(client_fd);
+    if (!session || session->state != SESSION_LOBBY) {
+        send_error(client_fd, req, ERR_NOT_LOGGED_IN, "Not logged in");
+        return;
+    }
+    
+    uint32_t kicker_id = session->account_id;
+    printf("[Kick Member] Kicker account_id: %u\n", kicker_id);
+    
+    // ========== BƯỚC 4: TÌM ROOM ==========
+    uint32_t room_id = room_find_by_player_account(kicker_id);
+    if (room_id == 0) {
+        send_error(client_fd, req, ERR_BAD_REQUEST, "Not in any room");
+        return;
+    }
+    
+    RoomState *room = room_get_state(room_id);
+    if (!room) {
+        send_error(client_fd, req, ERR_BAD_REQUEST, "Room not found");
+        return;
+    }
+    
+    printf("[Kick Member] Room ID: %u\n", room_id);
+    
+    // ========== BƯỚC 5: VALIDATE HOST PERMISSION ==========
+    if (room->host_id != kicker_id) {
+        send_error(client_fd, req, ERR_NOT_HOST, "Only host can kick members");
+        return;
+    }
+    
+    // ========== BƯỚC 6: VALIDATE ROOM STATUS ==========
+    if (room->status != ROOM_WAITING) {
+        send_error(client_fd, req, ERR_BAD_REQUEST, "Cannot kick during game");
+        return;
+    }
+    
+    // ========== BƯỚC 7: VALIDATE TARGET TỒN TẠI ==========
+    int target_index = -1;
+    for (int i = 0; i < room->player_count; i++) {
+        if (room->players[i].account_id == target_id) {
+            target_index = i;
+            break;
+        }
+    }
+    
+    if (target_index == -1) {
+        send_error(client_fd, req, ERR_BAD_REQUEST, "Target player not in room");
+        return;
+    }
+    
+    // ========== BƯỚC 8: KHÔNG THỂ KICK CHÍNH MÌNH ==========
+    if (target_id == kicker_id) {
+        send_error(client_fd, req, ERR_BAD_REQUEST, "Cannot kick yourself");
+        return;
+    }
+    
+    // ========== LOG BEFORE STATE ==========
+    printf("[Kick Member] ===== BEFORE STATE =====\n");
+    printf("[Kick Member] [RoomState] Room ID: %u\n", room->id);
+    printf("[Kick Member] [RoomState] Host ID: %u\n", room->host_id);
+    printf("[Kick Member] [RoomState] Player Count: %d\n", room->player_count);
+    printf("[Kick Member] [RoomPlayerState] Players:\n");
+    for (int i = 0; i < room->player_count; i++) {
+        printf("[Kick Member] [RoomPlayerState]   [%d] %s (id=%u, host=%s, ready=%s, connected=%s)\n",
+               i, room->players[i].name, room->players[i].account_id,
+               room->players[i].is_host ? "YES" : "NO",
+               room->players[i].is_ready ? "YES" : "NO",
+               room->players[i].connected ? "YES" : "NO");
+    }
+    printf("[Kick Member] Kicker: %u (host)\n", kicker_id);
+    printf("[Kick Member] Target: %u\n", target_id);
+    
+    // ========== BƯỚC 9: TÌM TARGET SESSION VÀ SOCKET ==========
+    UserSession *target_session = session_get_by_account(target_id);
+    int target_fd = -1;
+    if (target_session) {
+        target_fd = target_session->socket_fd;
+        printf("[Kick Member] Target socket fd: %d\n", target_fd);
+    } else {
+        printf("[Kick Member] ⚠️  Target session not found (offline?)\n");
+    }
+    
+    // ========== BƯỚC 10: XÓA KHỎI IN-MEMORY (QUAN TRỌNG: PHẢI TRƯỚC KHI BROADCAST!) ==========
+    int removed = room_remove_player(room_id, target_id);
+    if (removed != 0) {
+        send_error(client_fd, req, ERR_BAD_REQUEST, "Failed to remove player");
+        return;
+    }
+    
+    printf("[Kick Member] ✅ Removed player %u from in-memory state\n", target_id);
+    
+    // ========== BƯỚC 11: XÓA KHỎI DATABASE ==========
+    int rc = room_repo_remove_player(room_id, target_id);
+    if (rc != 0) {
+        printf("[Kick Member] ⚠️  Warning: Failed to remove from DB\n");
+    }
+    
+    // ========== BƯỚC 12: CẬP NHẬT TARGET SESSION STATE ==========
+    if (target_session) {
+        target_session->state = SESSION_LOBBY;
+        printf("[Kick Member] Updated target session state to SESSION_LOBBY\n");
+    }
+    
+    // ========== LOG AFTER STATE ==========
+    printf("[Kick Member] ===== AFTER STATE =====\n");
+    printf("[Kick Member] [RoomState] Room ID: %u\n", room->id);
+    printf("[Kick Member] [RoomState] Player Count: %d\n", room->player_count);
+    printf("[Kick Member] [RoomPlayerState] Players:\n");
+    for (int i = 0; i < room->player_count; i++) {
+        printf("[Kick Member] [RoomPlayerState]   [%d] %s (id=%u, host=%s, ready=%s, connected=%s)\n",
+               i, room->players[i].name, room->players[i].account_id,
+               room->players[i].is_host ? "YES" : "NO",
+               room->players[i].is_ready ? "YES" : "NO",
+               room->players[i].connected ? "YES" : "NO");
+    }
+    
+    // ========== BƯỚC 13: GỬI RESPONSE CHO HOST ==========
+    forward_response(client_fd, req, RES_MEMBER_KICKED, "", 0);
+    printf("[Kick Member] Sent RES_MEMBER_KICKED to host (fd=%d)\n", client_fd);
+    
+    // ========== BƯỚC 14: GỬI NTF_MEMBER_KICKED CHO NGƯỜI BỊ KICK (UNICAST) ==========
+    if (target_fd >= 0) {
+        cJSON *kick_json = cJSON_CreateObject();
+        cJSON_AddNumberToObject(kick_json, "room_id", room_id);
+        char *kick_str = cJSON_PrintUnformatted(kick_json);
+        
+        // Manual send (vì không có helper function cho unicast)
+        MessageHeader ntf;
+        memset(&ntf, 0, sizeof(ntf));
+        ntf.magic = htons(MAGIC_NUMBER);
+        ntf.version = PROTOCOL_VERSION;
+        ntf.command = htons(NTF_MEMBER_KICKED);
+        ntf.seq_num = 0;
+        ntf.length = htonl(strlen(kick_str));
+        
+        send(target_fd, &ntf, sizeof(ntf), 0);
+        send(target_fd, kick_str, strlen(kick_str), 0);
+        
+        free(kick_str);
+        cJSON_Delete(kick_json);
+        
+        printf("[Kick Member] Sent NTF_MEMBER_KICKED to target (fd=%d)\n", target_fd);
+    }
+    
+    // ========== BƯỚC 15: BROADCAST NTF_PLAYER_LEFT CHO NGƯỜI CHƠI CÒN LẠI ==========
+    // (Target đã bị xóa, nên sẽ không nhận broadcast này)
+    cJSON *left_json = cJSON_CreateObject();
+    cJSON_AddNumberToObject(left_json, "account_id", target_id);
+    char *left_str = cJSON_PrintUnformatted(left_json);
+    
+    printf("[Kick Member] Broadcasting NTF_PLAYER_LEFT: %s\n", left_str);
+    room_broadcast(room_id, NTF_PLAYER_LEFT, left_str, strlen(left_str), -1);
+    
+    free(left_str);
+    cJSON_Delete(left_json);
+    
+    // ========== BƯỚC 16: BROADCAST NTF_PLAYER_LIST CHO NGƯỜI CHƠI CÒN LẠI ==========
+    printf("[Kick Member] Broadcasting NTF_PLAYER_LIST\n");
+    broadcast_player_list(room_id);
+    
+    printf("[Kick Member] ✅ SUCCESS: player %u kicked from room %u by host %u\n",
+           target_id, room_id, kicker_id);
+}
+```
+
+#### Bước 3: Verify Dispatcher (Line 93-94)
+
+**✅ ĐÃ CÓ SẴN:**
+```c
+case CMD_KICK:
+    handle_kick_member(client_fd, header, payload);
+    break;
+```
+
+---
+
+## 🎨 Frontend Implementation
+
+### File: `hostService.js`
+
+#### Sửa Function `kickMember()` (Lines 204-213)
+
+**❌ Code hiện tại (SAI):**
+```javascript
+export function kickMember(roomId, targetId) {
+    const buffer = new ArrayBuffer(8);  // SAI: 8 bytes
+    const view = new DataView(buffer);
+    
+    view.setUint32(0, roomId, false);   // SAI: không cần room_id
+    view.setUint32(4, targetId, false);
+    
+    sendPacket(OPCODE.CMD_KICK, buffer);
+}
+```
+
+**✅ Code đúng:**
+```javascript
+/**
+ * Kick một member khỏi phòng (chỉ host)
+ * KickMemberPayload struct (4 bytes):
+ * - uint32_t target_account_id (network byte order)
+ */
+export function kickMember(targetAccountId) {
+    console.log('[HOST_SERVICE] Kicking member:', targetAccountId);
+    
+    const buffer = new ArrayBuffer(4);  // ✅ 4 bytes
+    const view = new DataView(buffer);
+    view.setUint32(0, targetAccountId, false);  // ✅ Chỉ target_account_id
+    
+    sendPacket(OPCODE.CMD_KICK, buffer);
+}
+```
+
+#### Sửa Handler `RES_MEMBER_KICKED` (Lines 215-231)
+
+**❌ Code hiện tại (SAI):**
+```javascript
+registerHandler(OPCODE.RES_MEMBER_KICKED, (payload) => {
+    const text = new TextDecoder().decode(payload);
+    let jsonStr = text.substring(text.indexOf('\r\n\r\n') + 4);
+    
+    try {
+        const response = JSON.parse(jsonStr);  // SAI: payload rỗng!
+        
+        if (response.success) {
+            console.log('[Host] Member kicked');
+            alert('Member kicked successfully');
+        } else {
+            alert('Failed to kick member: ' + response.error);
+        }
+    } catch (e) {
+        console.error('[Host] Parse error:', e);
+    }
+});
+```
+
+**✅ Code đúng:**
+```javascript
+registerHandler(OPCODE.RES_MEMBER_KICKED, (payload) => {
+    console.log('[HOST_SERVICE] ✅ Member kicked successfully');
+    // Payload rỗng, không cần parse
+    // UI sẽ tự động cập nhật qua NTF_PLAYER_LEFT và NTF_PLAYER_LIST
+});
+```
+
+### File: `WaitingRoom.js`
+
+#### Thêm Handler `NTF_MEMBER_KICKED` (sau line ~140)
+
+```javascript
+// Handler for NTF_MEMBER_KICKED (chỉ người bị kick nhận được)
+registerHandler(OPCODE.NTF_MEMBER_KICKED, (payload) => {
+    const text = new TextDecoder().decode(payload);
+    try {
+        const { room_id } = JSON.parse(text);
+        console.log('[WaitingRoom] ❌ You were kicked from room:', room_id);
+        
+        alert('⚠️ Bạn đã bị kick khỏi phòng!');
+        
+        // Quay về lobby
+        navigate('/lobby');
+    } catch (e) {
+        console.error('[WaitingRoom] Failed to parse NTF_MEMBER_KICKED:', e);
+    }
+});
+```
+
+### File: `MemberListPanel.js`
+
+#### Sửa Function Call `handleKick()` (Line 38)
+
+**❌ Code hiện tại (SAI):**
+```javascript
+const handleKick = (memberId) => {
+    if (!window.confirm("Are you sure you want to kick this member?")) {
+        return;
+    }
+    console.log("🔵 Kicking member:", memberId, "from room:", roomId);
+    kickMember(roomId, memberId);  // SAI: 2 tham số
+};
+```
+
+**✅ Code đúng:**
+```javascript
+const handleKick = (memberId) => {
+    if (!window.confirm("Bạn có chắc muốn kick người chơi này?")) {
+        return;
+    }
+    console.log("🔵 Kicking member:", memberId);
+    kickMember(memberId);  // ✅ Chỉ 1 tham số
+};
+```
+
+---
+
+## ⚠️ Những Điểm Cực Kỳ Quan Trọng
+
+### 1. **Thứ Tự Thực Hiện PHẢI ĐÚNG**
+
+```
+✅ ĐÚNG:
+1. Xóa khỏi in-memory (room_remove_player)
+2. Xóa khỏi DB (room_repo_remove_player)
+3. Cập nhật session
+4. Gửi response cho host
+5. Gửi notification cho người bị kick
+6. Broadcast cho người còn lại
+
+❌ SAI:
+- Nếu broadcast TRƯỚC KHI xóa → người bị kick sẽ nhận được broadcast!
+```
+
+### 2. **Payload Size**
+
+```
+❌ SAI: 8 bytes (room_id + target_id)
+✅ ĐÚNG: 4 bytes (chỉ target_account_id)
+```
+
+### 3. **Unicast vs Broadcast**
+
+- **Unicast** (gửi cho 1 người): Dùng manual [send()](file:///home/duyen/DAIHOC/NetworkProgramming/Final/the-price-is-right-multiplayer/Network/src/handlers/room_handler.c#65-71) với `MessageHeader`
+- **Broadcast** (gửi cho nhiều người): Dùng [room_broadcast()](file:///home/duyen/DAIHOC/NetworkProgramming/Final/the-price-is-right-multiplayer/Network/src/transport/room_manager.c#356-394)
+
+### 4. **Logging**
+
+Phải log đầy đủ:
+- BEFORE state (trước khi kick)
+- AFTER state (sau khi kick)
+- Mỗi bước quan trọng
+
+---
+
+## ✅ Checklist Triển Khai
+
+### Backend
+
+- [ ] **File: [room_handler.c](file:///home/duyen/DAIHOC/NetworkProgramming/Final/the-price-is-right-multiplayer/Network/src/handlers/room_handler.c)**
+  - [ ] Thêm `KickMemberPayload` struct (line ~46)
+  - [ ] Thay thế stub [handle_kick_member()](file:///home/duyen/DAIHOC/NetworkProgramming/Final/the-price-is-right-multiplayer/Network/src/handlers/room_handler.c#569-624) (lines 569-623)
+  - [ ] Verify includes: `<stdlib.h>`, `<string.h>`, `cJSON`
+  
+- [ ] **File: [dispatcher.c](file:///home/duyen/DAIHOC/NetworkProgramming/Final/the-price-is-right-multiplayer/Network/src/handlers/dispatcher.c)**
+  - [x] Verify `CMD_KICK` đã registered (line 93-94) ✅ **ĐÃ CÓ**
+
+- [ ] **Build & Test**
+  - [ ] Compile thành công
+  - [ ] Không có warning
+
+### Frontend
+
+- [ ] **File: [hostService.js](file:///home/duyen/DAIHOC/NetworkProgramming/Final/the-price-is-right-multiplayer/Frontend/src/services/hostService.js)**
+  - [ ] Sửa [kickMember()](file:///home/duyen/DAIHOC/NetworkProgramming/Final/the-price-is-right-multiplayer/Frontend/src/services/hostService.js#199-214) function (lines 204-213)
+    - [ ] Đổi payload từ 8 bytes → 4 bytes
+    - [ ] Xóa parameter `roomId`
+    - [ ] Chỉ giữ `targetAccountId`
+  - [ ] Sửa `RES_MEMBER_KICKED` handler (lines 215-231)
+    - [ ] Xóa JSON parsing
+    - [ ] Chỉ log success
+
+- [ ] **File: [WaitingRoom.js](file:///home/duyen/DAIHOC/NetworkProgramming/Final/the-price-is-right-multiplayer/Frontend/src/components/Room/WaitingRoom/WaitingRoom.js)**
+  - [ ] Thêm `NTF_MEMBER_KICKED` handler (sau line ~140)
+    - [ ] Parse `room_id` từ payload
+    - [ ] Show alert
+    - [ ] Navigate to `/lobby`
+
+- [ ] **File: [MemberListPanel.js](file:///home/duyen/DAIHOC/NetworkProgramming/Final/the-price-is-right-multiplayer/Frontend/src/components/Room/WaitingRoom/MemberListPanel.js)**
+  - [ ] Sửa [handleKick()](file:///home/duyen/DAIHOC/NetworkProgramming/Final/the-price-is-right-multiplayer/Frontend/src/components/Room/WaitingRoom/MemberListPanel.js#33-40) call (line 38)
+    - [ ] Xóa parameter `roomId`
+    - [ ] Chỉ truyền `memberId`
+
+### Testing
+
+- [ ] **Test Case 1: Kick thành công**
+  - [ ] Host kick member → member bị đuổi
+  - [ ] Member nhận thông báo "Bạn đã bị kick"
+  - [ ] Member quay về lobby
+  - [ ] Danh sách người chơi cập nhật
+
+- [ ] **Test Case 2: Không phải host**
+  - [ ] Member thường click kick → Lỗi "Only host can kick"
+
+- [ ] **Test Case 3: Kick chính mình**
+  - [ ] Host kick chính mình → Lỗi "Cannot kick yourself"
+
+- [ ] **Test Case 4: Kick khi đang chơi**
+  - [ ] Game đã bắt đầu → Lỗi "Cannot kick during game"
+
+- [ ] **Test Case 5: Target không tồn tại**
+  - [ ] Kick ID không có trong phòng → Lỗi "Target not in room"
+
+---
+
+## 🚀 Thứ Tự Thực Hiện
+
+1. **Backend trước** (quan trọng hơn)
+   - Thêm struct
+   - Implement handler
+   - Build & test
+
+2. **Frontend sau**
+   - Fix payload
+   - Fix handlers
+   - Test UI
+
+3. **Integration test**
+   - Test toàn bộ flow
+   - Verify logs
+   - Fix bugs nếu có
+
+---
+
+## 📝 Notes
+
+- Tham khảo [handle_leave_room()](file:///home/duyen/DAIHOC/NetworkProgramming/Final/the-price-is-right-multiplayer/Network/src/handlers/room_handler.c#625-815) khi gặp khó khăn
+- Logging phải chi tiết để dễ debug
+- Test từng bước, đừng làm hết rồi mới test
+- Nếu có lỗi, check logs backend trước
+

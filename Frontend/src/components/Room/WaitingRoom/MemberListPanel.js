@@ -31,11 +31,11 @@ export default function MemberListPanel({ isHost, roomId, hostId, roomName, room
   }, [onRefresh]);
 
   const handleKick = (memberId) => {
-    if (!window.confirm("Are you sure you want to kick this member?")) {
+    if (!window.confirm("Bạn có chắc muốn kick người chơi này?")) {
       return;
     }
-    console.log("🔵 Kicking member:", memberId, "from room:", roomId);
-    kickMember(roomId, memberId);
+    console.log("🔵 Kicking member:", memberId);
+    kickMember(memberId);  // ✅ Chỉ 1 tham số
   };
 
   return (
