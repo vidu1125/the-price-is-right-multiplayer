@@ -43,6 +43,7 @@ enum GameEventType {
   // Player connection events
   playerDisconnected,  // NTF_PLAYER_LEFT (701)
   playerReconnected,   // NTF_PLAYER_LIST (702) - used for reconnect
+  bonusStart,          // OP_S2C_BONUS_PARTICIPANT or SPECTATOR
 }
 
 class GameEvent {
@@ -96,6 +97,10 @@ class GameStateService {
   static const int opS2CRound3DecisionAck = 0x0653;
   static const int opS2CRound3FinalResult = 0x0654;
   static const int opS2CRound3AllFinished = 0x0655;
+
+  // Bonus Round opcodes
+  static const int opS2CBonusParticipant = 0x0671;
+  static const int opS2CBonusSpectator = 0x0672;
 
   GameStateService(this.client, this.dispatcher) {
     _registerHandlers();
@@ -233,6 +238,17 @@ class GameStateService {
     dispatcher.register(opS2CRound3ReadyStatus, (msg) {
       var json = Protocol.decodeJson(msg.payload);
       _eventController.add(GameEvent(GameEventType.round3ReadyStatus, json));
+    });
+
+    // ========== BONUS ROUND HANDLERS ==========
+    dispatcher.register(opS2CBonusParticipant, (msg) {
+      var json = Protocol.decodeJson(msg.payload);
+      _eventController.add(GameEvent(GameEventType.bonusStart, json));
+    });
+
+    dispatcher.register(opS2CBonusSpectator, (msg) {
+      var json = Protocol.decodeJson(msg.payload);
+      _eventController.add(GameEvent(GameEventType.bonusStart, json));
     });
   }
 

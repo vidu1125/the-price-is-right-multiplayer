@@ -104,4 +104,16 @@ class Command {
   static const int ntfFriendAdded = 719;
   static const int ntfFriendRemoved = 720;
   static const int ntfHostChanged = 721;
+
+  // Bonus Round - Tiebreaker (Sync with 0x0660 - 0x067F)
+  static const int bonusReady = 0x0660;
+  static const int bonusDrawCard = 0x0661;
+  static const int ntfBonusInit = 0x0670;
+  static const int ntfBonusParticipant = 0x0671;
+  static const int ntfBonusSpectator = 0x0672;
+  static const int ntfBonusCardDrawn = 0x0673;
+  static const int ntfBonusPlayerDrew = 0x0674;
+  static const int ntfBonusReveal = 0x0675;
+  static const int ntfBonusResult = 0x0676;
+  static const int ntfBonusTransition = 0x0677;
 }

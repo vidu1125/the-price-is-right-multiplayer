@@ -174,63 +174,20 @@ class _RoomCardState extends State<RoomCard> {
 
                           const SizedBox(height: 16),
                           
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    _buildLabel("MAX PLAYERS"),
-                                    const SizedBox(height: 8),
-                                    _buildTextField(
-                                      initialValue: maxPlayers.toString(),
-                                      enabled: mode != "elimination",
-                                      keyboardType: TextInputType.number,
-                                      onChanged: (val) => maxPlayers = int.tryParse(val) ?? 4,
-                                      icon: Icons.group_rounded,
-                                    ),
-                                  ],
-                                ),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildLabel("MAX PLAYERS"),
+                                  const SizedBox(height: 8),
+                                  _buildTextField(
+                                    initialValue: maxPlayers.toString(),
+                                    enabled: mode != "elimination",
+                                    keyboardType: TextInputType.number,
+                                    onChanged: (val) => maxPlayers = int.tryParse(val) ?? 4,
+                                    icon: Icons.group_rounded,
+                                  ),
+                                ],
                               ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    _buildLabel("WAGER"),
-                                    const SizedBox(height: 8),
-                                    Container(
-                                      height: 54, // Match height of inputs
-                                      decoration: BoxDecoration(
-                                        color: Colors.white, // White background
-                                        borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(color: LobbyTheme.primaryDark, width: 2),
-                                      ),
-                                      child: Row(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: [
-                                          Text(
-                                            wagerEnabled ? "ON" : "OFF",
-                                            style: TextStyle(
-                                              fontFamily: 'Parkinsans',
-                                              fontWeight: FontWeight.bold,
-                                              color: wagerEnabled ? Colors.green : Colors.grey,
-                                              fontSize: 16
-                                            ),
-                                          ),
-                                          Switch(
-                                            value: wagerEnabled,
-                                            activeColor: LobbyTheme.greenCreate,
-                                            onChanged: (val) => setModalState(() => wagerEnabled = val),
-                                          ),
-                                        ],
-                                      ),
-                                    )
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
                         ],
                       ),
                     ),
@@ -263,12 +220,12 @@ class _RoomCardState extends State<RoomCard> {
                               // We might need name/avatar. For now use placeholder or fetch?
                               // If we don't have name, "Host" is fine for initial UI until real data syncs.
                               
-                               final res = await ServiceLocator.roomService.createRoom(
+                                  final res = await ServiceLocator.roomService.createRoom(
                                   name: name,
                                   visibility: visibility,
                                   mode: mode,
                                   maxPlayers: maxPlayers,
-                                  wager: wagerEnabled
+                                  wager: false // Wager removed
                               );
                               
                               if (context.mounted) {

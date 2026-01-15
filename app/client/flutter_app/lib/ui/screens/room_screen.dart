@@ -31,7 +31,7 @@ class _RoomScreenState extends State<RoomScreen> {
   String _tempMode = "scoring";
   int _tempMaxPlayers = 6;
   String _tempVisibility = "public";
-  bool _tempWager = true;
+
 
   bool get _isHost => _room.hostId == _currentUserId;
 
@@ -43,25 +43,97 @@ class _RoomScreenState extends State<RoomScreen> {
     _tempMode = _room.mode;
     _tempMaxPlayers = _room.maxPlayers;
     _tempVisibility = _room.visibility;
-    _tempWager = _room.wagerMode;
+
     _init();
   }
 
   // ... (rest)
 
   Future<void> _saveRules() async {
+      // Validate: Check if new max_players is less than current player count
+      if (_tempMaxPlayers < _room.members.length) {
+          // Show beautiful warning dialog
+          final confirmed = await showDialog<bool>(
+              context: context,
+              builder: (context) => AlertDialog(
+                  backgroundColor: const Color(0xFF1A1A2E),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      side: const BorderSide(color: Color(0xFFFFEB3B), width: 3),
+                  ),
+                  title: Row(
+                      children: [
+                          const Icon(Icons.warning_amber_rounded, color: Color(0xFFFFEB3B), size: 32),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                              child: Text(
+                                  "TOO MANY PLAYERS!",
+                                  style: TextStyle(
+                                      fontFamily: 'LuckiestGuy',
+                                      fontSize: 20,
+                                      color: Color(0xFFFFEB3B),
+                                  ),
+                              ),
+                          ),
+                      ],
+                  ),
+                  content: Text(
+                      "You're trying to set max players to $_tempMaxPlayers, but there are currently ${_room.members.length} players in the room.\n\nPlease kick some players first!",
+                      style: const TextStyle(
+                          fontFamily: 'Parkinsans',
+                          fontSize: 16,
+                          color: Colors.white70,
+                      ),
+                  ),
+                  actions: [
+                      TextButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          style: TextButton.styleFrom(
+                              backgroundColor: const Color(0xFF66BB6A),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                          child: const Text("OK, GOT IT!", style: TextStyle(fontFamily: 'LuckiestGuy', fontSize: 14)),
+                      ),
+                  ],
+              ),
+          );
+          
+          if (confirmed != true) {
+              setState(() => _editMode = false); // Exit edit mode
+              return;
+          }
+      }
+      
       try {
           await ServiceLocator.roomService.setRules(
               mode: _tempMode,
               maxPlayers: _tempMaxPlayers,
               visibility: _tempVisibility,
-              wager: _tempWager
+              wager: false // Wager removed
           );
-          ScaffoldMessenger.of(context).showSnackBar(
-             const SnackBar(content: Text("Rules updated!"))
-          );
+          if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                      content: const Text("✅ Rules updated successfully!"),
+                      backgroundColor: const Color(0xFF66BB6A),
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  )
+              );
+          }
       } catch (e) {
-          if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Failed to save rules: $e")));
+          if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                      content: Text("❌ Failed to save rules: $e"),
+                      backgroundColor: Colors.red,
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  )
+              );
+          }
       }
   }
 
@@ -473,7 +545,7 @@ class _RoomScreenState extends State<RoomScreen> {
     final dMode = _editMode ? _tempMode : _room.mode;
     final dMax = _editMode ? _tempMaxPlayers : _room.maxPlayers;
     final dVis = _editMode ? _tempVisibility : _room.visibility;
-    final dWager = _editMode ? _tempWager : _room.wagerMode;
+
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -529,7 +601,7 @@ class _RoomScreenState extends State<RoomScreen> {
                                 _tempMode = _room.mode;
                                 _tempMaxPlayers = _room.maxPlayers;
                                 _tempVisibility = _room.visibility;
-                                _tempWager = _room.wagerMode;
+
                                 _editMode = true;
                             });
                         }
@@ -606,24 +678,6 @@ class _RoomScreenState extends State<RoomScreen> {
                    const SizedBox(width: 10),
                    _wrToggleButton("SCORING", dMode.toLowerCase() == "scoring", 
                        () => setState(() => _tempMode = "scoring")),
-                ],
-              ),
-              const SizedBox(height: 20),
-
-              // Wager
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Flexible(child: Text("WAGER MODE:", style: TextStyle(fontFamily: 'LuckiestGuy', fontSize: 16, color: Color(0xFF29B6F6)))),
-                  const SizedBox(width: 4),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                       _wagerBadge("ON", dWager, () => setState(() => _tempWager = true)),
-                       const SizedBox(width: 8),
-                       _wagerBadge("OFF", !dWager, () => setState(() => _tempWager = false)),
-                    ],
-                  ),
                 ],
               ),
             ],

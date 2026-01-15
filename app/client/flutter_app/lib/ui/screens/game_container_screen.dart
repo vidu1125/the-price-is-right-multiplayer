@@ -4,6 +4,7 @@ import '../theme/game_theme.dart';
 import '../widgets/round1_widget.dart';
 import '../widgets/round2_widget.dart';
 import '../widgets/round3_widget.dart';
+import '../widgets/round_bonus_widget.dart';
 import '../widgets/game_button.dart';
 import '../../services/service_locator.dart';
 import '../../services/game_state_service.dart';
@@ -33,7 +34,7 @@ class _GameContainerScreenState extends State<GameContainerScreen> {
   int _round3Score = -999; // Current score in Round 3 (Wheel). -999 means "pending" or "no result".
   int _spinNumber = 1; // Current spin number (1 or 2)
   int? _myPlayerId; // Current user ID
-  // _wheelSegments is not used anymore as Round3Widget uses hardcoded values.
+  bool _inBonusRound = false; 
   List<String> _wheelSegments = [];
 
   @override
@@ -212,10 +213,16 @@ class _GameContainerScreenState extends State<GameContainerScreen> {
           }
           break;
 
+        case GameEventType.bonusStart:
+          print("[GameContainer] BONUS ROUND STARTING!");
+          _inBonusRound = true;
+          _isLoading = false;
+          _showingResult = false;
+          break;
+
         case GameEventType.roundEnd:
           print("[GameContainer] Round ended");
           _countdownTimer?.cancel();
-          // TODO: Show round summary and move to next round
           break;
 
         case GameEventType.gameEnd:
@@ -735,6 +742,14 @@ class _GameContainerScreenState extends State<GameContainerScreen> {
   }
 
   Widget _buildRoundWidget() {
+    if (_inBonusRound) {
+       return RoundBonusWidget(
+         matchId: _matchId,
+         myPlayerId: _myPlayerId ?? 0,
+         onTransition: _handleBonusTransition,
+       );
+    }
+
     switch (_currentRound) {
       case 1:
         if (_currentQuestion == null) {
@@ -797,6 +812,36 @@ class _GameContainerScreenState extends State<GameContainerScreen> {
       if (continueSpin) {
         _round3Score = 0; // Clear score to indicate we are spinning again
       }
+    });
+  }
+
+  void _handleBonusTransition(Map<String, dynamic> data) {
+    print("[GameContainer] Bonus transition: $data");
+    
+    // Delay to let user see result
+    Future.delayed(const Duration(seconds: 3), () {
+      if (!mounted) return;
+      
+      setState(() {
+        _inBonusRound = false;
+        final nextPhase = data['next_phase'];
+        
+        if (nextPhase == 'NEXT_ROUND') {
+          _currentRound = data['next_round'] ?? (_currentRound + 1);
+          _isLoading = true;
+          _currentQuestion = null;
+          
+          // Re-initialize for next round
+          if (_currentRound == 2) {
+             ServiceLocator.gameStateService.sendRound2PlayerReady(_matchId, 0);
+          } else if (_currentRound == 3) {
+             ServiceLocator.gameStateService.sendRound3PlayerReady(_matchId, 0);
+          }
+        } else if (nextPhase == 'MATCH_ENDED') {
+          // Will be handled by ntfGameEnd
+          print("[GameContainer] Bonus led to Match End");
+        }
+      });
     });
   }
 

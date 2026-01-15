@@ -99,6 +99,7 @@ class AuthService {
       final data = Protocol.decodeJson(response.payload);
       if (response.command == Command.resLoginOk || response.command == Command.resSuccess) {
         await persistAuth(data);
+        
         return {"success": true, "data": data};
       } else {
         await clearAuth();
@@ -159,6 +160,12 @@ class AuthService {
       if (data["profile"].containsKey("email")) {
         await prefs.setString("email", data["profile"]["email"]);
       }
+    }
+    
+    // Save current_room if user was in a room
+    if (data.containsKey("current_room") && data["current_room"] != null) {
+      await prefs.setString("pending_room_restore", jsonEncode(data["current_room"]));
+      print("💾 Saved pending room restore: ${data["current_room"]["room_name"]}");
     }
   }
 

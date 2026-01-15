@@ -8,6 +8,8 @@ import '../theme/lobby_theme.dart';
 import '../../services/service_locator.dart';
 import '../../services/friend_service.dart';
 import '../../services/room_service.dart';
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../widgets/invitation_dialog.dart';
 
@@ -29,6 +31,9 @@ class _LobbyScreenState extends State<LobbyScreen> {
     super.initState();
     // Only fetch once on init
     _fetchPendingRequests();
+    
+    // Check if user needs to be restored to a room
+    _checkPendingRoomRestore();
     
     // Listen for friend updates (Real-time instead of polling)
     _friendSub = ServiceLocator.friendService.events.listen((event) {
@@ -69,6 +74,48 @@ class _LobbyScreenState extends State<LobbyScreen> {
              });
         }
     });
+  }
+
+  Future<void> _checkPendingRoomRestore() async {
+    final prefs = await SharedPreferences.getInstance();
+    final roomDataStr = prefs.getString("pending_room_restore");
+    
+    if (roomDataStr != null) {
+      try {
+        final roomData = jsonDecode(roomDataStr);
+        final roomId = roomData["room_id"];
+        
+        print("🏠 Restoring room: ${roomData["room_name"]} (ID: $roomId)");
+        
+        // Clear pending restore
+        await prefs.remove("pending_room_restore");
+        
+        // Fetch full room data and navigate
+        WidgetsBinding.instance.addPostFrameCallback((_) async {
+          if (!mounted) return;
+          
+          try {
+            // Join the room to get full data
+            final room = await ServiceLocator.roomService.joinRoom(roomId);
+            if (room != null && mounted) {
+              Navigator.pushNamed(
+                context, 
+                '/room', 
+                arguments: {
+                  'room': room,
+                  'initialIsHost': roomData["is_host"] == true
+                }
+              );
+            }
+          } catch (e) {
+            print("❌ Failed to restore room: $e");
+          }
+        });
+      } catch (e) {
+        print("❌ Error parsing pending room: $e");
+        await prefs.remove("pending_room_restore");
+      }
+    }
   }
 
   Future<void> _fetchPendingRequests() async {
