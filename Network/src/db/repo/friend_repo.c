@@ -475,24 +475,30 @@ db_error_t friend_remove(
         return DB_ERROR_INVALID_PARAM;
     }
 
-    // Remove both directions
+    // Remove both directions - only accepted friendships
     char filter1[256];
     snprintf(filter1, sizeof(filter1), 
-        "and(requester_id.eq.%d,addressee_id.eq.%d)", user_id_1, user_id_2);
+        "requester_id = %d AND addressee_id = %d AND status = 'ACCEPTED'", user_id_1, user_id_2);
 
     char filter2[256];
     snprintf(filter2, sizeof(filter2), 
-        "and(requester_id.eq.%d,addressee_id.eq.%d)", user_id_2, user_id_1);
+        "requester_id = %d AND addressee_id = %d AND status = 'ACCEPTED'", user_id_2, user_id_1);
 
     db_error_t err1 = db_delete("friends", filter1, NULL);
     db_error_t err2 = db_delete("friends", filter2, NULL);
 
-    // Return success if at least one delete succeeded or both returned not found
-    if (err1 == DB_SUCCESS || err2 == DB_SUCCESS) {
+    // Both directions must be deleted successfully or both not found
+    // Only succeed if both operations are successful or both returned not found
+    bool both_ok = (err1 == DB_SUCCESS || err1 == DB_ERROR_NOT_FOUND) && 
+                   (err2 == DB_SUCCESS || err2 == DB_ERROR_NOT_FOUND);
+    
+    if (both_ok) {
+        printf("[FRIEND] Successfully removed friendship both directions: %d <-> %d\n", user_id_1, user_id_2);
         return DB_SUCCESS;
     }
 
-    return err1; // Return first error if both failed
+    printf("[FRIEND] Error removing friendship - only partial removal: err1=%d, err2=%d\n", err1, err2);
+    return err1 != DB_SUCCESS ? err1 : err2; // Return first error
 }
 
 db_error_t friend_block(
