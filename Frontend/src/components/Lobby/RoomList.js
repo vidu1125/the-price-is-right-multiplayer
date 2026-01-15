@@ -30,6 +30,12 @@ export default function RoomList() {
       setIsLoading(false);
     });
 
+    // Handle room full error
+    registerHandler(OPCODE.ERR_ROOM_FULL, (payload) => {
+      console.warn("[RoomList] Room is full");
+      alert("❌ Phòng đã đầy! Không thể tham gia.");
+    });
+
     // Send request immediately
     console.log("[RoomList] Fetching rooms...");
     sendPacket(OPCODE.CMD_GET_ROOM_LIST);

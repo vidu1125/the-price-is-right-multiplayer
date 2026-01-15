@@ -1,0 +1,412 @@
+# 🧪 ROOM FEATURE TEST SCENARIOS
+
+**Date:** 2026-01-15  
+**Status:** Ready for Testing  
+**Features:** CREATE, JOIN, LEAVE, KICK, READY, SET_RULES
+
+---
+
+## 📋 TEST CASE 1: CREATE ROOM
+
+### Mục tiêu
+Verify user có thể tạo phòng thành công và trở thành host
+
+### Preconditions
+- User đã đăng nhập
+- User đang ở Lobby
+
+### Steps
+1. Click button "Create Room"
+2. Nhập room name: "Test Room"
+3. Chọn settings: Mode=Scoring, Max Players=6, Wager Mode=Off, Visibility=Public
+4. Click "Create"
+
+### Expected Results
+- ✅ Room được tạo với code 6 ký tự (vd: "A1B2C3")
+- ✅ User được chuyển đến WaitingRoom
+- ✅ User là host (có nút "Start Game", "Edit Rules", "Kick")
+- ✅ Player list hiển thị user với badge "HOST"
+- ✅ Room settings hiển thị đúng
+
+### Backend Logs
+```
+[SERVER] [CREATE_ROOM] Request from fd=X
+[SERVER] [CREATE_ROOM] ✅ SUCCESS: room_id=X, code=XXXXXX
+```
+
+---
+
+## 📋 TEST CASE 2A: JOIN ROOM BY CODE
+
+### Mục tiêu
+Verify user có thể join phòng bằng room code
+
+### Preconditions
+- Room đã tồn tại (code: "A1B2C3", visibility: Public)
+- User đã đăng nhập, đang ở Lobby
+
+### Steps
+1. Click "Join by Code"
+2. Nhập code: "A1B2C3"
+3. Click "Join"
+
+### Expected Results
+- ✅ User được chuyển đến WaitingRoom
+- ✅ User KHÔNG phải host (không có nút host controls)
+- ✅ Player list hiển thị tất cả members
+- ✅ Host nhận notification: "👤 [Name] joined the room"
+- ✅ Tất cả members nhận `NTF_PLAYER_LIST` updated
+
+### Backend Logs
+```
+[SERVER] [JOIN_ROOM] ✅ SUCCESS: player X joined room Y
+[ROOM] Broadcast cmd=0x02bc to room=Y (N recipients)
+[ROOM] Broadcasting player list for room Y
+```
+
+---
+
+## 📋 TEST CASE 2B: JOIN ROOM FROM ROOM LIST
+
+### Mục tiêu
+Verify user có thể join phòng từ danh sách phòng công khai
+
+### Preconditions
+- Có ít nhất 1 public room trong lobby
+- User đã đăng nhập, đang ở Lobby
+
+### Steps
+1. Xem danh sách rooms trong Lobby
+2. Click vào room card "Test Room"
+3. Click "Join"
+
+### Expected Results
+- ✅ User được chuyển đến WaitingRoom
+- ✅ Room info hiển thị đúng (name, code, rules)
+- ✅ Player list hiển thị tất cả members
+- ✅ Host và members khác nhận `NTF_PLAYER_JOINED` và `NTF_PLAYER_LIST`
+
+### Backend Logs
+```
+[SERVER] [JOIN_ROOM] ✅ SUCCESS: player X joined room Y
+[ROOM] Broadcast cmd=0x02bc to room=Y (N recipients)
+```
+
+---
+
+## 📋 TEST CASE 2C: JOIN PRIVATE ROOM
+
+### Mục tiêu
+Verify user có thể join phòng private bằng code (không hiển thị trong list)
+
+### Preconditions
+- Room private đã tồn tại (code: "X1Y2Z3", visibility: Private)
+- User đã đăng nhập, đang ở Lobby
+
+### Steps
+1. Kiểm tra room list → KHÔNG thấy room "X1Y2Z3"
+2. Click "Join by Code"
+3. Nhập code: "X1Y2Z3"
+4. Click "Join"
+
+### Expected Results
+- ✅ Room KHÔNG hiển thị trong public room list
+- ✅ User vẫn join được bằng code
+- ✅ Tất cả expected results giống TC2A
+
+### Backend Logs
+```
+[SERVER] [JOIN_ROOM] ✅ SUCCESS: player X joined private room Y
+```
+
+---
+
+## 📋 TEST CASE 3: READY/UNREADY
+
+### Mục tiêu
+Verify player có thể toggle ready state
+
+### Preconditions
+- User đã join room
+- User KHÔNG phải host
+
+### Steps
+1. Click button "Ready"
+2. Đợi 2 giây
+3. Click button "Unready"
+
+### Expected Results
+**Sau bước 1:**
+- ✅ Button đổi thành "Unready" (màu xanh)
+- ✅ Player card hiển thị badge "READY"
+- ✅ Tất cả members nhận `NTF_PLAYER_READY`: `{"account_id": X, "is_ready": true}`
+
+**Sau bước 3:**
+- ✅ Button đổi lại thành "Ready"
+- ✅ Badge "READY" biến mất
+- ✅ Tất cả members nhận `NTF_PLAYER_READY`: `{"account_id": X, "is_ready": false}`
+
+### Backend Logs
+```
+[Ready] ✅ SUCCESS: room_id=X, account_id=Y, is_ready=true
+[Ready] ✅ SUCCESS: room_id=X, account_id=Y, is_ready=false
+```
+
+---
+
+## 📋 TEST CASE 4: SET GAME RULES (HOST ONLY)
+
+### Mục tiêu
+Verify host có thể thay đổi game rules
+
+### Preconditions
+- User là host
+- Room có ít nhất 2 players
+- Một số players đã ready
+
+### Steps
+1. Click "Edit Rules"
+2. Thay đổi: Mode=Elimination, Max Players=4, Visibility=Private
+3. Click "Save"
+
+### Expected Results
+- ✅ Rules được update
+- ✅ TẤT CẢ players' ready state reset về `false`
+- ✅ Tất cả members nhận `NTF_RULES_CHANGED`
+- ✅ Tất cả members nhận `NTF_PLAYER_LIST` với ready states reset
+- ✅ UI hiển thị rules mới
+
+### Backend Logs
+```
+[SetGameRule] Resetting ready states for N players
+[SetGameRule] ✅ DB sync successful
+[SetGameRule] ✅ SUCCESS: room_id=X, all players notified
+```
+
+---
+
+## 📋 TEST CASE 5: KICK MEMBER (HOST ONLY)
+
+### Mục tiêu
+Verify host có thể kick member khỏi phòng
+
+### Preconditions
+- User A là host
+- User B, C đã join room
+- Room status = WAITING
+
+### Steps
+1. Host (User A) click nút "Kick" trên card của User B
+2. Confirm dialog
+
+### Expected Results
+
+**User A (Host):**
+- ✅ Nhận alert: "✅ Đã kick thành công!"
+- ✅ Player list tự động cập nhật (User B biến mất)
+
+**User B (Kicked):**
+- ✅ Nhận alert: "⚠️ Bạn đã bị kick khỏi phòng!"
+- ✅ Tự động navigate về Lobby
+
+**User C (Remaining):**
+- ✅ Nhận alert: "⚠️ d2 đã bị kick khỏi phòng" (với tên đúng)
+- ✅ Player list tự động cập nhật
+
+### Backend Logs
+```
+[Kick Member] ===== BEFORE STATE =====
+[Kick Member] [RoomState] Player Count: 3
+[Kick Member] ✅ Removed player X from in-memory state
+[Kick Member] ===== AFTER STATE =====
+[Kick Member] [RoomState] Player Count: 2
+[Kick Member] Sent RES_MEMBER_KICKED to host
+[Kick Member] Sent NTF_MEMBER_KICKED to target
+[Kick Member] Broadcasting NTF_PLAYER_LEFT: {"account_id":X,"reason":"kicked"}
+[Kick Member] ✅ SUCCESS
+```
+
+---
+
+## 📋 TEST CASE 6: LEAVE ROOM (SELF)
+
+### Mục tiêu
+Verify player có thể tự rời phòng
+
+### Preconditions
+- User đã join room
+- User KHÔNG phải host
+
+### Steps
+1. Click button "Leave Room"
+2. Confirm dialog
+
+### Expected Results
+
+**User (Leaver):**
+- ✅ Navigate về Lobby
+- ✅ Session state = LOBBY
+
+**Remaining Players:**
+- ✅ Nhận alert: "👋 [Name] đã rời phòng"
+- ✅ Player list tự động cập nhật
+
+### Backend Logs
+```
+[Leave Room] ===== BEFORE STATE =====
+[Leave Room] Leaver: X (was_host=NO)
+[Leave Room] ✅ Removed player X from in-memory state
+[Leave Room] Broadcasting NTF_PLAYER_LEFT: {"account_id":X,"reason":"left"}
+[Leave Room] ✅ SUCCESS
+```
+
+---
+
+## 📋 TEST CASE 7: HOST LEAVE → AUTO TRANSFER
+
+### Mục tiêu
+Verify khi host rời phòng, host được transfer tự động
+
+### Preconditions
+- User A là host
+- User B, C đã join room
+
+### Steps
+1. User A (host) click "Leave Room"
+2. Confirm
+
+### Expected Results
+
+**User A (Old Host):**
+- ✅ Navigate về Lobby
+
+**User B (New Host - player đầu tiên còn lại):**
+- ✅ Nhận alert: "🎉 Bạn đã trở thành host mới!"
+- ✅ UI hiển thị host controls (Start Game, Edit Rules, Kick buttons)
+- ✅ Player card có badge "HOST"
+
+**User C (Remaining Member):**
+- ✅ Nhận alert: "👋 d1 đã rời phòng"
+- ✅ Nhận alert: "🔄 Host đã thay đổi!"
+- ✅ Player list updated: User B có badge "HOST"
+
+### Backend Logs
+```
+[Leave Room] Leaver: X (was_host=YES)
+[Leave Room] New host assigned: Y
+[Leave Room] Broadcasting NTF_HOST_CHANGED: {"new_host_id":Y}
+[Leave Room] ✅ SUCCESS
+```
+
+---
+
+## 📋 TEST CASE 8: ROOM FULL
+
+### Mục tiêu
+Verify không thể join phòng đã đầy
+
+### Preconditions
+- Room có max_players=4
+- Room đã có 4 players
+
+### Steps
+1. User E cố gắng join room
+
+### Expected Results
+- ✅ Nhận error: "Room is full"
+- ✅ Không được join
+- ✅ Vẫn ở Lobby
+
+### Backend Logs
+```
+[SERVER] [JOIN_ROOM] Error: Room full (elimination mode, 4/4)
+```
+
+---
+
+## 📋 TEST CASE 9: KICK DURING GAME (SHOULD FAIL)
+
+### Mục tiêu
+Verify không thể kick khi game đang chơi
+
+### Preconditions
+- Room status = PLAYING
+
+### Steps
+1. Host click "Kick" trên member
+
+### Expected Results
+- ✅ Nhận error: "Cannot kick during game"
+- ✅ Member không bị kick
+
+### Backend Logs
+```
+[Kick Member] ❌ ERROR: Cannot kick during game
+```
+
+
+---
+
+## 🎯 PRIORITY TEST MATRIX
+
+| Priority | Test Case | Critical? |
+|----------|-----------|-----------|
+| P0 | TC1: CREATE ROOM | ✅ YES |
+| P0 | TC2A: JOIN BY CODE | ✅ YES |
+| P0 | TC2B: JOIN FROM LIST | ✅ YES |
+| P1 | TC2C: JOIN PRIVATE | NO |
+| P0 | TC6: LEAVE ROOM | ✅ YES |
+| P0 | TC7: HOST TRANSFER | ✅ YES |
+| P1 | TC5: KICK MEMBER | ✅ YES |
+| P1 | TC3: READY/UNREADY | ✅ YES |
+| P1 | TC4: SET RULES | ✅ YES |
+| P2 | TC8: ROOM FULL | NO |
+| P2 | TC9: KICK DURING GAME | NO |
+
+---
+
+## 📝 TESTING CHECKLIST
+
+### Before Testing
+- [ ] Backend server running
+- [ ] Frontend running
+- [ ] Database clean (no zombie rooms)
+- [ ] At least 3 test accounts ready
+
+### During Testing
+- [ ] Check browser console for errors
+- [ ] Check backend logs for each operation
+- [ ] Verify all notifications received
+- [ ] Verify UI updates correctly
+
+### After Testing
+- [ ] Document any bugs found
+- [ ] Verify all P0 tests pass
+- [ ] Create bug tickets for failures
+
+---
+
+## 🐛 KNOWN ISSUES
+
+*(To be filled during testing)*
+
+---
+
+## ✅ TEST RESULTS
+
+*(To be filled after testing)*
+
+| Test Case | Status | Notes |
+|-----------|--------|-------|
+| TC1: Create Room | ⏳ | |
+| TC2A: Join by Code | ⏳ | |
+| TC2B: Join from List | ⏳ | |
+| TC2C: Join Private | ⏳ | |
+| TC3: Ready/Unready | ⏳ | |
+| TC4: Set Rules | ⏳ | |
+| TC5: Kick Member | ⏳ | |
+| TC6: Leave Room | ⏳ | |
+| TC7: Host Transfer | ⏳ | |
+| TC8: Room Full | ⏳ | |
+| TC9: Kick During Game | ⏳ | |
+| TC10: Non-Host Kick | ⏳ | |

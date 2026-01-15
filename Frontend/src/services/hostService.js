@@ -197,38 +197,25 @@ export function setRules(roomId, rules) {
 //==============================================================================
 
 /**
- * KickMemberPayload struct (8 bytes):
- * - uint32_t room_id
- * - uint32_t target_id
+ * Kick một member khỏi phòng (chỉ host)
+ * KickMemberPayload struct (4 bytes):
+ * - uint32_t target_account_id (network byte order)
  */
-export function kickMember(roomId, targetId) {
-    const buffer = new ArrayBuffer(8);
+export function kickMember(targetAccountId) {
+    console.log('[HOST_SERVICE] Kicking member:', targetAccountId);
+
+    const buffer = new ArrayBuffer(4);  // ✅ 4 bytes
     const view = new DataView(buffer);
+    view.setUint32(0, targetAccountId, false);  // ✅ Chỉ target_account_id
 
-    view.setUint32(0, roomId, false);
-    view.setUint32(4, targetId, false);
-
-    console.log('[Host] Kicking member:', targetId);
     sendPacket(OPCODE.CMD_KICK, buffer);
 }
 
+
 registerHandler(OPCODE.RES_MEMBER_KICKED, (payload) => {
-    const text = new TextDecoder().decode(payload);
-    let jsonStr = text.substring(text.indexOf('\r\n\r\n') + 4);
-
-    try {
-        const response = JSON.parse(jsonStr);
-
-        if (response.success) {
-            console.log('[Host] Member kicked');
-            alert('Member kicked successfully');
-            // TODO: Refresh member list
-        } else {
-            alert('Failed to kick member: ' + response.error);
-        }
-    } catch (e) {
-        console.error('[Host] Parse error:', e);
-    }
+    console.log('[HOST_SERVICE] ✅ Member kicked successfully');
+    alert('✅ Đã kick thành công!');
+    // UI sẽ tự động cập nhật qua NTF_PLAYER_LEFT và NTF_PLAYER_LIST
 });
 
 //==============================================================================

@@ -89,22 +89,18 @@ registerHandler(OPCODE.RES_READY_OK, (payload) => {
 });
 
 /**
- * Mời người chơi vào phòng
- * @param {number} targetId - ID người chơi mục tiêu
- * @param {number} roomId - ID phòng hiện tại
+ * Leave current room
  */
-export function invitePlayer(targetId, roomId) {
-    console.log('[ROOM_SERVICE] invitePlayer:', { targetId, roomId });
+export function leaveRoom() {
+    console.log('[ROOM_SERVICE] Leaving room');
 
-    // Payload: target_id (4B) + room_id (4B) = 8 bytes total
-    const buffer = new ArrayBuffer(8);
-    const view = new DataView(buffer);
-
-    // bytes 0-3: target_id (network byte order)
-    view.setInt32(0, targetId, false);
-
-    // bytes 4-7: room_id (network byte order)
-    view.setUint32(4, roomId, false);
-
-    sendPacket(OPCODE.CMD_INVITE_FRIEND || 0x0205, new Uint8Array(buffer));
+    // Send packet with EMPTY payload (0 bytes)
+    sendPacket(OPCODE.CMD_LEAVE_ROOM, new Uint8Array(0));
 }
+
+// Register handler for RES_ROOM_LEFT
+registerHandler(OPCODE.RES_ROOM_LEFT, (payload) => {
+    console.log('[ROOM_SERVICE] ✅ Successfully left room');
+    // Navigate to lobby
+    window.location.href = '/lobby';
+});
