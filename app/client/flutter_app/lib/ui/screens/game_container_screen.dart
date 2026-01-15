@@ -28,6 +28,11 @@ class _GameContainerScreenState extends State<GameContainerScreen> {
   Timer? _countdownTimer;
   bool _initialized = false; // Track if already initialized
   bool _showingResult = false; // Track if currently showing result/feedback
+  bool _showDecision = false; // Track if showing Stop/Continue decision
+  int _round3Score = 0; // Current score in Round 3 (Wheel)
+  int _spinNumber = 1; // Current spin number (1 or 2)
+  int? _myPlayerId; // Current user ID
+  List<String> _wheelSegments = ["5", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55", "60", "65", "70", "75", "80", "85", "90", "95", "100"]; // Default
 
   @override
   void initState() {
@@ -53,6 +58,13 @@ class _GameContainerScreenState extends State<GameContainerScreen> {
   }
 
   Future<void> _init() async {
+    // Get current user ID
+    final authState = await ServiceLocator.authService.getAuthState();
+    final accountIdStr = authState['accountId'];
+    if (accountIdStr != null) {
+      _myPlayerId = int.tryParse(accountIdStr);
+    }
+
     // Get arguments from navigation
     final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>? ?? {};
     _matchId = args['matchId'] ?? 0;
@@ -206,9 +218,318 @@ class _GameContainerScreenState extends State<GameContainerScreen> {
           break;
 
         case GameEventType.round2TurnResult:
-           // Show results of the bid (who won closest)
-           // TODO: Show nice overlay
+           print("[GameContainer] Turn result: ${event.data}");
+           final result = event.data as Map<String, dynamic>?;
+           final int actualPrice = result?['correct_price'] ?? 0;
+           final List bids = result?['bids'] ?? [];
+           
+           int maxScore = 0;
+           String winnerName = "None";
+           int myScoreDelta = 0;
+           
+           for (var b in bids) {
+              int score = b['score_delta'] ?? 0;
+              int id = b['id'] ?? 0;
+              
+              if (score > maxScore) {
+                maxScore = score;
+                winnerName = b['name'] ?? "Player";
+              }
+              
+              if (_myPlayerId != null && id == _myPlayerId) {
+                 myScoreDelta = score;
+              }
+           }
+           
+           if (myScoreDelta > 0) {
+              setState(() {
+                _currentScore += myScoreDelta;
+              });
+           }
+
+           ScaffoldMessenger.of(context).showSnackBar(
+             SnackBar(
+               content: Text("Price: $actualPrice | Winner: $winnerName (+$maxScore)"),
+               duration: const Duration(seconds: 3),
+               backgroundColor: myScoreDelta > 0 ? Colors.green : (maxScore > 0 ? Colors.orange : Colors.grey),
+             ),
+           );
+           _showingResult = true;
            break;
+
+        case GameEventType.round2AllFinished:
+          print("[GameContainer] Round 2 finished event received: ${event.data}");
+          final data = event.data as Map<String, dynamic>?;
+          
+          // Update players/scoreboard
+          if (data?['players'] != null) {
+             print("[GameContainer] Updating scoreboard");
+            _players = List<Map<String, dynamic>>.from(data!['players']);
+          }
+          
+          // Get next round number
+          int nextRound = data?['next_round'] ?? 0;
+          print("[GameContainer] Next round from payload: $nextRound");
+          
+          // Fallback if next_round is missing but we know round 3 follows round 2
+          if (nextRound == 0) {
+             print("[GameContainer] Next round missing, defaulting to 3");
+             nextRound = 3;
+          }
+          
+          if (nextRound > 0) {
+            // Show round summary briefly then move to next round
+            Future.delayed(const Duration(seconds: 3), () {
+              if (mounted) {
+                print("[GameContainer] Switching to round $nextRound");
+                setState(() {
+                  _currentRound = nextRound;
+                  _currentQuestion = null;
+                  _isLoading = true;
+                });
+                
+                // Send ready for next round
+                if (nextRound == 3) {
+                  // Round 3 - Wheel
+                  print("[GameContainer] Sending ROUND3_PLAYER_READY");
+                  ServiceLocator.gameStateService.sendRound3PlayerReady(_matchId, 0);
+                }
+              }
+            });
+          } else {
+            // No more rounds - game finished
+            print("[GameContainer] Game completed!");
+          }
+          break;
+
+
+        case GameEventType.round3AllReady:
+          print("[GameContainer] Round 3 all ready: ${event.data}");
+          final data = event.data as Map<String, dynamic>?;
+          
+          if (data?['segments'] != null) {
+             _wheelSegments = List<dynamic>.from(data!['segments']).map((e) => e.toString()).toList();
+             print("[GameContainer] Loaded wheel segments: $_wheelSegments");
+          } else {
+             // Default segments if not provided
+             // _wheelSegments = ["5", "15", "25", "35", "45", "55", "65", "75", "85", "95", "100", "0"];
+          }
+          
+          if (_currentRound == 3) {
+             setState(() => _isLoading = false);
+          }
+          break;
+
+        case GameEventType.round3DecisionPrompt:
+           print("[GameContainer] Round 3 prompt: ${event.data}");
+           final data = event.data as Map<String, dynamic>?;
+           String message = data?['message'] ?? "";
+           
+           // Only show decision buttons if the message explicitly asks for a decision (Stop/Continue)
+           // and not just a "Spin the wheel" or "Spin again" instruction.
+           if (message.contains("Continue or Stop?")) {
+             setState(() {
+                _showDecision = true;
+                _isLoading = false;
+             });
+           } else if (message.contains("Spin the wheel!")) {
+             // Initial round start
+             setState(() {
+               _isLoading = false;
+               _showDecision = false;
+               _round3Score = 0;
+               _spinNumber = 1;
+             });
+           }
+           break;
+
+        case GameEventType.round3SpinResult:
+           print("[GameContainer] Spin result: ${event.data}");
+           final data = event.data as Map<String, dynamic>?;
+           if (data != null) {
+              int spinNumber = data['spin_number'] ?? 1;
+              int currentResult = data['result'] ?? 0;
+              bool decisionPending = data['decision_pending'] ?? false;
+              
+              setState(() {
+                _round3Score = currentResult; // Show current spin result on wheel
+                _spinNumber = spinNumber;
+              });
+              
+              if (decisionPending) {
+                // Wait for player decision after spin 1
+                setState(() => _showDecision = true);
+              } else {
+                setState(() => _showDecision = false);
+              }
+           }
+           break;
+
+        case GameEventType.round3FinalResult:
+           print("[GameContainer] Final bonus result: ${event.data}");
+           final data = event.data as Map<String, dynamic>?;
+           if (data != null) {
+              setState(() {
+                if (data['total_score'] != null) {
+                  _currentScore = data['total_score'];
+                }
+                _round3Score = data['bonus'] ?? _round3Score;
+                _showDecision = false;
+              });
+              
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text("Round 3 Finished! Final Bonus: ${data['bonus']}")),
+              );
+           }
+           break;
+
+        case GameEventType.round3AllFinished:
+           print("[GameContainer] Round 3 all finished: ${event.data}");
+           // You could show a final game summary here or wait for NTF_GAME_END
+           break;
+
+        case GameEventType.round1Question:
+          print("[GameContainer] Question received: ${event.data}");
+          _applyNextQuestion(event.data as Map<String, dynamic>?);
+          break;
+
+        case GameEventType.round1Result:
+          print("[GameContainer] Answer result: ${event.data}");
+          final result = event.data as Map<String, dynamic>?;
+          if (result != null) {
+            setState(() {
+              _currentScore = result['current_score'] ?? _currentScore;
+              if (_currentQuestion != null) {
+                _currentQuestion!['correctIndex'] = result['correct_index'];
+              }
+            });
+          }
+          break;
+
+        case GameEventType.round1AllFinished:
+          print("[GameContainer] Round 1 finished: ${event.data}");
+          final data = event.data as Map<String, dynamic>?;
+          final int nextRound = data?['next_round'] ?? 2;
+          
+          if (data?['players'] != null) {
+            setState(() {
+              _players = List<Map<String, dynamic>>.from(data!['players']);
+              // Sync our score
+              if (_myPlayerId != null) {
+                final me = _players.firstWhere((p) => p['id'] == _myPlayerId || p['account_id'] == _myPlayerId, orElse: () => {});
+                if (me.isNotEmpty) {
+                  _currentScore = me['score'] ?? me['points'] ?? _currentScore;
+                }
+              }
+            });
+          }
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Round 1 Finished! Your Score: $_currentScore"), backgroundColor: Colors.blueAccent),
+          );
+
+          if (nextRound > 0) {
+            Future.delayed(const Duration(seconds: 3), () {
+              if (mounted) {
+                print("[GameContainer] Switching to round $nextRound");
+                setState(() {
+                  _currentRound = nextRound;
+                  _currentQuestion = null;
+                  _isLoading = true;
+                });
+                
+                if (nextRound == 2) {
+                   ServiceLocator.gameStateService.sendRound2PlayerReady(_matchId, 0);
+                }
+              }
+            });
+          }
+          break;
+
+        case GameEventType.round2Product:
+          print("[GameContainer] Product received: ${event.data}");
+          _applyNextQuestion(event.data as Map<String, dynamic>?);
+          break;
+
+        case GameEventType.round2TurnResult:
+           print("[GameContainer] Turn result: ${event.data}");
+           final result = event.data as Map<String, dynamic>?;
+           final int actualPrice = result?['correct_price'] ?? 0;
+           final List bids = result?['bids'] ?? [];
+           
+           int maxScore = 0;
+           String winnerName = "None";
+           int myScoreDelta = 0;
+           
+           for (var b in bids) {
+              int score = b['score_delta'] ?? 0;
+              int id = b['id'] ?? 0;
+              
+              if (score > maxScore) {
+                maxScore = score;
+                winnerName = b['name'] ?? "Player";
+              }
+              
+              if (_myPlayerId != null && id == _myPlayerId) {
+                 myScoreDelta = score;
+              }
+           }
+           
+           if (myScoreDelta > 0) {
+              setState(() {
+                _currentScore += myScoreDelta;
+              });
+           }
+
+           ScaffoldMessenger.of(context).showSnackBar(
+             SnackBar(
+               content: Text("Price: $actualPrice | Winner: $winnerName (+$maxScore). Your total: $_currentScore"),
+               duration: const Duration(seconds: 3),
+               backgroundColor: myScoreDelta > 0 ? Colors.green : (maxScore > 0 ? Colors.orange : Colors.grey),
+             ),
+           );
+           _showingResult = true;
+           break;
+
+        case GameEventType.round2AllFinished:
+          print("[GameContainer] Round 2 finished event received: ${event.data}");
+          final data = event.data as Map<String, dynamic>?;
+          final int nextRound = data?['next_round'] ?? 3;
+          
+          if (data?['players'] != null) {
+            setState(() {
+              _players = List<Map<String, dynamic>>.from(data!['players']);
+              // Sync our score
+              if (_myPlayerId != null) {
+                final me = _players.firstWhere((p) => p['id'] == _myPlayerId || p['account_id'] == _myPlayerId, orElse: () => {});
+                if (me.isNotEmpty) {
+                  _currentScore = me['score'] ?? me['points'] ?? _currentScore;
+                }
+              }
+            });
+          }
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Round 2 Finished! Your Total Score: $_currentScore"), backgroundColor: Colors.purpleAccent),
+          );
+
+          if (nextRound > 0) {
+            Future.delayed(const Duration(seconds: 3), () {
+              if (mounted) {
+                print("[GameContainer] Switching to round $nextRound");
+                setState(() {
+                  _currentRound = nextRound;
+                  _currentQuestion = null;
+                  _isLoading = true;
+                });
+                
+                if (nextRound == 3) {
+                  ServiceLocator.gameStateService.sendRound3PlayerReady(_matchId, 0);
+                }
+              }
+            });
+          }
+          break;
 
         default:
           break;
@@ -216,6 +537,19 @@ class _GameContainerScreenState extends State<GameContainerScreen> {
     });
   }
 
+
+
+  void _applyNextQuestion(Map<String, dynamic>? data) {
+    if (!mounted) return;
+    
+    setState(() {
+      _currentQuestion = data;
+      _isLoading = false;
+      _showingResult = false; // Reset flag
+    });
+    
+    _startCountdown();
+  }
 
   void _startCountdown() {
     _countdownTimer?.cancel();
@@ -391,7 +725,14 @@ class _GameContainerScreenState extends State<GameContainerScreen> {
           onSubmitBid: _handleBidSubmitted,
         );
       case 3:
-        return const Round3Widget(); // TODO: Implement with real data
+        return Round3Widget(
+          segments: _wheelSegments,
+          score: _round3Score,
+          spinNumber: _spinNumber,
+          showDecision: _showDecision,
+          onSpin: _handleSpin,
+          onDecision: _handleDecision,
+        );
       default:
         return const Center(child: Text("Unknown round"));
     }
@@ -408,6 +749,27 @@ class _GameContainerScreenState extends State<GameContainerScreen> {
        productIdx,
        bidAmount
      );
+  }
+  
+  void _handleSpin() {
+    print("[GameContainer] Spinning wheel");
+    ServiceLocator.gameStateService.requestRound3Spin(_matchId);
+  }
+  
+  void _handleDecision(bool continueSpin) {
+    print("[GameContainer] Decision: continue=$continueSpin");
+    ServiceLocator.gameStateService.submitRound3Decision(_matchId, continueSpin);
+    
+    // We don't manually update _currentScore here anymore.
+    // Instead, we wait for GameEventType.round3FinalResult from backend
+    // which is triggered by this decision.
+    
+    setState(() {
+      _showDecision = false;
+      if (continueSpin) {
+        _round3Score = 0; // Clear score to indicate we are spinning again
+      }
+    });
   }
 }
 
