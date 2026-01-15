@@ -144,7 +144,7 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
     // Insert match_players into database
     if (match->db_match_id > 0) {
         // Collect account IDs into array for DB call
-        int player_ids[MAX_ROOM_MEMBERS];
+        int32_t player_ids[MAX_ROOM_MEMBERS];
         for(int i=0; i<match->player_count; i++) {
             player_ids[i] = match->players[i].account_id;
         }
@@ -154,6 +154,25 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
             printf("[HANDLER] <startgame> WARN: Failed to insert match_players (rc=%d)\n", player_rc);
         } else {
             printf("[HANDLER] <startgame> Match players saved to database\n");
+            
+            // Get match_player IDs from database and store in MatchPlayerState
+            int32_t match_player_ids[MAX_ROOM_MEMBERS];
+            db_error_t ids_rc = db_match_players_get_ids(
+                match->db_match_id,
+                player_ids,
+                match_player_ids,
+                match->player_count
+            );
+            
+            if (ids_rc == DB_OK) {
+                for (int i = 0; i < match->player_count; i++) {
+                    match->players[i].match_player_id = match_player_ids[i];
+                    printf("[HANDLER] <startgame>   - Player %d -> match_player_id=%d\n",
+                           match->players[i].account_id, match->players[i].match_player_id);
+                }
+            } else {
+                printf("[HANDLER] <startgame> WARN: Failed to get match_player IDs (rc=%d)\n", ids_rc);
+            }
         }
     }
     
@@ -304,6 +323,43 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
     }
     
     match->current_round_idx = 0;
+
+    // =========================================================================
+    // STEP 6: INSERT MATCH_QUESTIONS INTO DATABASE
+    // =========================================================================
+    if (match->db_match_id > 0) {
+        printf("[HANDLER] <startgame> Step 6: Inserting match_questions into database...\n");
+        
+        int questions_inserted = 0;
+        for (int r = 0; r < match->round_count; r++) {
+            RoundState *round = &match->rounds[r];
+            const char *round_type_str = (round->type == ROUND_MCQ) ? "MCQ" :
+                                         (round->type == ROUND_BID) ? "BID" :
+                                         (round->type == ROUND_WHEEL) ? "WHEEL" : "UNKNOWN";
+            
+            for (int q = 0; q < round->question_count; q++) {
+                int64_t mq_id = 0;
+                db_error_t mq_rc = db_match_question_insert(
+                    match->db_match_id,
+                    r + 1,  // round_no (1-based)
+                    round_type_str,
+                    q,      // question_idx (0-based)
+                    round->question_data[q].json_data,
+                    &mq_id
+                );
+                
+                if (mq_rc == DB_OK && mq_id > 0) {
+                    // Store match_question.id in QuestionState for later use
+                    round->questions[q].question_id = (int32_t)mq_id;
+                    questions_inserted++;
+                } else {
+                    printf("[HANDLER] <startgame> WARN: Failed to insert match_question r=%d q=%d\n", r+1, q);
+                }
+            }
+        }
+        
+        printf("[HANDLER] <startgame> Inserted %d match_questions into database\n", questions_inserted);
+    }
 
     // =========================================================================
     // MATCH CREATION SUMMARY

@@ -681,3 +681,165 @@ db_error_t db_match_event_insert(
     printf("[MATCH_EVENT] Event inserted successfully\n");
     return DB_SUCCESS;
 }
+
+db_error_t db_match_question_insert(
+    int64_t db_match_id,
+    int round_no,
+    const char *round_type,
+    int question_idx,
+    const char *question_json,
+    int64_t *out_question_id
+) {
+    if (db_match_id <= 0 || !round_type || !out_question_id) {
+        printf("[MATCH_QUESTION] Invalid parameters\n");
+        return DB_ERROR_INVALID_PARAM;
+    }
+
+    *out_question_id = 0;
+
+    cJSON *payload = cJSON_CreateObject();
+    cJSON_AddNumberToObject(payload, "match_id", db_match_id);
+    cJSON_AddNumberToObject(payload, "round_no", round_no);
+    cJSON_AddStringToObject(payload, "round_type", round_type);
+    cJSON_AddNumberToObject(payload, "question_idx", question_idx);
+    
+    // Parse and add question JSON
+    if (question_json) {
+        cJSON *q_obj = cJSON_Parse(question_json);
+        if (q_obj) {
+            cJSON_AddItemToObject(payload, "question", q_obj);
+        }
+    }
+
+    cJSON *response = NULL;
+    db_error_t err = db_post("match_question", payload, &response);
+    cJSON_Delete(payload);
+
+    if (err != DB_SUCCESS) {
+        printf("[MATCH_QUESTION] Failed to insert: err=%d\n", err);
+        if (response) cJSON_Delete(response);
+        return err;
+    }
+
+    // Extract ID from response
+    if (cJSON_IsArray(response) && cJSON_GetArraySize(response) > 0) {
+        cJSON *item = cJSON_GetArrayItem(response, 0);
+        cJSON *id_json = cJSON_GetObjectItem(item, "id");
+        if (id_json && cJSON_IsNumber(id_json)) {
+            *out_question_id = id_json->valueint;
+        }
+    }
+
+    if (response) cJSON_Delete(response);
+    
+    printf("[MATCH_QUESTION] Inserted: match=%lld round=%d idx=%d -> id=%lld\n",
+           (long long)db_match_id, round_no, question_idx, (long long)*out_question_id);
+    
+    return DB_SUCCESS;
+}
+
+db_error_t db_match_answer_insert(
+    int64_t question_id,
+    int32_t player_id,
+    const char *answer_json,
+    int score_delta,
+    int action_idx
+) {
+    if (question_id <= 0 || player_id <= 0) {
+        printf("[MATCH_ANSWER] Invalid parameters: question_id=%lld, player_id=%d\n",
+               (long long)question_id, player_id);
+        return DB_ERROR_INVALID_PARAM;
+    }
+
+    cJSON *payload = cJSON_CreateObject();
+    cJSON_AddNumberToObject(payload, "question_id", question_id);
+    cJSON_AddNumberToObject(payload, "player_id", player_id);
+    cJSON_AddNumberToObject(payload, "score_delta", score_delta);
+    cJSON_AddNumberToObject(payload, "action_idx", action_idx > 0 ? action_idx : 1);
+    
+    // Parse and add answer JSON
+    if (answer_json) {
+        cJSON *ans_obj = cJSON_Parse(answer_json);
+        if (ans_obj) {
+            cJSON_AddItemToObject(payload, "answer", ans_obj);
+        }
+    }
+
+    cJSON *response = NULL;
+    db_error_t err = db_post("match_answer", payload, &response);
+    cJSON_Delete(payload);
+
+    if (err != DB_SUCCESS) {
+        printf("[MATCH_ANSWER] Failed to insert: err=%d\n", err);
+        if (response) cJSON_Delete(response);
+        return err;
+    }
+
+    if (response) cJSON_Delete(response);
+    
+    printf("[MATCH_ANSWER] Inserted: question=%lld player=%d delta=%d\n",
+           (long long)question_id, player_id, score_delta);
+    
+    return DB_SUCCESS;
+}
+
+db_error_t db_match_players_get_ids(
+    int64_t db_match_id,
+    int32_t *account_ids,
+    int32_t *out_player_ids,
+    int player_count
+) {
+    if (db_match_id <= 0 || !account_ids || !out_player_ids || player_count <= 0) {
+        return DB_ERROR_INVALID_PARAM;
+    }
+
+    // Initialize output to 0
+    for (int i = 0; i < player_count; i++) {
+        out_player_ids[i] = 0;
+    }
+
+    // Query match_players for this match
+    char query[256];
+    snprintf(query, sizeof(query),
+             "SELECT id, account_id FROM match_players WHERE match_id = %lld",
+             (long long)db_match_id);
+
+    cJSON *response = NULL;
+    db_error_t err = db_get("match_players", query, &response);
+    
+    if (err != DB_SUCCESS) {
+        printf("[MATCH_PLAYERS] Failed to get player IDs: err=%d\n", err);
+        if (response) cJSON_Delete(response);
+        return err;
+    }
+
+    if (!cJSON_IsArray(response)) {
+        cJSON_Delete(response);
+        return DB_ERROR_PARSE;
+    }
+
+    // Map account_id to match_player.id
+    int count = cJSON_GetArraySize(response);
+    for (int i = 0; i < count; i++) {
+        cJSON *item = cJSON_GetArrayItem(response, i);
+        cJSON *id_json = cJSON_GetObjectItem(item, "id");
+        cJSON *acc_json = cJSON_GetObjectItem(item, "account_id");
+        
+        if (!id_json || !acc_json) continue;
+        
+        int32_t mp_id = id_json->valueint;
+        int32_t acc_id = acc_json->valueint;
+        
+        // Find matching account_id in input array
+        for (int j = 0; j < player_count; j++) {
+            if (account_ids[j] == acc_id) {
+                out_player_ids[j] = mp_id;
+                printf("[MATCH_PLAYERS] Mapped account %d -> match_player %d\n", acc_id, mp_id);
+                break;
+            }
+        }
+    }
+
+    cJSON_Delete(response);
+    return DB_SUCCESS;
+}

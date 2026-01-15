@@ -81,16 +81,17 @@ Người chơi có thể kích hoạt **cược x2** trước khi đưa ra câu 
 - **Luật chơi:**
   - Mỗi người có tối đa **2 lượt quay**
   - Sau lượt quay đầu tiên, người chơi có thể:
-    - **Dừng lại**
-    - Hoặc **quay tiếp**
+    - **Dừng lại** → Giữ điểm lần quay 1
+    - Hoặc **quay tiếp** → **Chỉ lấy điểm lần quay 2** (thay thế lần 1)
 
 - **Cách tính điểm:**
 
 | Trường hợp | Điểm nhận |
 |-----------|----------|
-| Tổng ≤ 100 | Tổng điểm |
-| Tổng > 100 | Tổng − 100 |
-| Tổng = 100 hoặc 200 | Nhận trọn vẹn **100 điểm** |
+| Quay 1 lần rồi dừng | Điểm lần quay 1 |
+| Quay 2 lần | **Chỉ lấy điểm lần quay 2** |
+
+> ⚠️ **Lưu ý:** Quay lần 2 là đánh cược - bạn có thể được điểm cao hơn hoặc thấp hơn lần 1!
 
 ---
 

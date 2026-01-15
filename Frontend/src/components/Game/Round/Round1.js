@@ -188,12 +188,33 @@ const Round1 = ({ matchId = 1, playerId = 1, previousScore = 0, onRoundComplete 
             setQuestionData(data);
             setSelectedAnswer(null);
             setIsAnswered(false);
-            setTimeLeft(15);
             setCorrectIndex(null);
+            
+            // ⭐ Option 3: Use server timestamp for accurate time sync
+            // Server sends: start_timestamp (Unix seconds), time_limit_ms
+            const timeLimitMs = data.time_limit_ms || 10000; // Default 10s
+            const timeLimitSec = Math.ceil(timeLimitMs / 1000);
+            
+            let initialTimeLeft = timeLimitSec;
+            
+            if (data.start_timestamp) {
+                // Calculate elapsed time since server started the question
+                const serverStartMs = data.start_timestamp * 1000; // Convert to ms
+                const now = Date.now();
+                const elapsedMs = now - serverStartMs;
+                const remainingMs = Math.max(0, timeLimitMs - elapsedMs);
+                initialTimeLeft = Math.ceil(remainingMs / 1000);
+                
+                console.log('[Round1] Time sync: serverStart=' + serverStartMs + 
+                            ', now=' + now + ', elapsed=' + elapsedMs + 
+                            ', remaining=' + remainingMs + 'ms (' + initialTimeLeft + 's)');
+            }
+            
+            setTimeLeft(initialTimeLeft);
             startTime.current = Date.now();
 
             // Dispatch initial timer
-            window.dispatchEvent(new CustomEvent('timerUpdate', { detail: { timeLeft: 15 } }));
+            window.dispatchEvent(new CustomEvent('timerUpdate', { detail: { timeLeft: initialTimeLeft } }));
 
             if (timerRef.current) clearInterval(timerRef.current);
             timerRef.current = setInterval(() => {

@@ -176,9 +176,27 @@ const Round2 = ({ matchId = 1, playerId = 1, previousScore = 0, onRoundComplete 
             setCorrectPrice(null);
             productReceivedRef.current = true;
 
-            // Start timer
+            // ⭐ Option 3: Use server timestamp for accurate time sync
+            const timeLimitMs = data.time_limit_ms || 15000;
+            const timeLimitSec = Math.ceil(timeLimitMs / 1000);
+            
+            let initialTimeLeft = timeLimitSec;
+            
+            if (data.start_timestamp) {
+                // Calculate elapsed time since server started the product
+                const serverStartMs = data.start_timestamp * 1000; // Convert to ms
+                const now = Date.now();
+                const elapsedMs = now - serverStartMs;
+                const remainingMs = Math.max(0, timeLimitMs - elapsedMs);
+                initialTimeLeft = Math.ceil(remainingMs / 1000);
+                
+                console.log('[Round2] Time sync: serverStart=' + serverStartMs + 
+                            ', now=' + now + ', elapsed=' + elapsedMs + 
+                            ', remaining=' + remainingMs + 'ms (' + initialTimeLeft + 's)');
+            }
+            
             startTime.current = Date.now();
-            setTimeLeft(Math.ceil((data.time_limit_ms || 15000) / 1000));
+            setTimeLeft(initialTimeLeft);
 
             if (timerRef.current) clearInterval(timerRef.current);
             timerRef.current = setInterval(() => {

@@ -115,6 +115,7 @@ typedef struct {
     char question_category[32]; // "lifestyle", "electronics", "furniture", or "" for all
 
     time_t created_at;
+    time_t ended_at;             // Time when match ended (0 if not ended)
 } MatchState;
 
 
