@@ -44,7 +44,7 @@ class _AddFriendDialogState extends State<AddFriendDialog> with SingleTickerProv
         }
     });
 
-    _fetchFriends();
+    _fetchFriends(force: true);
     _fetchRequests();
     
     // Listen for real-time updates
@@ -99,9 +99,9 @@ class _AddFriendDialogState extends State<AddFriendDialog> with SingleTickerProv
     super.dispose();
   }
 
-  Future<void> _fetchFriends() async {
+  Future<void> _fetchFriends({bool force = false}) async {
     setState(() => _isLoadingFriends = true);
-    final res = await ServiceLocator.friendService.getFriendList();
+    final res = await ServiceLocator.friendService.getFriendList(forceRefresh: force);
     if (mounted) {
        setState(() {
          _isLoadingFriends = false;

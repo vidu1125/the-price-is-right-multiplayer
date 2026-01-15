@@ -17,9 +17,21 @@ class _Round1WidgetState extends State<Round1Widget> {
   bool isAnswered = false;
 
   @override
+  void didUpdateWidget(Round1Widget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Reset answer state when new question is received
+    if (oldWidget.questionData['question_idx'] != widget.questionData['question_idx']) {
+      setState(() {
+        selectedIndex = null;
+        isAnswered = false;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     List choices = widget.questionData['choices'] ?? [];
-    int correctIndex = widget.questionData['correctIndex'] ?? 0;
+    int? correctIndex = widget.questionData['correctIndex'];
 
     return Column(
       children: [
@@ -33,8 +45,10 @@ class _Round1WidgetState extends State<Round1Widget> {
               border: Border.all(color: const Color(0xFF2D3436), width: 3),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Text("QUESTION ${widget.questionData['index']}/10", 
-                 style: const TextStyle(fontFamily: 'LuckiestGuy', fontSize: 24)),
+            child: Text(
+              "QUESTION ${(widget.questionData['question_idx'] ?? 0) + 1}/${widget.questionData['total_questions'] ?? 10}",
+              style: const TextStyle(fontFamily: 'LuckiestGuy', fontSize: 24)
+            ),
           ),
         ),
         const SizedBox(height: 50),
@@ -65,9 +79,16 @@ class _Round1WidgetState extends State<Round1Widget> {
           itemBuilder: (context, index) {
             Color btnColor = Colors.white;
             if (isAnswered) {
-              if (index == correctIndex) btnColor = const Color(0xFF2ECC71);
-              else if (index == selectedIndex) btnColor = const Color(0xFFE74C3C);
-              else btnColor = Colors.white.withOpacity(0.3);
+              if (correctIndex != null) {
+                 // Result received
+                 if (index == correctIndex) btnColor = const Color(0xFF2ECC71);
+                 else if (index == selectedIndex) btnColor = const Color(0xFFE74C3C);
+                 else btnColor = Colors.white.withOpacity(0.3);
+              } else {
+                 // Waiting for result
+                 if (index == selectedIndex) btnColor = const Color(0xFF3498DB);
+                 else btnColor = Colors.white.withOpacity(0.3);
+              }
             }
 
             return GestureDetector(

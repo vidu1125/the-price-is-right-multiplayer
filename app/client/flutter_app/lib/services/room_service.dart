@@ -17,7 +17,8 @@ enum RoomEventType {
   memberKicked,
   rulesChanged,
   playerReady,
-  invitationReceived
+  invitationReceived,
+  hostChanged
 }
 
 class RoomEvent {
@@ -51,10 +52,19 @@ class RoomService {
         var json = Protocol.decodeJson(msg.payload);
         _eventController.add(RoomEvent(RoomEventType.playerLeft, json));
     });
+
+    dispatcher.register(Command.ntfPlayerList, (msg) {
+        // Server sends full player list (usually after join)
+        // We can ignore this since we get the full list in RES_ROOM_JOINED
+        print("[RoomService] Received player list notification");
+    });
     
     dispatcher.register(Command.ntfGameStart, (msg) {
+        print("[RoomService] 🎮 NTF_GAME_START received!");
         var json = Protocol.decodeJson(msg.payload);
+        print("[RoomService] Game start payload: $json");
         _eventController.add(RoomEvent(RoomEventType.gameStarted, json));
+        print("[RoomService] gameStarted event dispatched!");
     });
 
     dispatcher.register(Command.ntfRoomClosed, (_) {
@@ -78,6 +88,11 @@ class RoomService {
     dispatcher.register(Command.ntfInvitation, (msg) {
         var json = Protocol.decodeJson(msg.payload);
         _eventController.add(RoomEvent(RoomEventType.invitationReceived, json));
+    });
+
+    dispatcher.register(Command.ntfHostChanged, (msg) {
+        var json = Protocol.decodeJson(msg.payload);
+        _eventController.add(RoomEvent(RoomEventType.hostChanged, json));
     });
   }
 
@@ -243,9 +258,17 @@ class RoomService {
   }
 
   Future<void> leaveRoom(int roomId) async {
-     final buffer = ByteData(4);
-     buffer.setUint32(0, roomId);
-     await client.request(Command.leaveRoom, payload: buffer.buffer.asUint8List());
+     // Backend handle_leave_room expects empty payload and infers room from session
+     await client.request(Command.leaveRoom, payload: Uint8List(0));
+  }
+
+  /// Close room (Host only)
+  Future<void> closeRoom(int roomId) async {
+    final buffer = ByteData(4);
+    buffer.setUint32(0, roomId, Endian.big);
+    
+    print("[RoomService] Closing room $roomId");
+    await client.request(Command.closeRoom, payload: buffer.buffer.asUint8List());
   }
   
   Future<void> kickMember(int roomId, int targetId) async {

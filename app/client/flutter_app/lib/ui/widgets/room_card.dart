@@ -45,16 +45,27 @@ class _RoomCardState extends State<RoomCard> {
   }
 
   Future<void> _fetchRooms({bool silent = false}) async {
+    try {
       if (!silent && mounted) setState(() => isLoading = true);
       
       final list = await ServiceLocator.roomService.fetchRoomList();
       
       if (mounted) {
-          setState(() {
-              rooms = list;
-              if (!silent) isLoading = false;
-          });
+        setState(() {
+          rooms = list;
+          if (!silent) isLoading = false;
+        });
       }
+    } catch (e) {
+      print("Error fetching room list: $e");
+      if (e.toString().contains("Disconnected") || e.toString().contains("Not connected")) {
+        // Stop polling if disconnected
+        _pollingTimer?.cancel();
+      }
+      if (mounted && !silent) {
+        setState(() => isLoading = false);
+      }
+    }
   }
 
   void handleModeChange(String? newMode) {

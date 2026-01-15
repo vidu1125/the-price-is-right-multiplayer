@@ -135,6 +135,21 @@ class _RoomScreenState extends State<RoomScreen> {
                     }
                 }
                 break;
+            case RoomEventType.hostChanged:
+                final data = event.data;
+                if (data != null) {
+                    final newHostId = data['host_id'] ?? data['hostId'] ?? data['new_host_id'];
+                    if (newHostId != null) {
+                        _room = _room.copyWith(hostId: newHostId);
+                        
+                        if (newHostId == _currentUserId) {
+                             ScaffoldMessenger.of(context).showSnackBar(
+                               const SnackBar(content: Text("You are now the host!"))
+                             );
+                        }
+                    }
+                }
+                break;
             default:
                 break;
         }
@@ -150,12 +165,17 @@ class _RoomScreenState extends State<RoomScreen> {
         break;
       case RoomEventType.gameStarted:
         // Navigate to the Game Container Screen
+        print("[RoomScreen] 🎮 Game started event received!");
         final data = event.data as Map<String, dynamic>?;
+        print("[RoomScreen] Event data: $data");
         final matchId = data?['match_id'] ?? 1; // Default to 1 if missing for testing
-        Navigator.pushNamed(context, '/game', arguments: {
-          'room': _room,
-          'matchId': matchId,
-        });
+        print("[RoomScreen] Navigating to /game with matchId: $matchId");
+        if (mounted) {
+          Navigator.pushNamed(context, '/game', arguments: {
+            'room': _room,
+            'matchId': matchId,
+          });
+        }
         break;
       default: break;
     }
@@ -899,7 +919,7 @@ class _RoomScreenState extends State<RoomScreen> {
     final myReady = me.ready;
 
     // Check if everyone is ready (including Host)
-    final allReady = _room.members.length >= 4 && _room.members.every((m) => m.ready);
+    final allReady = _room.members.length >= 1 && _room.members.every((m) => m.ready);
 
     return Column(
       children: [
@@ -934,8 +954,8 @@ class _RoomScreenState extends State<RoomScreen> {
                 if (allReady) {
                   _startGame();
                 } else {
-                  String msg = _room.members.length < 4 
-                      ? "Need at least 4 players to start!" 
+                  String msg = _room.members.length < 1 
+                      ? "Need at least 1 player to start!" 
                       : "All players must be READY to start!";
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text(msg)),

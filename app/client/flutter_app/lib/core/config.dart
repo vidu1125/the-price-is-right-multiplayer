@@ -1,4 +1,4 @@
 class AppConfig {
   static const String serverHost = "0.tcp.ap.ngrok.io";
-  static const int serverPort = 12328;
+  static const int serverPort = 19323;
 }

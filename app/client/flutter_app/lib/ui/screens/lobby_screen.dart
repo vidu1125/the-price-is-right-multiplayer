@@ -22,17 +22,15 @@ class _LobbyScreenState extends State<LobbyScreen> {
   int _pendingRequests = 0;
   StreamSubscription? _friendSub;
   StreamSubscription? _roomSub;
-  Timer? _pollTimer;
+  // Timer? _pollTimer; // Removed to optimize network
 
   @override
   void initState() {
     super.initState();
+    // Only fetch once on init
     _fetchPendingRequests();
     
-    // Start polling fallback
-    _pollTimer = Timer.periodic(const Duration(seconds: 10), (_) => _fetchPendingRequests());
-    
-    // Listen for friend updates
+    // Listen for friend updates (Real-time instead of polling)
     _friendSub = ServiceLocator.friendService.events.listen((event) {
         if (!mounted) return;
         if (event.type == FriendEventType.requestReceived ||
@@ -49,16 +47,21 @@ class _LobbyScreenState extends State<LobbyScreen> {
         if (!mounted) return;
         if (event.type == RoomEventType.invitationReceived) {
              final data = event.data;
-             showDialog(
-                 context: context,
-                 barrierDismissible: false,
-                 builder: (context) => InvitationDialog(
-                     senderId: data['sender_id'],
-                     senderName: data['sender_name'] ?? "Unknown",
-                     roomId: data['room_id'],
-                     roomName: data['room_name'] ?? "Game Room"
-                 )
-             );
+             // Wrap in post frame callback to avoid navigation errors if building
+             WidgetsBinding.instance.addPostFrameCallback((_) {
+                 if (mounted) {
+                   showDialog(
+                       context: context,
+                       barrierDismissible: false,
+                       builder: (context) => InvitationDialog(
+                           senderId: data['sender_id'],
+                           senderName: data['sender_name'] ?? "Unknown",
+                           roomId: data['room_id'],
+                           roomName: data['room_name'] ?? "Game Room"
+                       )
+                   );
+                 }
+             });
         }
     });
   }
@@ -66,7 +69,6 @@ class _LobbyScreenState extends State<LobbyScreen> {
   Future<void> _fetchPendingRequests() async {
       try {
           final res = await ServiceLocator.friendService.getFriendRequests();
-          print("[DEBUG] Lobby _fetchPendingRequests: $res");
           if (mounted && res["success"] == true) {
               setState(() {
                   _pendingRequests = (res["count"] ?? 0) as int;
@@ -79,7 +81,6 @@ class _LobbyScreenState extends State<LobbyScreen> {
   void dispose() {
       _friendSub?.cancel();
       _roomSub?.cancel();
-      _pollTimer?.cancel();
       super.dispose();
   }
 

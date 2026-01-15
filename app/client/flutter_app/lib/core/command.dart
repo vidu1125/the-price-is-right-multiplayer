@@ -64,7 +64,7 @@ class Command {
   static const int resProfileUpdated = 226;
   static const int resProfileFound = 227;
   static const int resRoomList = 228;
-  static const int resPasswordChanged = 229; // Note: Might match 0xE5
+  static const int resPasswordChanged = 228; // Matches backend 0x00E4
   static const int resFriendAdded = 229; // 0xE5
   static const int resGameStarted = 301;
 

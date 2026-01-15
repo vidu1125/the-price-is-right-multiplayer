@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import '../network/tcp_client.dart';
 import '../network/dispatcher.dart';
 import '../core/command.dart';
+import '../core/protocol.dart';
 
 class GameService {
   final TcpClient client;
@@ -11,28 +12,26 @@ class GameService {
   GameService(this.client, this.dispatcher);
 
   /// Start a match in the specified room
-  /// Returns a map with success status and potential error message or match id
+  /// Backend will broadcast NTF_GAME_START to all players (no direct response)
   Future<Map<String, dynamic>> startGame(int roomId) async {
     final buffer = ByteData(4);
-    buffer.setUint32(0, roomId); // Big Endian by default in ByteData setUint32 if endian not specified? No, default is Big Endian.
+    buffer.setUint32(0, roomId, Endian.big);
 
     try {
-      // The backend returns RES_GAME_STARTED (0x012D) with JSON body: {"success":true,"match_id":...}
-      final response = await client.request(Command.startGame, payload: buffer.buffer.asUint8List());
+      // Send command without waiting for response
+      // Backend will broadcast NTF_GAME_START to all room members
+      final packet = Protocol.buildPacket(
+        command: Command.startGame,
+        seqNum: 0,
+        payload: buffer.buffer.asUint8List(),
+      );
       
-      if (response.command == Command.resGameStarted) {
-       
-        String raw = String.fromCharCodes(response.payload);
-        int jsonStart = raw.indexOf("{");
-        if (jsonStart != -1) {
-             // It's just a JSON string, extract it
-             // Verify if it works.
-             return {"success": true};
-        }
-        return {"success": true}; 
-      } else {
-        return {"success": false, "error": "Unexpected response: ${response.command}"};
-      }
+      client.send(packet);
+      
+      print("[GameService] Start game request sent for room $roomId");
+      
+      // Success means command was sent, actual game start is confirmed via NTF_GAME_START
+      return {"success": true};
     } catch (e) {
       return {"success": false, "error": e.toString()};
     }

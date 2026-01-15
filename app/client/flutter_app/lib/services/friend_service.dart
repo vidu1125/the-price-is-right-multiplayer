@@ -27,15 +27,14 @@ class FriendService {
   final _eventController = StreamController<FriendEvent>.broadcast();
   Stream<FriendEvent> get events => _eventController.stream;
 
+  List<dynamic>? _cachedFriends; // In-memory cache
+
   FriendService(this.client, this.dispatcher) {
     _registerHandlers();
   }
 
   void _registerHandlers() {
     dispatcher.register(Command.ntfFriendRequest, (msg) {
-        // Notification of new request
-        // data: { request_id: ..., sender_id: ..., sender_name: ... } ideally
-        // But let's just decode whatever comes
         try {
           var json = Protocol.decodeJson(msg.payload);
           _eventController.add(FriendEvent(FriendEventType.requestReceived, json));
@@ -47,6 +46,7 @@ class FriendService {
     dispatcher.register(Command.ntfFriendAccepted, (msg) {
         try {
           var json = Protocol.decodeJson(msg.payload);
+          _cachedFriends = null; // Invalidate cache
           _eventController.add(FriendEvent(FriendEventType.requestAccepted, json));
         } catch (_) {}
     });
@@ -54,6 +54,7 @@ class FriendService {
      dispatcher.register(Command.ntfFriendAdded, (msg) {
         try {
           var json = Protocol.decodeJson(msg.payload);
+          _cachedFriends = null; // Invalidate cache
           _eventController.add(FriendEvent(FriendEventType.friendAdded, json));
         } catch (_) {}
     });   
@@ -61,14 +62,24 @@ class FriendService {
     dispatcher.register(Command.ntfFriendRemoved, (msg) {
         try {
           var json = Protocol.decodeJson(msg.payload);
+          _cachedFriends = null; // Invalidate cache
           _eventController.add(FriendEvent(FriendEventType.friendRemoved, json));
         } catch (_) {}
     });
     
-    // Status changes
+    // Status changes - Update cache in-place if possible, or invalidate
     dispatcher.register(Command.ntfFriendStatus, (msg) {
        try {
           var json = Protocol.decodeJson(msg.payload);
+          // Optional: Update status in cache without full refetch
+          if (_cachedFriends != null && json['friend_id'] != null) {
+              final id = json['friend_id'];
+              final idx = _cachedFriends!.indexWhere((f) => f['id'] == id);
+              if (idx != -1) {
+                  _cachedFriends![idx]['online'] = (json['status'] != 'offline');
+                  _cachedFriends![idx]['in_game'] = (json['status'] == 'playing');
+              }
+          }
           _eventController.add(FriendEvent(FriendEventType.friendStatusChanged, json));
         } catch (_) {}
     });
@@ -117,8 +128,13 @@ class FriendService {
     }
   }
 
-  /// Get list of friends
-  Future<Map<String, dynamic>> getFriendList() async {
+  /// Get list of friends with caching
+  Future<Map<String, dynamic>> getFriendList({bool forceRefresh = false}) async {
+    // Return cache if available and not forcing refresh
+    if (!forceRefresh && _cachedFriends != null) {
+        return {"success": true, "friends": _cachedFriends!};
+    }
+
     try {
       final response = await client.request(
         Command.friendList,
@@ -127,7 +143,8 @@ class FriendService {
 
       final data = Protocol.decodeJson(response.payload);
       if (data["success"] == true) {
-        return {"success": true, "friends": data["friends"] ?? []};
+        _cachedFriends = data["friends"] ?? [];
+        return {"success": true, "friends": _cachedFriends!};
       }
       return {"success": false, "error": data["error"] ?? "Failed to fetch friends"};
     } catch (e) {

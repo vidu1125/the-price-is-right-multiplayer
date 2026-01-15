@@ -72,8 +72,8 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
     
     printf("[HANDLER] <startgame> Starting with %d player(s)\n", player_count);
     
-    if (player_count < 2) {
-        forward_response(client_fd, req, ERR_BAD_REQUEST, "Need at least 2 players to start", 32);
+    if (player_count < 1) {
+        forward_response(client_fd, req, ERR_BAD_REQUEST, "Need at least 1 player to start", 31);
         return;
     }
 
