@@ -169,6 +169,57 @@ docker logs tpir-postgres
 **Nguyên nhân:** Sai password
 **Giải pháp:** Đảm bảo password là `password` (chữ thường)
 
+<<<<<<< HEAD
+### Lỗi: "FATAL: role 'postgres' does not exist" hoặc "FATAL: role 'postgresql' does not exist"
+**Nguyên nhân:** 
+- Sai username trong DBeaver, HOẶC
+- Volume PostgreSQL cũ đã được tạo với username khác (volume lưu trữ dữ liệu database)
+
+**Giải pháp:**
+
+**Bước 1: Kiểm tra username trong DBeaver**
+- Đảm bảo **Username** là `postgresql` (không phải `postgres`)
+- Username đúng: `postgresql`
+- Password: `password`
+- Database: `tpir`
+
+**Bước 2: Nếu vẫn lỗi, xóa volume cũ và tạo lại container**
+```bash
+# Dừng và xóa container + volume
+docker-compose down -v
+
+# Xóa volume thủ công (nếu cần)
+docker volume rm the-price-is-right-multiplayer_postgres_data
+
+# Tạo lại container với cấu hình mới
+docker-compose up -d postgres
+
+# Kiểm tra logs để đảm bảo container khởi động đúng
+docker logs tpir-postgres
+```
+
+**Bước 3: Giải pháp thay thế (nếu muốn giữ dữ liệu)**
+Nếu bạn muốn giữ dữ liệu hiện tại, có thể tạo user mới trong database:
+```bash
+# Kết nối vào container với user hiện có (thường là 'postgres')
+docker exec -it tpir-postgres psql -U postgres -d tpir
+
+# Hoặc nếu user là 'postgresql' nhưng database khác
+docker exec -it tpir-postgres psql -U postgres
+
+# Trong psql, tạo user mới:
+CREATE USER postgresql WITH PASSWORD 'password';
+ALTER USER postgresql CREATEDB;
+GRANT ALL PRIVILEGES ON DATABASE tpir TO postgresql;
+\q
+```
+
+**Lưu ý:** 
+- Việc xóa volume (Bước 2) sẽ **XÓA TẤT CẢ DỮ LIỆU** trong database. Chỉ làm khi bạn chấp nhận mất dữ liệu hoặc đang trong giai đoạn development.
+- Giải pháp Bước 3 chỉ hoạt động nếu bạn biết user hiện tại của database (thường là `postgres`).
+
+=======
+>>>>>>> e73574328230d6e12877681e5b5ef50a7bb7df68
 ### Lỗi: "Port 5432 already in use"
 **Nguyên nhân:** Có PostgreSQL instance khác đang chạy trên port 5432
 **Giải pháp:**

@@ -4,6 +4,7 @@ import {
   Route,
   Navigate,
   useLocation,
+  useNavigate,
 } from "react-router-dom";
 import React, { useEffect } from "react";
 import { AnimatePresence } from "framer-motion";
@@ -30,6 +31,9 @@ import {
   RedirectIfAuthed,
 } from "./services/authGuard";
 import { useAuthBootstrap } from "./services/authBootstrap";
+
+// Import game services to register NTF_ELIMINATION handler early
+import "./services/gameService";
 
 import "./App.css";
 
@@ -110,6 +114,31 @@ function AnimatedRoutes() {
   );
 }
 
+// ============================================================================
+// EliminationHandler: Listen for elimination events and redirect to lobby
+// ============================================================================
+function EliminationHandler() {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const handleElimination = (e) => {
+      const data = e.detail;
+      console.log('[App] 🚫 Player eliminated:', data);
+      
+      // Show alert with elimination info
+      alert(`You have been eliminated!\n\nReason: ${data.reason}\nFinal Score: ${data.final_score}\nRound: ${data.round}`);
+      
+      // Redirect to lobby
+      navigate('/lobby');
+    };
+    
+    window.addEventListener('playerEliminated', handleElimination);
+    return () => window.removeEventListener('playerEliminated', handleElimination);
+  }, [navigate]);
+
+  return null; // This component doesn't render anything
+}
+
 function App() {
   useEffect(() => {
     initSocket();
@@ -117,6 +146,7 @@ function App() {
 
   return (
     <Router>
+      <EliminationHandler />
       <AnimatedRoutes />
     </Router>
   );
