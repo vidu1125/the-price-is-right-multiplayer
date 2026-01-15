@@ -9,6 +9,7 @@
 #include "handlers/session_manager.h"
 #include "transport/room_manager.h"
 #include "db/core/db_client.h"
+#include <stdlib.h>
 
 #if defined(__GNUC__) || defined(__clang__)
     #define PACKED __attribute__((packed))
@@ -134,22 +135,7 @@ void handle_invite_player(int client_fd, MessageHeader *req, const char *payload
     printf("[SERVER] [INVITE_PLAYER] Notification (NTF_INVITATION) sent to account %d (fd=%d) from %s\n", 
            target_id, target_session->socket_fd, sender_name);
 
-    // 9. Add to Room Invite List (for private room access)
-    bool already_invited = false;
-    for (int i = 0; i < room->invite_count; i++) {
-        if (room->invited_ids[i] == target_id) {
-            already_invited = true;
-            break;
-        }
-    }
-    
-    if (!already_invited && room->invite_count < 20) {
-        room->invited_ids[room->invite_count++] = target_id;
-        printf("[SERVER] [INVITE] Added user %d to invite list of room %u (count=%d)\n", 
-               target_id, room->id, room->invite_count);
-    }
-
-    // 10. Respond to sender (success)
+    // 8. Respond to sender (success)
     forward_response(client_fd, req, RES_SUCCESS, "Invitation sent", 15);
 
     // Cleanup

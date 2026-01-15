@@ -38,9 +38,6 @@ MatchState* match_create(uint32_t match_id, uint32_t room_id) {
         return NULL;
     }
 
-    // Note: No longer checking room_id since MatchState doesn't store it
-    (void)room_id; // Suppress unused warning
-
     MatchState *slot = alloc_slot();
     if (!slot) {
         printf("[HANDLER] <matchManager> ERROR: No free slots available\n");
@@ -50,6 +47,7 @@ MatchState* match_create(uint32_t match_id, uint32_t room_id) {
     // Initialize match state
     memset(slot, 0, sizeof(MatchState));
     slot->runtime_match_id = match_id;
+    slot->room_id = room_id;
     slot->db_match_id = 0; // Will be set when saved to DB
     slot->status = MATCH_WAITING; // Match is waiting to start
     slot->current_round_idx = 0;
@@ -75,10 +73,13 @@ MatchState* match_get_by_id(uint32_t match_id) {
 }
 
 MatchState* match_get_by_room(uint32_t room_id) {
-    // Room ID is no longer stored in MatchState
-    // This function should not be used - kept for API compatibility
-    (void)room_id;
-    printf("[HANDLER] <matchManager> WARN: match_get_by_room() deprecated - room_id not stored\n");
+    if (room_id == 0) return NULL;
+    
+    for (int i = 0; i < MAX_ACTIVE_MATCHES; i++) {
+        if (g_matches[i].runtime_match_id != 0 && g_matches[i].room_id == room_id) {
+            return &g_matches[i];
+        }
+    }
     return NULL;
 }
 

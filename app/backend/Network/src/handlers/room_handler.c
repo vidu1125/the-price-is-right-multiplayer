@@ -266,12 +266,8 @@ void handle_join_room(int client_fd, MessageHeader *req, const char *payload) {
         return;
     }
     
-    // STEP 2: Check user not in any room
-    if (room_user_in_any_room(session->account_id)) {
-        printf("[SERVER] [JOIN_ROOM] Error: User %u already in a room\n", session->account_id);
-        send_error(client_fd, req, ERR_BAD_REQUEST, "Already in a room");
-        return;
-    }
+    // STEP 2: Check user not in any room (or prioritize allowing re-joining same room)
+    uint32_t current_room_id = room_find_by_player_account(session->account_id);
     
     // STEP 3: Validate payload size
     if (req->length != sizeof(JoinRoomPayload)) {
@@ -286,53 +282,31 @@ void handle_join_room(int client_fd, MessageHeader *req, const char *payload) {
     memcpy(&data, payload, sizeof(data));
     
     uint32_t target_room_id = ntohl(data.room_id);
-    
-    printf("[SERVER] [JOIN_ROOM] by_code=%d, room_id=%u\n", data.by_code, target_room_id);
-    
-    // STEP 5: Find room
     RoomState *room = NULL;
-    
+
     if (data.by_code == 0) {
-        // Join by room_id (from public list)
         room = room_get(target_room_id);
-        
-        if (!room) {
-            printf("[SERVER] [JOIN_ROOM] Error: Room %u not found\n", target_room_id);
-            send_error(client_fd, req, ERR_BAD_REQUEST, "Room not found");
-            return;
-        }
-        
-        // IMPORTANT: Join from list requires PUBLIC room
-        if (room->visibility != ROOM_PUBLIC) {
-            printf("[SERVER] [JOIN_ROOM] Error: Room %u is private\n", target_room_id);
-            send_error(client_fd, req, ERR_BAD_REQUEST, "Room is private");
-            return;
-        }
-        
     } else {
-        // Join by room_code (enter private code)
         char room_code[9];
         memcpy(room_code, data.room_code, 8);
         room_code[8] = '\0';
-        
-        printf("[SERVER] [JOIN_ROOM] Looking for room with code '%s'\n", room_code);
-        
         room = find_room_by_code(room_code);
-        
-        if (!room) {
-            printf("[SERVER] [JOIN_ROOM] Error: Invalid room code '%s'\n", room_code);
-            send_error(client_fd, req, ERR_BAD_REQUEST, "Invalid room code");
-            return;
-        }
-        
-        // TODO: Implement invite system for private rooms
-        // For now, block all private room joins
-        if (room->visibility != ROOM_PUBLIC) {
-            printf("[SERVER] [JOIN_ROOM] Error: Private room requires invite (not implemented)\n");
-            send_error(client_fd, req, ERR_BAD_REQUEST, "Private room requires invite");
-            return;
-        }
     }
+
+    if (!room) {
+        send_error(client_fd, req, ERR_BAD_REQUEST, "Room not found");
+        return;
+    }
+
+    // If user is in a room and it's NOT the one they are trying to join
+    if (current_room_id != 0 && current_room_id != room->id) {
+        printf("[SERVER] [JOIN_ROOM] Error: User %u already in a DIFFERENT room %u\n", 
+               session->account_id, current_room_id);
+        send_error(client_fd, req, ERR_BAD_REQUEST, "Already in another room");
+        return;
+    }
+    
+    printf("[SERVER] [JOIN_ROOM] by_code=%d, room_id=%u\n", data.by_code, room->id);
     
     printf("[SERVER] [JOIN_ROOM] Found room %u (%s), status=%d, players=%d/%d\n",
            room->id, room->code, room->status, room->player_count, room->max_players);

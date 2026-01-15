@@ -191,11 +191,35 @@ void handle_login(
         profile_create(account->id, NULL, NULL, NULL, &profile);
     }
 
+    // Build success response
+    cJSON *response = cJSON_CreateObject();
+    cJSON_AddBoolToObject(response, "success", true);
+    cJSON_AddNumberToObject(response, "account_id", account->id);
+    cJSON_AddStringToObject(response, "session_id", session->session_id);
+    add_profile_to_response(response, profile, account);
+
+    // Check if player is in any room BEFORE we bind and potentially kick old socket
+    uint32_t room_id = room_find_by_player_account(account->id);
+    if (room_id != 0) {
+        printf("[AUTH] User %u is in room %u, adding room info to response\n", account->id, room_id);
+        RoomState *m_room = room_get_state(room_id);
+        if (m_room) {
+            cJSON *room_obj = cJSON_CreateObject();
+            cJSON_AddNumberToObject(room_obj, "room_id", m_room->id);
+            cJSON_AddStringToObject(room_obj, "room_code", m_room->code);
+            cJSON_AddStringToObject(room_obj, "room_name", m_room->name);
+            cJSON_AddNumberToObject(room_obj, "host_id", m_room->host_id);
+            cJSON_AddBoolToObject(room_obj, "is_host", m_room->host_id == account->id);
+            cJSON_AddItemToObject(response, "current_room", room_obj);
+        }
+    }
+
     // Enforce session exclusivity and bind mapping per session rule
     UserSession *bound = session_bind_after_login(client_fd, account->id, session->session_id, header);
     if (!bound) {
         // Blocked by session rule (playing and connected); close new login
         cJSON_Delete(json);
+        cJSON_Delete(response);
         account_free(account);
         session_free(session);
         profile_free(profile);
@@ -210,13 +234,6 @@ void handle_login(
     const char *profile_name = profile && profile->name ? profile->name : "User";
     const char *profile_avatar = profile && profile->avatar ? profile->avatar : "";
     presence_register_online(account->id, client_fd, profile_name, profile_avatar);
-
-    // Build success response
-    cJSON *response = cJSON_CreateObject();
-    cJSON_AddBoolToObject(response, "success", true);
-    cJSON_AddNumberToObject(response, "account_id", account->id);
-    cJSON_AddStringToObject(response, "session_id", session->session_id);
-    add_profile_to_response(response, profile, account);
 
     send_response(client_fd, header, RES_LOGIN_OK, response);
 
@@ -557,32 +574,12 @@ void handle_reconnect(
     // Update session as connected
     session_reconnect(session->session_id);
 
-    // Bind per session rule (reconnect from DISCONNECTED)
-    UserSession *bound = session_bind_after_login(client_fd, account->id, session->session_id, header);
-    if (!bound) {
-        // if blocked, return
-        cJSON_Delete(json);
-        account_free(account);
-        session_free(session);
-        return;
-    }
-
-    // Legacy mapping for other handlers
-    set_client_session(client_fd, session->session_id, account->id);
-
     // Fetch profile (best effort)
     profile_t *profile = NULL;
     db_error_t profile_err = profile_find_by_account(account->id, &profile);
     if (profile_err == DB_ERROR_NOT_FOUND) {
         profile_create(account->id, NULL, NULL, NULL, &profile);
     }
-
-    // Register user as online in presence manager (reconnect)
-    const char *profile_name = profile && profile->name ? profile->name : "User";
-    const char *profile_avatar = profile && profile->avatar ? profile->avatar : "";
-    presence_register_online(account->id, client_fd, profile_name, profile_avatar);
-
-    // TODO: Restore room state if player was in a room
 
     // Build success response
     cJSON *response = cJSON_CreateObject();
@@ -591,6 +588,42 @@ void handle_reconnect(
     cJSON_AddStringToObject(response, "session_id", session->session_id);
     cJSON_AddBoolToObject(response, "reconnected", true);
     add_profile_to_response(response, profile, account);
+
+    // Check if player is in any room BEFORE we bind and potentially kick old socket
+    uint32_t room_id = room_find_by_player_account(account->id);
+    if (room_id != 0) {
+        printf("[AUTH] User %u is in room %u, adding room info to response\n", account->id, room_id);
+        RoomState *m_room = room_get_state(room_id);
+        if (m_room) {
+            cJSON *room_obj = cJSON_CreateObject();
+            cJSON_AddNumberToObject(room_obj, "room_id", m_room->id);
+            cJSON_AddStringToObject(room_obj, "room_code", m_room->code);
+            cJSON_AddStringToObject(room_obj, "room_name", m_room->name);
+            cJSON_AddNumberToObject(room_obj, "host_id", m_room->host_id);
+            cJSON_AddBoolToObject(room_obj, "is_host", m_room->host_id == account->id);
+            cJSON_AddItemToObject(response, "current_room", room_obj);
+        }
+    }
+
+    // Bind per session rule (reconnect from DISCONNECTED)
+    UserSession *bound = session_bind_after_login(client_fd, account->id, session->session_id, header);
+    if (!bound) {
+        // if blocked, return
+        cJSON_Delete(json);
+        cJSON_Delete(response);
+        account_free(account);
+        session_free(session);
+        profile_free(profile);
+        return;
+    }
+
+    // Legacy mapping for other handlers
+    set_client_session(client_fd, session->session_id, account->id);
+
+    // Register user as online in presence manager (reconnect)
+    const char *profile_name = profile && profile->name ? profile->name : "User";
+    const char *profile_avatar = profile && profile->avatar ? profile->avatar : "";
+    presence_register_online(account->id, client_fd, profile_name, profile_avatar);
 
     send_response(client_fd, header, RES_LOGIN_OK, response);
 

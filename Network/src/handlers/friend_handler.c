@@ -47,6 +47,18 @@ static void send_error(
     cJSON_Delete(payload);
 }
 
+// Helper to send unsolicited notifications
+static void send_notification(int client_fd, uint16_t cmd, cJSON *payload) {
+    char *json_str = cJSON_PrintUnformatted(payload);
+    if (!json_str) return;
+    
+    MessageHeader dummy_header;
+    memset(&dummy_header, 0, sizeof(dummy_header));
+    
+    forward_response(client_fd, &dummy_header, cmd, json_str, strlen(json_str));
+    free(json_str);
+}
+
 // ============================================================================
 // COMMAND HANDLERS
 // ============================================================================
@@ -156,6 +168,29 @@ void handle_friend_add(
     printf("[FRIEND] Friend request sent: user=%d -> friend=%d, request_id=%d\n", 
            user_id, friend_id, request->id);
 
+    // Notify the receiver if online
+    UserSession *friend_session = session_get_by_account(friend_id);
+    if (friend_session && friend_session->state != SESSION_UNAUTHENTICATED) {
+        cJSON *notif = cJSON_CreateObject();
+        cJSON_AddNumberToObject(notif, "request_id", request->id);
+        cJSON_AddNumberToObject(notif, "sender_id", user_id);
+        
+        // Add sender profile info
+        profile_t *my_profile = NULL;
+        profile_find_by_account(user_id, &my_profile);
+        if (my_profile) {
+            if (my_profile->name) cJSON_AddStringToObject(notif, "sender_name", my_profile->name);
+            if (my_profile->avatar) cJSON_AddStringToObject(notif, "sender_avatar", my_profile->avatar);
+            profile_free(my_profile);
+        } else {
+            cJSON_AddStringToObject(notif, "sender_name", "Unknown");
+        }
+        
+        send_notification(friend_session->socket_fd, NTF_FRIEND_REQUEST, notif);
+        cJSON_Delete(notif);
+        printf("[FRIEND] Notification sent to receiver %d\n", friend_id);
+    }
+
     // Cleanup
     cJSON_Delete(response);
     cJSON_Delete(json);
@@ -219,6 +254,28 @@ void handle_friend_accept(
 
     printf("[FRIEND] Friend request accepted: request_id=%d, sender=%d, receiver=%d\n", 
            request_id, request->sender_id, request->receiver_id);
+
+    // Notify the sender if online
+    UserSession *sender_session = session_get_by_account(request->sender_id);
+    if (sender_session && sender_session->state != SESSION_UNAUTHENTICATED) {
+        cJSON *notif = cJSON_CreateObject();
+        cJSON_AddNumberToObject(notif, "friend_id", request->receiver_id); // The one who accepted
+        
+        // Add receiver profile info
+        profile_t *receiver_profile = NULL;
+        profile_find_by_account(request->receiver_id, &receiver_profile);
+        if (receiver_profile) {
+            if (receiver_profile->name) cJSON_AddStringToObject(notif, "friend_name", receiver_profile->name);
+            if (receiver_profile->avatar) cJSON_AddStringToObject(notif, "friend_avatar", receiver_profile->avatar);
+            profile_free(receiver_profile);
+        } else {
+             cJSON_AddStringToObject(notif, "friend_name", "Unknown");
+        }
+
+        send_notification(sender_session->socket_fd, NTF_FRIEND_ACCEPTED, notif);
+        cJSON_Delete(notif);
+        printf("[FRIEND] Notification sent to sender %d\n", request->sender_id);
+    }
 
     // Cleanup
     cJSON_Delete(response);

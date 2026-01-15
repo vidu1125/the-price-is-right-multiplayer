@@ -302,11 +302,24 @@ void handle_join_room(int client_fd, MessageHeader *req, const char *payload) {
             return;
         }
         
-        // IMPORTANT: Join from list requires PUBLIC room
+        // IMPORTANT: Join from list requires PUBLIC room OR Invitation
         if (room->visibility != ROOM_PUBLIC) {
-            printf("[SERVER] [JOIN_ROOM] Error: Room %u is private\n", target_room_id);
-            send_error(client_fd, req, ERR_BAD_REQUEST, "Room is private");
-            return;
+            bool is_invited = false;
+            printf("[SERVER] [JOIN_ROOM] Checking invite access for Room %u, User %u. Invite count: %d\n", room->id, session->account_id, room->invite_count);
+            for (int i = 0; i < room->invite_count; i++) {
+                // printf("[SERVER] [JOIN_ROOM]   - Checking invited ID: %u\n", room->invited_ids[i]); // Verbose check
+                if (room->invited_ids[i] == session->account_id) {
+                    is_invited = true;
+                    break;
+                }
+            }
+            
+            if (!is_invited) {
+                printf("[SERVER] [JOIN_ROOM] Error: Room %u is private and user %u not invited\n", target_room_id, session->account_id);
+                send_error(client_fd, req, ERR_BAD_REQUEST, "Room is private (Invite only)");
+                return;
+            }
+             printf("[SERVER] [JOIN_ROOM] User %u allowed to join private room %u (Invited)\n", session->account_id, target_room_id);
         }
         
     } else {
@@ -325,12 +338,10 @@ void handle_join_room(int client_fd, MessageHeader *req, const char *payload) {
             return;
         }
         
-        // TODO: Implement invite system for private rooms
-        // For now, block all private room joins
+        // If code matches (find_room_by_code returned access), we allow entry to Private room.
+        // The code itself is the key.
         if (room->visibility != ROOM_PUBLIC) {
-            printf("[SERVER] [JOIN_ROOM] Error: Private room requires invite (not implemented)\n");
-            send_error(client_fd, req, ERR_BAD_REQUEST, "Private room requires invite");
-            return;
+             printf("[SERVER] [JOIN_ROOM] Private room joined via Valid Code\n");
         }
     }
     

@@ -19,6 +19,9 @@ static int g_room_count = 0;
 // Internal Helpers
 //==============================================================================
 
+void log_player_state(const char *context, const RoomPlayerState *player);
+void log_room_state(const char *context, const RoomState *room);
+
 static RoomState* find_room(uint32_t room_id) {
     for (int i = 0; i < g_room_count; i++) {
         if (g_rooms[i].id == room_id) {
@@ -68,6 +71,16 @@ int room_add_player(uint32_t room_id, uint32_t account_id, const char *name, con
     RoomState *room = find_room(room_id);
     if (!room) return -1;
     
+    // Check if already in room
+    for (int i = 0; i < room->player_count; i++) {
+        if (room->players[i].account_id == account_id) {
+            printf("[SERVER] Player %u already in room %u, updating FD to %d\n", account_id, room_id, client_fd);
+            room->players[i].connected = true;
+            room->member_fds[i] = client_fd;
+            return 0;
+        }
+    }
+
     if (room->player_count >= MAX_ROOM_MEMBERS) return -1;
     
     RoomPlayerState *player = &room->players[room->player_count];
@@ -306,22 +319,30 @@ void room_remove_member(int room_id, int client_fd) {
     if (!room) return;
     
     // Find and remove
-    for (int i = 0; i < room->member_count; i++) {
+    for (int i = 0; i < room->player_count; i++) {
+        // Since we maintain alignment, we can check either member_fds or player state
+        // and remove from both.
         if (room->member_fds[i] == client_fd) {
-            // Shift remaining members
-            for (int j = i; j < room->member_count - 1; j++) {
+            printf("[SERVER] Removing player at index %d (fd=%d, account=%u) from room %u\n", 
+                   i, client_fd, room->players[i].account_id, room_id);
+
+            // Shift remaining players AND FDs to maintain alignment
+            for (int j = i; j < room->player_count - 1; j++) {
+                room->players[j] = room->players[j + 1];
                 room->member_fds[j] = room->member_fds[j + 1];
             }
+            
+            room->player_count--;
             room->member_count--;
-            printf("[SERVER] Removed fd=%d from room=%d (%d members left)\n",
-                   client_fd, room_id, room->member_count);
+
+            printf("[SERVER] Room %u now has %d players\n", room_id, room->player_count);
             
             // Log updated state
             log_room_state("After removing member", room);
             
             // Close room if empty (with DB sync)
-            if (room->member_count == 0) {
-                printf("[SERVER] Member count reached 0, calling room_close_if_empty()\n");
+            if (room->player_count == 0) {
+                printf("[SERVER] Player count reached 0, calling room_close_if_empty()\n");
                 room_close_if_empty((uint32_t)room_id);
             }
             
@@ -347,9 +368,9 @@ void room_remove_member_all(int client_fd) {
         // Remove member
         room_remove_member((int)room->id, client_fd);
 
-        // Broadcast that player left
-        const char *msg = "Player left the room";
-        room_broadcast((int)room->id, NTF_PLAYER_LEFT, msg, (uint32_t)strlen(msg), -1);
+        // Broadcast that player left (exclude the player who left to avoid confusion)
+        const char *msg = "{\"message\":\"Player left the room\"}";
+        room_broadcast((int)room->id, NTF_PLAYER_LEFT, msg, (uint32_t)strlen(msg), client_fd);
     }
 }
 
@@ -444,6 +465,36 @@ void broadcast_player_list(uint32_t room_id) {
     
     // Broadcast to all members
     room_broadcast((int)room_id, NTF_PLAYER_LIST, payload, (uint32_t)offset, -1);
+}
+
+void room_reset_for_new_game(uint32_t room_id) {
+    RoomState *room = find_room(room_id);
+    if (!room) return;
+    
+    printf("[ROOM] Resetting room %u for new game\n", room_id);
+    
+    // Reset status to WAITING
+    room->status = ROOM_WAITING;
+    
+    // Reset all players to not ready
+    for (int i = 0; i < room->player_count; i++) {
+        room->players[i].is_ready = false;
+    }
+    
+    // Broadcast updated player list
+    broadcast_player_list(room_id);
+}
+
+void room_set_ready(uint32_t room_id, int client_fd, bool ready) {
+    RoomState *room = find_room(room_id);
+    if (!room) return;
+    
+    for (int i = 0; i < room->player_count; i++) {
+        if (room->member_fds[i] == client_fd) {
+            room->players[i].is_ready = ready;
+            return;
+        }
+    }
 }
 
 int room_get_count(void) {

@@ -27,10 +27,26 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
     // VALIDATION: Check session state
     // =========================================================================
     UserSession *session = session_get_by_socket(client_fd);
-    if (!session || session->state != SESSION_LOBBY) {
-        printf("[HANDLER] <startgame> Error: Invalid session state\n");
-        forward_response(client_fd, req, ERR_BAD_REQUEST, "Invalid session state", 21);
+    if (!session) {
+        printf("[HANDLER] <startgame> Error: No session found for client_fd=%d\n", client_fd);
+        forward_response(client_fd, req, ERR_BAD_REQUEST, "No session found", 16);
         return;
+    }
+
+    printf("[HANDLER] <startgame> Requester Account ID: %d, current state: %d\n", 
+           session->account_id, session->state);
+
+    if (session->state != SESSION_LOBBY) {
+        // SPECIAL CASE: If session is PLAYING, allow reset to LOBBY if they are initiating a new game start
+        // This handles cases where a previous match didn't cleanup correctly.
+        if (session->state == SESSION_PLAYING) {
+            printf("[HANDLER] <startgame> INFO: Requester is in SESSION_PLAYING state. Resetting to LOBBY.\n");
+            session->state = SESSION_LOBBY;
+        } else {
+            printf("[HANDLER] <startgame> Error: Invalid session state (%d)\n", session->state);
+            forward_response(client_fd, req, ERR_BAD_REQUEST, "Invalid session state", 21);
+            return;
+        }
     }
 
     // =========================================================================
@@ -61,8 +77,34 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
         forward_response(client_fd, req, ERR_BAD_REQUEST, "Room not in waiting state", 26);
         return;
     }
+    for (int i = 0; i < room->player_count; i++) {
+    RoomPlayerState *p = &room->players[i];
 
-    //
+    if (!p->connected) {
+        printf("[HANDLER] <startgame> Error: Player %u disconnected\n", p->account_id);
+        forward_response(
+            client_fd,
+            req,
+            ERR_BAD_REQUEST,
+            "Player disconnected",
+            19
+        );
+        return;
+    }
+
+    if (!p->is_ready) {
+        printf("[HANDLER] <startgame> Error: Player %u not ready\n", p->account_id);
+        forward_response(
+            client_fd,
+            req,
+            ERR_BAD_REQUEST,
+            "Not all players are ready",
+            26
+        );
+        return;
+    }
+}
+    
     printf("[HANDLER] <startgame> All players are ready\n");
 
     // =========================================================================
@@ -73,7 +115,7 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
     printf("[HANDLER] <startgame> Starting with %d player(s)\n", player_count);
     
     if (player_count < 1) {
-        forward_response(client_fd, req, ERR_BAD_REQUEST, "Need at least 1 player to start", 31);
+        forward_response(client_fd, req, ERR_BAD_REQUEST, "Need at least 2 players to start", 32);
         return;
     }
 
@@ -134,6 +176,10 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
         match->players[i].score = 0;
         match->players[i].connected = room->players[i].connected ? 1 : 0;
         
+        // Copy player name
+        strncpy(match->players[i].name, room->players[i].name, sizeof(match->players[i].name) - 1);
+        match->players[i].name[sizeof(match->players[i].name) - 1] = '\0';
+        
         printf("[HANDLER] <startgame>   - Added match player: %d\n", 
                match->players[i].account_id);
     }
@@ -144,7 +190,7 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
     // Insert match_players into database
     if (match->db_match_id > 0) {
         // Collect account IDs into array for DB call
-        int player_ids[MAX_ROOM_MEMBERS];
+        int32_t player_ids[MAX_ROOM_MEMBERS];
         for(int i=0; i<match->player_count; i++) {
             player_ids[i] = match->players[i].account_id;
         }
@@ -154,35 +200,29 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
             printf("[HANDLER] <startgame> WARN: Failed to insert match_players (rc=%d)\n", player_rc);
         } else {
             printf("[HANDLER] <startgame> Match players saved to database\n");
+            
+            // Get match_player IDs from database and store in MatchPlayerState
+            int32_t match_player_ids[MAX_ROOM_MEMBERS];
+            db_error_t ids_rc = db_match_players_get_ids(
+                match->db_match_id,
+                player_ids,
+                match_player_ids,
+                match->player_count
+            );
+            
+            if (ids_rc == DB_OK) {
+                for (int i = 0; i < match->player_count; i++) {
+                    match->players[i].match_player_id = match_player_ids[i];
+                    printf("[HANDLER] <startgame>   - Player %d -> match_player_id=%d\n",
+                           match->players[i].account_id, match->players[i].match_player_id);
+                }
+            } else {
+                printf("[HANDLER] <startgame> WARN: Failed to get match_player IDs (rc=%d)\n", ids_rc);
+            }
         }
     }
     
-    // =========================================================================
-    // STEP 3: CHUYỂN USER SESSION → SESSION_PLAYING
-    // =========================================================================
-    // Update all player sessions to PLAYING state
-    printf("[HANDLER] <startgame> Step 3: Updating player sessions to PLAYING...\n");
-    
-    int sessions_updated = 0;
-    for (int i = 0; i < match->player_count; i++) {
-        int32_t account_id = match->players[i].account_id;
-        
-        // Get session by account_id
-        UserSession *session = session_get_by_account(account_id);
-        if (!session) {
-            printf("[HANDLER] <startgame> WARN: Session not found for account_id=%d\n", account_id);
-            continue;
-        }
-        
-        // Mark session as PLAYING
-        session_mark_playing(session);
-        sessions_updated++;
-        
-        printf("[HANDLER] <startgame>   - Player account_id=%d → SESSION_PLAYING\n", account_id);
-    }
-
-    printf("[HANDLER] <startgame> Step 3: Updated %d/%d player sessions to PLAYING\n", 
-           sessions_updated, match->player_count);
+    printf("[HANDLER] <startgame> Step 3: Deferred session update (will update after questions are loaded)\n");
 
     // =========================================================================
     // STEP 4: GET EXCLUDED QUESTION IDs (avoid duplicates from recent matches)
@@ -240,6 +280,12 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
         round->started_at = 0;
         round->ended_at = 0;
         
+        // ⭐ SKIP question loading for ROUND_WHEEL (Round 3)
+        if (round->type == ROUND_WHEEL) {
+            printf("[HANDLER] <startgame> Round %d (WHEEL): Skipping question loading\n", r + 1);
+            continue;
+        }
+
         cJSON *questions_json = NULL;
         db_error_t db_rc = question_get_random(
             round_type_names[r],      // round_type
@@ -306,6 +352,43 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
     match->current_round_idx = 0;
 
     // =========================================================================
+    // STEP 6: INSERT MATCH_QUESTIONS INTO DATABASE
+    // =========================================================================
+    if (match->db_match_id > 0) {
+        printf("[HANDLER] <startgame> Step 6: Inserting match_questions into database...\n");
+        
+        int questions_inserted = 0;
+        for (int r = 0; r < match->round_count; r++) {
+            RoundState *round = &match->rounds[r];
+            const char *round_type_str = (round->type == ROUND_MCQ) ? "MCQ" :
+                                         (round->type == ROUND_BID) ? "BID" :
+                                         (round->type == ROUND_WHEEL) ? "WHEEL" : "UNKNOWN";
+            
+            for (int q = 0; q < round->question_count; q++) {
+                int64_t mq_id = 0;
+                db_error_t mq_rc = db_match_question_insert(
+                    match->db_match_id,
+                    r + 1,  // round_no (1-based)
+                    round_type_str,
+                    q,      // question_idx (0-based)
+                    round->question_data[q].json_data,
+                    &mq_id
+                );
+                
+                if (mq_rc == DB_OK && mq_id > 0) {
+                    // Store match_question.id in QuestionState for later use
+                    round->questions[q].question_id = (int32_t)mq_id;
+                    questions_inserted++;
+                } else {
+                    printf("[HANDLER] <startgame> WARN: Failed to insert match_question r=%d q=%d\n", r+1, q);
+                }
+            }
+        }
+        
+        printf("[HANDLER] <startgame> Inserted %d match_questions into database\n", questions_inserted);
+    }
+
+    // =========================================================================
     // MATCH CREATION SUMMARY
     // =========================================================================
     printf("\n");
@@ -318,14 +401,26 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
     printf("[HANDLER] <startgame> Total Questions Loaded: %d\n", total_questions_loaded);
     printf("[HANDLER] <startgame>   - Round 1 (MCQ): %d questions\n", match->rounds[0].question_count);
     printf("[HANDLER] <startgame>   - Round 2 (BID): %d questions\n", match->rounds[1].question_count);
-    printf("[HANDLER] <startgame>   - Round 3 (WHEEL): %d questions\n", match->rounds[2].question_count);
+    printf("[HANDLER] <startgame>   - Round 3 (WHEEL): No questions (Wheel Spin)\n");
     printf("[HANDLER] <startgame> Match Status: WAITING\n");
     printf("[HANDLER] <startgame> ========================================\n");
     printf("\n");
     printf("\n");
 
     // =========================================================================
-    // STEP 5: BROADCAST NTF_GAME_START TO ALL PLAYERS
+    // STEP 7: CHUYỂN USER SESSION → SESSION_PLAYING
+    // =========================================================================
+    printf("[HANDLER] <startgame> Step 7: Finalizing session states...\n");
+    for (int i = 0; i < match->player_count; i++) {
+        UserSession *s = session_get_by_account(match->players[i].account_id);
+        if (s) {
+            session_mark_playing(s);
+            printf("[HANDLER] <startgame>   - Player %d → SESSION_PLAYING\n", s->account_id);
+        }
+    }
+
+    // =========================================================================
+    // STEP 8: BROADCAST NTF_GAME_START TO ALL PLAYERS
     // =========================================================================
     // This triggers the client to navigate to the game screen (Round 1)
     char game_start_msg[256];

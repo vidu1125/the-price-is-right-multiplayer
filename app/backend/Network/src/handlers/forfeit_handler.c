@@ -1,13 +1,17 @@
 #include <stdio.h>
 #include <string.h>
 #include <arpa/inet.h>
+#include <sys/socket.h>
 #include "handlers/forfeit_handler.h"
 #include "protocol/opcode.h"
 #include "protocol/protocol.h"
 #include "handlers/match_manager.h"
 #include "handlers/session_manager.h"
 #include "handlers/start_game_handler.h"
+#include "transport/room_manager.h"
 #include "db/repo/match_repo.h"
+#include <cjson/cJSON.h>
+#include <stdlib.h>
 
 void handle_forfeit(int client_fd, MessageHeader *req, const char *payload) {
     if (req->length < sizeof(ForfeitRequest)) {
@@ -65,7 +69,44 @@ void handle_forfeit(int client_fd, MessageHeader *req, const char *payload) {
     printf("[HANDLER] <forfeit> Player %d forfeited match %u at Round %d, Question %d. Status updated.\n", 
            account_id, match_id, r_idx + 1, q_idx + 1);
 
-    // 6. Persist Event to Database
+    // 5. Send NTF_ELIMINATION to the forfeiting player (so UI can redirect to lobby)
+    cJSON *ntf = cJSON_CreateObject();
+    cJSON_AddNumberToObject(ntf, "player_id", account_id);
+    cJSON_AddNumberToObject(ntf, "room_id", match->room_id);
+    cJSON_AddStringToObject(ntf, "reason", "FORFEIT");
+    cJSON_AddNumberToObject(ntf, "round", r_idx + 1);
+    cJSON_AddNumberToObject(ntf, "final_score", player->score);
+    cJSON_AddStringToObject(ntf, "message", "You have forfeited the match!");
+    
+    char *ntf_json = cJSON_PrintUnformatted(ntf);
+    cJSON_Delete(ntf);
+    
+    if (ntf_json) {
+        MessageHeader hdr = {0};
+        hdr.magic = htons(MAGIC_NUMBER);
+        hdr.version = PROTOCOL_VERSION;
+        hdr.command = htons(NTF_ELIMINATION);
+        hdr.length = htonl((uint32_t)strlen(ntf_json));
+        
+        send(client_fd, &hdr, sizeof(hdr), 0);
+        send(client_fd, ntf_json, strlen(ntf_json), 0);
+        printf("[FORFEIT] Sent NTF_ELIMINATION to player %d\n", account_id);
+        free(ntf_json);
+    }
+
+    // 6. Change session state to LOBBY so player can join new games
+    session_mark_lobby(session);
+    printf("[FORFEIT] Changed player %d session state to LOBBY (Staying in room)\n", account_id);
+
+    // 7. Reset player readiness in the room but stay in room
+    uint32_t room_id = room_find_by_player_fd(client_fd);
+    if (room_id > 0) {
+        room_set_ready(room_id, client_fd, false);
+        broadcast_player_list(room_id);
+    }
+    printf("[FORFEIT] Reset player %d readiness in room %u\n", account_id, room_id);
+
+    // 8. Persist Event to Database
     db_error_t db_err = db_match_event_insert(
         match->db_match_id,
         account_id,
@@ -79,8 +120,7 @@ void handle_forfeit(int client_fd, MessageHeader *req, const char *payload) {
         // Don't fail the forfeit if DB insert fails - memory state is already updated
     }
 
-    // 7. Send Success Response
-    // Empty JSON success
-    const char *resp = "{}"; 
-    forward_response(client_fd, req, RES_SUCCESS, resp, 2);
+    // 9. Send Success Response
+    const char *resp = "{\"success\":true}"; 
+    forward_response(client_fd, req, RES_SUCCESS, resp, (uint32_t)strlen(resp));
 }

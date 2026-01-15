@@ -229,8 +229,10 @@ db_error_t question_get_random(const char *round_type, int count, const int32_t 
 
     if (available == 0) {
         cJSON_Delete(filtered);
-        printf("[QUESTION_REPO] WARNING: No questions available after filtering!\n");
-        return DB_ERROR_NOT_FOUND;
+        printf("[QUESTION_REPO] WARNING: No questions available after filtering! FALLING BACK TO UNFILTERED LIST.\n");
+        // Fallback: use the original result (unfiltered)
+        filtered = cJSON_Duplicate(result, 1);
+        available = cJSON_GetArraySize(filtered);
     }
 
     if (available <= count) {

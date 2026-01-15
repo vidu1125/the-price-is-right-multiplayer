@@ -162,4 +162,14 @@ int room_get_count(void);
  */
 void broadcast_player_list(uint32_t room_id);
 
+/**
+ * Reset room status and player readiness for a new game
+ */
+void room_reset_for_new_game(uint32_t room_id);
+
+/**
+ * Set player readiness in a room
+ */
+void room_set_ready(uint32_t room_id, int client_fd, bool ready);
+
 #endif // ROOM_MANAGER_H

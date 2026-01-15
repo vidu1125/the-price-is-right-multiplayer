@@ -64,6 +64,10 @@ typedef struct {
     RoomPlayerState players[MAX_ROOM_MEMBERS];
     uint8_t player_count;
     
+    // Invited players (for private rooms)
+    uint32_t invited_ids[20];
+    int invite_count;
+    
     // Socket tracking (for broadcast)
     int member_fds[MAX_ROOM_MEMBERS];
     int member_count;

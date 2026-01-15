@@ -78,6 +78,7 @@ typedef struct {
     uint8_t eliminated;      // 1 = bị loại
     uint8_t forfeited;       // 1 = bỏ cuộc
     int     eliminated_at_round; // Round number where player was eliminated (1-based)
+    char    name[64];        // Player display name
 } MatchPlayerState;
 
 // Round state (depends on QuestionState, MatchQuestion)
@@ -101,6 +102,7 @@ typedef struct {
 typedef struct {
     uint32_t runtime_match_id;
     int64_t  db_match_id;
+    uint32_t room_id;
 
     MatchStatus status;
     GameMode mode;
@@ -115,6 +117,7 @@ typedef struct {
     char question_category[32]; // "lifestyle", "electronics", "furniture", or "" for all
 
     time_t created_at;
+    time_t ended_at;             // Time when match ended (0 if not ended)
 } MatchState;
 
 

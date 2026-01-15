@@ -6,6 +6,7 @@
 #include "handlers/session_context.h"
 #include "db/repo/profile_repo.h"
 #include "protocol/opcode.h"
+#include <stdlib.h>
 #include "protocol/protocol.h"
 
 static void send_response_json(

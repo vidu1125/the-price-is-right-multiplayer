@@ -5,6 +5,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <cjson/cJSON.h>
+#include <time.h>
+#include <limits.h>
+#include <stdlib.h>
 
 void room_handle_disconnect(int client_fd, uint32_t account_id) {
     printf("========================================\n");
@@ -86,19 +89,89 @@ void room_handle_disconnect(int client_fd, uint32_t account_id) {
         room_destroy(room_id);
         printf("[ROOM_DISCONNECT] ✓ Room %u destroyed\n", room_id);
         
+        
     } else if (room) {
-        // Room still has players - broadcast notification
+        // Room still has players - check for host transfer
         printf("[ROOM_DISCONNECT] Room %u still has %d players remaining\n", 
                room_id, room->player_count);
+        
+        // Check if disconnected player was the host
+        bool was_host = (room_before && room_before->host_id == account_id);
+        uint32_t new_host_id = 0;
+        
+        if (was_host) {
+            printf("[ROOM_DISCONNECT] Host disconnected! Finding new host...\n");
+            
+            // Find earliest connected joiner
+            time_t earliest_join = LONG_MAX;
+            for (int i = 0; i < room->player_count; i++) {
+                if (room->players[i].connected && room->players[i].joined_at < earliest_join) {
+                    earliest_join = room->players[i].joined_at;
+                    new_host_id = room->players[i].account_id;
+                }
+            }
+            
+            if (new_host_id != 0) {
+                printf("[ROOM_DISCONNECT] New host selected: %u\n", new_host_id);
+                
+                // Update in-memory
+                room->host_id = new_host_id;
+                for (int i = 0; i < room->player_count; i++) {
+                    room->players[i].is_host = (room->players[i].account_id == new_host_id);
+                }
+                
+                // Update DB
+                char filter[64];
+                snprintf(filter, sizeof(filter), "id = %u", room_id);
+                
+                cJSON *host_payload = cJSON_CreateObject();
+                cJSON_AddNumberToObject(host_payload, "host_id", new_host_id);
+                
+                cJSON *host_resp = NULL;
+                db_error_t host_rc = db_patch("rooms", filter, host_payload, &host_resp);
+                
+                if (host_rc == DB_OK) {
+                    printf("[ROOM_DISCONNECT] ✓ Host updated in DB\n");
+                } else {
+                    printf("[ROOM_DISCONNECT] ✗ Failed to update host in DB\n");
+                }
+                
+                cJSON_Delete(host_payload);
+                if (host_resp) cJSON_Delete(host_resp);
+            }
+        }
+        
         printf("[ROOM_DISCONNECT] Broadcasting NTF_PLAYER_LEFT to remaining players...\n");
         
         // Broadcast NTF_PLAYER_LEFT to remaining players
-        char notif[256];
-        snprintf(notif, sizeof(notif), 
-                 "{\"account_id\":%u,\"room_id\":%u}", account_id, room_id);
+        cJSON *left_json = cJSON_CreateObject();
+        cJSON_AddNumberToObject(left_json, "account_id", account_id);
+        cJSON_AddStringToObject(left_json, "reason", "disconnected");
+        char *left_str = cJSON_PrintUnformatted(left_json);
         
-        room_broadcast(room_id, NTF_PLAYER_LEFT, notif, strlen(notif), -1);
-        printf("[ROOM_DISCONNECT] ✓ Notification sent\n");
+        room_broadcast(room_id, NTF_PLAYER_LEFT, left_str, strlen(left_str), -1);
+        printf("[ROOM_DISCONNECT] ✓ NTF_PLAYER_LEFT sent\n");
+        
+        free(left_str);
+        cJSON_Delete(left_json);
+        
+        // Broadcast NTF_HOST_CHANGED if host was transferred
+        if (was_host && new_host_id != 0) {
+            cJSON *host_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(host_json, "new_host_id", new_host_id);
+            char *host_str = cJSON_PrintUnformatted(host_json);
+            
+            printf("[ROOM_DISCONNECT] Broadcasting NTF_HOST_CHANGED: %s\n", host_str);
+            room_broadcast(room_id, NTF_HOST_CHANGED, host_str, strlen(host_str), -1);
+            
+            free(host_str);
+            cJSON_Delete(host_json);
+        }
+        
+        // Broadcast NTF_PLAYER_LIST
+        printf("[ROOM_DISCONNECT] Broadcasting NTF_PLAYER_LIST\n");
+        broadcast_player_list(room_id);
+        
     } else {
         printf("[ROOM_DISCONNECT] ⚠️  Room state not found after removal\n");
     }
