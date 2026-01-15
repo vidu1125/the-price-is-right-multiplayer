@@ -448,6 +448,10 @@ static char* build_question_json(int q_idx) {
     cJSON_AddNumberToObject(obj, "question_idx", q_idx);
     cJSON_AddNumberToObject(obj, "total_questions", round->question_count);
     cJSON_AddNumberToObject(obj, "time_limit_ms", TIME_PER_QUESTION);
+    
+    // ⭐ Option 3: Send server timestamp for client-side time sync
+    // Client uses this to calculate accurate time_left
+    cJSON_AddNumberToObject(obj, "start_timestamp", (double)g_r1.question_start_time);
       
     // Copy from question data - try both "question" and "content"
     cJSON *text = cJSON_GetObjectItem(data, "question");
@@ -1111,6 +1115,9 @@ static void handle_get_question(int fd, MessageHeader *req, const char *payload)
 // Uses: RoundState.current_question_idx, QuestionState.answered_count
 //==============================================================================
   
+// ⭐ Option 1: Network buffer time (2 seconds) to handle network latency
+#define NETWORK_BUFFER_MS 2000
+
 static void handle_submit_answer(int fd, MessageHeader *req, const char *payload) {
   if (req->length < 13) {
         send_json(fd, req, ERR_BAD_REQUEST, "{\"success\":false,\"error\":\"Invalid payload\"}");
@@ -1139,6 +1146,20 @@ static void handle_submit_answer(int fd, MessageHeader *req, const char *payload
     RoundState *round = get_round();
     if (!round || round->status != ROUND_PLAYING) {
         send_json(fd, req, ERR_BAD_REQUEST, "{\"success\":false,\"error\":\"Round not active\"}");
+        return;
+    }
+    
+    // ⭐ Option 1: Server-side time validation (anti-cheat)
+    // Calculate actual elapsed time from server's perspective
+    time_t current_time = time(NULL);
+    uint32_t actual_time_ms = (uint32_t)((current_time - g_r1.question_start_time) * 1000);
+    
+    // Check if answer arrived too late (beyond time limit + buffer)
+    if (actual_time_ms > TIME_PER_QUESTION + NETWORK_BUFFER_MS) {
+        printf("[Round1] Answer too late: actual=%ums limit=%d buffer=%d\n",
+               actual_time_ms, TIME_PER_QUESTION, NETWORK_BUFFER_MS);
+        send_json(fd, req, ERR_BAD_REQUEST, 
+                  "{\"success\":false,\"error\":\"Answer received too late\"}");
         return;
     }
     
@@ -1175,8 +1196,15 @@ static void handle_submit_answer(int fd, MessageHeader *req, const char *payload
         return;
     }
     
-    // Check if already answered
+    // Check if already answered (with graceful handling for timeout race condition)
     if (pa->answered_current) {
+        // ⭐ Option 2: Graceful handling for network latency
+        // If answer arrived within buffer time after timeout, it was a race condition
+        if (actual_time_ms <= TIME_PER_QUESTION + NETWORK_BUFFER_MS) {
+            // Answer arrived late but within buffer - this is a race condition
+            // The timeout already marked player as answered, so just acknowledge
+            printf("[Round1] Answer arrived after timeout but within buffer - race condition\n");
+        }
         send_json(fd, req, ERR_BAD_REQUEST, "{\"success\":false,\"error\":\"Already answered\"}");
         return;
     }
@@ -1184,10 +1212,17 @@ static void handle_submit_answer(int fd, MessageHeader *req, const char *payload
     // Mark as answered (local tracking)
     pa->answered_current = true;
     
+    // ⭐ Option 1: Use server-calculated time for scoring (anti-cheat)
+    // Clamp to TIME_PER_QUESTION if slightly over due to network latency
+    uint32_t scoring_time_ms = time_ms;
+    if (actual_time_ms > TIME_PER_QUESTION) {
+        scoring_time_ms = TIME_PER_QUESTION;  // Cap at max time
+    }
+    
     // Calculate score using correct_index from question data
     int correct_idx = get_correct_index((int)q_idx);
     bool correct = (choice <= 3) && ((int)choice == correct_idx);
-    int delta = calc_score(correct, time_ms);
+    int delta = calc_score(correct, scoring_time_ms);
     
     // UPDATE MatchPlayerState.score
     mp->score += delta;

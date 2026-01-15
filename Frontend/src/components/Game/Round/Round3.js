@@ -327,18 +327,17 @@ const Round3 = ({ matchId = 1, playerId = 1, previousScore = 0, onRoundComplete 
                 setSecondSpinValue(wheelValue);
                 setSpinCount(2);
                 
-                // Calculate final bonus from both spins
-                const firstPoints = getPointsFromWheelValue(firstSpinValue);
+                // Calculate final bonus - ONLY use second spin result (replaces first spin)
                 const secondPoints = points;
                 
-                // Calculate total bonus
+                // Calculate total bonus - CHỈ LẤY ĐIỂM LẦN QUAY 2
                 let totalBonus = 0;
-                if (firstPoints === -1 || secondPoints === -1) {
-                    // LOSE in either spin: điểm về 0
+                if (secondPoints === -1) {
+                    // LOSE in second spin: điểm về 0
                     totalBonus = -scoreRef.current;
                     scoreRef.current = 0;
                 } else {
-                    totalBonus = firstPoints + secondPoints;
+                    totalBonus = secondPoints;  // Chỉ lấy điểm lần 2, không cộng lần 1
                     scoreRef.current += totalBonus;
                 }
                 

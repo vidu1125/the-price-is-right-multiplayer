@@ -304,6 +304,9 @@ static char* build_product_json(int product_idx) {
     cJSON_AddNumberToObject(obj, "total_products", round->question_count);
     cJSON_AddNumberToObject(obj, "time_limit_ms", TIME_PER_PRODUCT);
     
+    // ⭐ Option 3: Send server timestamp for client-side time sync
+    cJSON_AddNumberToObject(obj, "start_timestamp", (double)g_r2.product_start_time);
+    
     // Copy question text - try multiple field names
     cJSON *text = cJSON_GetObjectItem(data, "question");
     if (!text) text = cJSON_GetObjectItem(data, "content");

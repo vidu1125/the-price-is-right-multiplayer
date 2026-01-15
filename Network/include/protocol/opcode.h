@@ -182,3 +182,10 @@
 #define OP_S2C_BONUS_REVEAL         0x0675  // Reveal all cards
 #define OP_S2C_BONUS_RESULT         0x0676  // Final result (who eliminated/won)
 #define OP_S2C_BONUS_TRANSITION     0x0677  // Transition to next phase
+
+// End Game (0x0680 - 0x068F)
+#define OP_C2S_END_GAME_READY       0x0680  // Client ready for end game screen
+#define OP_C2S_END_GAME_BACK_LOBBY  0x0681  // Player clicks back to lobby
+#define OP_S2C_END_GAME_RESULT      0x0690  // Server sends final game result
+#define OP_S2C_END_GAME_RANKINGS    0x0691  // Final rankings with all details
+#define OP_S2C_END_GAME_BACK_ACK    0x0692  // Acknowledge back to lobby

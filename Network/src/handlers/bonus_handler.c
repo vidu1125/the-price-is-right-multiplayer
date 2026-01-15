@@ -38,6 +38,7 @@
 #include "handlers/session_manager.h"
 #include "handlers/match_manager.h"
 #include "handlers/start_game_handler.h"
+#include "handlers/end_game_handler.h"
 #include "db/core/db_client.h"
 #include "db/repo/match_repo.h"         // For db_match_event_insert, db_match_question_insert
 #include "protocol/opcode.h"
@@ -960,8 +961,18 @@ static void transition_to_next_phase(MessageHeader *req) {
         free(json);
     }
     
+    // Store winner_id before reset for end game trigger
+    int32_t bonus_winner = winner_id;
+    uint32_t match_id_copy = g_bonus.match_id;
+    
     // Reset bonus context
     reset_context();
+    
+    // Trigger end game if this was WINNER_SELECTION (after Round 3)
+    if (bonus_type == BONUS_TYPE_WINNER_SELECTION && bonus_winner > 0) {
+        printf("[Bonus] Triggering end game with bonus winner: %d\n", bonus_winner);
+        trigger_end_game(match_id_copy, bonus_winner);
+    }
 }
 
 //==============================================================================
