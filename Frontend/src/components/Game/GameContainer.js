@@ -441,24 +441,55 @@ const GameContainer = () => {
     }, [playerId]);
 
     // ============ LISTEN TO LEADERBOARD UPDATES FROM SERVER ============
+    // ============ LISTEN TO LEADERBOARD UPDATES FROM SERVER ============
     useEffect(() => {
         const handleLeaderboardUpdate = (e) => {
-            const { players } = e.detail;
-            if (players && Array.isArray(players)) {
-                setLeaderboardData(players.sort((a, b) => b.score - a.score));
+            const { players, rankings } = e.detail;
+            const dataToUse = rankings || players;
+
+            if (dataToUse && Array.isArray(dataToUse)) {
+                // Normalize and sort
+                const normalized = dataToUse.map(p => ({
+                    id: p.id || p.account_id,
+                    name: p.name || `PLAYER${p.id || p.account_id}`,
+                    score: p.score || 0,
+                    isEliminated: p.eliminated || false
+                }));
+                setLeaderboardData(normalized.sort((a, b) => b.score - a.score));
             }
         };
 
+        // Listen to generic updates
         window.addEventListener('leaderboardUpdate', handleLeaderboardUpdate);
-        return () => window.removeEventListener('leaderboardUpdate', handleLeaderboardUpdate);
+
+        // Listen to Round-specific events that carry player lists/rankings
+        // Round 1
+        window.addEventListener('round1ReadyStatus', handleLeaderboardUpdate);
+        window.addEventListener('round1AllFinished', handleLeaderboardUpdate);
+        // Round 2
+        window.addEventListener('round2ReadyStatus', handleLeaderboardUpdate);
+        window.addEventListener('round2AllFinished', handleLeaderboardUpdate);
+        // Round 3
+        window.addEventListener('round3ReadyStatus', handleLeaderboardUpdate);
+        window.addEventListener('round3AllFinished', handleLeaderboardUpdate);
+
+        return () => {
+            window.removeEventListener('leaderboardUpdate', handleLeaderboardUpdate);
+            window.removeEventListener('round1ReadyStatus', handleLeaderboardUpdate);
+            window.removeEventListener('round1AllFinished', handleLeaderboardUpdate);
+            window.removeEventListener('round2ReadyStatus', handleLeaderboardUpdate);
+            window.removeEventListener('round2AllFinished', handleLeaderboardUpdate);
+            window.removeEventListener('round3ReadyStatus', handleLeaderboardUpdate);
+            window.removeEventListener('round3AllFinished', handleLeaderboardUpdate);
+        };
     }, []);
 
     // ============ BONUS ROUND STATE ============
     const [bonusData, setBonusData] = useState(null);
-    
+
     // ============ END GAME STATE ============
     const [endGameData, setEndGameData] = useState(null);
-    
+
     // ============ LISTEN TO BONUS ROUND TRIGGER ============
     useEffect(() => {
         const handleBonusParticipant = (e) => {
@@ -478,9 +509,9 @@ const GameContainer = () => {
         const handleBonusTransition = (e) => {
             const data = e.detail;
             console.log('[GameContainer] Bonus transition:', data);
-            
+
             setBonusData(null); // Clear bonus data
-            
+
             if (data.next_phase === 'NEXT_ROUND') {
                 // Continue to next round after bonus
                 setCurrentRound(data.next_round);
@@ -499,14 +530,14 @@ const GameContainer = () => {
         window.addEventListener('bonusParticipant', handleBonusParticipant);
         window.addEventListener('bonusSpectator', handleBonusSpectator);
         window.addEventListener('bonusTransition', handleBonusTransition);
-        
+
         return () => {
             window.removeEventListener('bonusParticipant', handleBonusParticipant);
             window.removeEventListener('bonusSpectator', handleBonusSpectator);
             window.removeEventListener('bonusTransition', handleBonusTransition);
         };
     }, []);
-    
+
     // ============ LISTEN TO END GAME RESULT ============
     useEffect(() => {
         const handleEndGameResult = (e) => {
@@ -517,7 +548,7 @@ const GameContainer = () => {
         };
 
         window.addEventListener('endGameResult', handleEndGameResult);
-        
+
         return () => {
             window.removeEventListener('endGameResult', handleEndGameResult);
         };
@@ -564,7 +595,7 @@ const GameContainer = () => {
                     onRoundComplete={handleRoundComplete}
                 />;
             case 3:
-                return <Round3 
+                return <Round3
                     matchId={matchId}
                     playerId={playerId}
                     previousScore={score}

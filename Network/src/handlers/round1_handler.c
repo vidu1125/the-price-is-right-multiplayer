@@ -793,9 +793,8 @@ static char* build_round_end_json(void) {
         cJSON_AddBoolToObject(p, "eliminated", mp->eliminated != 0);
         
         // Add player name (format: "Player{id}")
-        char name[32];
-        snprintf(name, sizeof(name), "Player%d", mp->account_id);
-        cJSON_AddStringToObject(p, "name", name);
+        // Add player name
+        cJSON_AddStringToObject(p, "name", mp->name);
         
         cJSON_AddItemToArray(players, p);
     }
@@ -977,6 +976,22 @@ static void handle_player_ready(int fd, MessageHeader *req, const char *payload)
         cJSON_AddNumberToObject(obj, "current_score", mp->score);
         cJSON_AddNumberToObject(obj, "current_question", round->current_question_idx);
         
+        // Add full player list for leaderboard
+        cJSON *players = cJSON_CreateArray();
+        for (int i = 0; i < g_r1.player_count; i++) {
+            cJSON *p = cJSON_CreateObject();
+            cJSON_AddNumberToObject(p, "account_id", g_r1.players[i].account_id);
+            cJSON_AddBoolToObject(p, "ready", g_r1.players[i].ready); // or connected status
+            
+            MatchPlayerState *mp_state = get_match_player(g_r1.players[i].account_id);
+            if (mp_state) {
+                cJSON_AddStringToObject(p, "name", mp_state->name);
+                cJSON_AddNumberToObject(p, "score", mp_state->score);
+            }
+            cJSON_AddItemToArray(players, p);
+        }
+        cJSON_AddItemToObject(obj, "players", players);
+
         char *json = cJSON_PrintUnformatted(obj);
         cJSON_Delete(obj);
         send_json(fd, req, OP_S2C_ROUND1_READY_STATUS, json);
@@ -1006,10 +1021,16 @@ static void handle_player_ready(int fd, MessageHeader *req, const char *payload)
     
     cJSON *players = cJSON_CreateArray();
     for (int i = 0; i < g_r1.player_count; i++) {
-            cJSON *p = cJSON_CreateObject();
+        cJSON *p = cJSON_CreateObject();
         cJSON_AddNumberToObject(p, "account_id", g_r1.players[i].account_id);
         cJSON_AddBoolToObject(p, "ready", g_r1.players[i].ready);
-            cJSON_AddItemToArray(players, p);
+        
+        MatchPlayerState *mp_state = get_match_player(g_r1.players[i].account_id);
+        if (mp_state) {
+            cJSON_AddStringToObject(p, "name", mp_state->name);
+        }
+        
+        cJSON_AddItemToArray(players, p);
     }
     cJSON_AddItemToObject(status, "players", players);
     

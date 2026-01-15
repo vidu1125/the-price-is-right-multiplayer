@@ -78,6 +78,7 @@ typedef struct {
     uint8_t eliminated;      // 1 = bị loại
     uint8_t forfeited;       // 1 = bỏ cuộc
     int     eliminated_at_round; // Round number where player was eliminated (1-based)
+    char    name[64];        // Player display name
 } MatchPlayerState;
 
 // Round state (depends on QuestionState, MatchQuestion)
