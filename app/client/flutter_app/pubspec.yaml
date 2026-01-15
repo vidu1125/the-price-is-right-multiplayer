@@ -61,12 +61,3 @@ flutter:
 
   assets:
     - assets/images/
-
-  fonts:
-    - family: LuckiestGuy
-      fonts:
-        - asset: assets/fonts/LuckiestGuy-Regular.ttf
-
-    - family: Parkinsans
-      fonts:
-        - asset: assets/fonts/Parkinsans-Regular.ttf

@@ -213,6 +213,55 @@ class _GameContainerScreenState extends State<GameContainerScreen> {
           }
           break;
 
+        case GameEventType.elimination:
+          print("[GameContainer] ELIMINATION: ${event.data}");
+          final data = event.data as Map<String, dynamic>?;
+          if (data?['player_id'] == _myPlayerId) {
+             // IT'S ME who got eliminated!
+             ScaffoldMessenger.of(context).showSnackBar(
+               SnackBar(
+                 content: Text("YOU HAVE BEEN ELIMINATED! (Reason: ${data?['reason'] ?? 'Lowest Score'})"),
+                 backgroundColor: Colors.red,
+                 duration: const Duration(seconds: 4),
+               ),
+             );
+             
+             // Clean up subscriptions immediately to prevent receiving stale notifications
+             _gameEventSub?.cancel();
+             _gameEventSub = null;
+             _countdownTimer?.cancel();
+             
+             // Navigate back to room after 2 seconds
+             final roomId = data?['room_id'];
+             Future.delayed(const Duration(seconds: 2), () async {
+               if (mounted) {
+                 if (roomId != null) {
+                    final room = await ServiceLocator.roomService.joinRoom(roomId);
+                    if (room != null) {
+                       Navigator.pushNamedAndRemoveUntil(context, '/room', (route) => false, arguments: room);
+                       return;
+                    }
+                 }
+                 Navigator.pushNamedAndRemoveUntil(context, '/lobby', (route) => false);
+               }
+             });
+          } else {
+            // Someone else got eliminated, update leaderboard
+            if (_players.isNotEmpty) {
+              final List<Map<String, dynamic>> updated = List.from(_players);
+              for (int i = 0; i < updated.length; i++) {
+                if (updated[i]['id'] == data?['player_id']) {
+                  setState(() {
+                    updated[i]['isOut'] = true;
+                    _players = updated;
+                  });
+                  break;
+                }
+              }
+            }
+          }
+          break;
+
         case GameEventType.bonusStart:
           print("[GameContainer] BONUS ROUND STARTING!");
           _inBonusRound = true;
@@ -226,8 +275,29 @@ class _GameContainerScreenState extends State<GameContainerScreen> {
           break;
 
         case GameEventType.gameEnd:
-          print("[GameContainer] Game ended");
-          // TODO: Navigate to results screen
+          print("[GameContainer] Game ended: ${event.data}");
+          final data = event.data as Map<String, dynamic>?;
+          final roomId = data?['room_id'];
+          
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+               content: Text("MATCH FINISHED! Returning to room in 5 seconds..."),
+               duration: Duration(seconds: 5),
+            )
+          );
+
+          Future.delayed(const Duration(seconds: 5), () async {
+            if (mounted) {
+               if (roomId != null) {
+                  final room = await ServiceLocator.roomService.joinRoom(roomId);
+                  if (room != null) {
+                     Navigator.pushNamedAndRemoveUntil(context, '/room', (route) => false, arguments: room);
+                     return;
+                  }
+               }
+               Navigator.pushNamedAndRemoveUntil(context, '/lobby', (route) => false);
+            }
+          });
           break;
 
         case GameEventType.round2Product:
@@ -870,6 +940,9 @@ class _GameContainerScreenState extends State<GameContainerScreen> {
         if (newP['name'] == null || newP['name'].toString().isEmpty) {
           newP['name'] = 'Player $accId';
         }
+
+        // Map eliminated to isOut for sidebar
+        newP['isOut'] = newP['eliminated'] == true || newP['is_out'] == true || newP['forfeited'] == true;
         
         newPlayers.add(newP);
       }

@@ -862,6 +862,32 @@ class _RoomScreenState extends State<RoomScreen> {
                   fontSize: 16
                 )
               ),
+              if (_room.mode.toLowerCase() == 'elimination' && _room.members.length != 4)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8.0),
+                  child: Text(
+                    "ELIMINATION REQUIRES 4 PLAYERS",
+                    style: TextStyle(
+                      fontFamily: 'LuckiestGuy',
+                      color: Colors.redAccent.shade100,
+                      fontSize: 12,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                ),
+              if (_room.mode.toLowerCase() == 'scoring' && (_room.members.length < 4 || _room.members.length > 6))
+                Padding(
+                  padding: const EdgeInsets.only(top: 8.0),
+                  child: Text(
+                    "SCORING REQUIRES 4-6 PLAYERS",
+                    style: TextStyle(
+                      fontFamily: 'LuckiestGuy',
+                      color: Colors.redAccent.shade100,
+                      fontSize: 12,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                ),
             ],
           ),
         );
@@ -971,9 +997,22 @@ class _RoomScreenState extends State<RoomScreen> {
     final me = _room.members.firstWhere((m) => m.accountId == _currentUserId, 
         orElse: () => RoomMember(accountId: -1, email: ""));
     final myReady = me.ready;
+    // Check for player count requirements
+    final playerCount = _room.members.length;
+    final isElimination = _room.mode.toLowerCase() == 'elimination';
+    final isScoring = _room.mode.toLowerCase() == 'scoring';
+    
+    bool countValid = false;
+    if (isElimination) {
+      countValid = playerCount == 4;
+    } else if (isScoring) {
+      countValid = playerCount >= 4 && playerCount <= 6;
+    } else {
+      countValid = playerCount >= 1;
+    }
 
     // Check if everyone is ready (including Host)
-    final allReady = _room.members.length >= 1 && _room.members.every((m) => m.ready);
+    final allReady = countValid && _room.members.every((m) => m.ready);
 
     return Column(
       children: [
@@ -1005,12 +1044,30 @@ class _RoomScreenState extends State<RoomScreen> {
               RoomTheme.accentYellow, 
               RoomTheme.primaryDark, 
               () {
+                if (isElimination && playerCount != 4) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("🔴 Elimination mode requires EXACTLY 4 players!"),
+                      backgroundColor: Colors.redAccent,
+                    ),
+                  );
+                  return;
+                }
+                
+                if (isScoring && (playerCount < 4 || playerCount > 6)) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("🔴 Scoring mode requires between 4 and 6 players!"),
+                      backgroundColor: Colors.redAccent,
+                    ),
+                  );
+                  return;
+                }
+
                 if (allReady) {
                   _startGame();
                 } else {
-                  String msg = _room.members.length < 1 
-                      ? "Need at least 1 player to start!" 
-                      : "All players must be READY to start!";
+                  String msg = "All players must be READY to start!";
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text(msg)),
                   );

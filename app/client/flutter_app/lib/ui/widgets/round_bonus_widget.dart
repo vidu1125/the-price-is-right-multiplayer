@@ -298,6 +298,7 @@ class _RoundBonusWidgetState extends State<RoundBonusWidget> {
   }
 
   Widget _buildCard(bool hasDrawn, bool isDealing, dynamic revealedCard, bool isEliminated) {
+    // Dealing animation - card flying in
     if (isDealing) {
       return TweenAnimationBuilder<double>(
         tween: Tween(begin: 0.0, end: 1.0),
@@ -307,29 +308,101 @@ class _RoundBonusWidgetState extends State<RoundBonusWidget> {
             offset: Offset(0, 100 * (1 - value)),
             child: Opacity(
               opacity: value,
-              child: Image.asset('assets/images/back_card.png', fit: BoxFit.contain),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF34495E),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.white24, width: 3),
+                  boxShadow: [
+                    BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 8),
+                  ],
+                ),
+                child: Center(
+                  child: Text(
+                    '?',
+                    style: GoogleFonts.luckiestGuy(fontSize: 64, color: Colors.white24),
+                  ),
+                ),
+              ),
             ),
           );
         },
       );
     }
 
+    // Reveal animation - flip card to show result
     if (_showResult && revealedCard != null) {
       return TweenAnimationBuilder<double>(
         tween: Tween(begin: 0.0, end: 1.0),
         duration: const Duration(milliseconds: 800),
         builder: (context, value, child) {
+          final bool showFront = value > 0.5;
           return Transform(
             transform: Matrix4.identity()..rotateY(value * 3.14159),
             alignment: Alignment.center,
-            child: value < 0.5 
-              ? Image.asset('assets/images/back_card.png', fit: BoxFit.contain)
-              : Transform(
+            child: showFront
+              ? Transform(
                   transform: Matrix4.identity()..rotateY(3.14159),
                   alignment: Alignment.center,
-                  child: Image.asset(
-                    isEliminated ? 'assets/images/eliminated_card.png' : 'assets/images/safe_card.png',
-                    fit: BoxFit.contain,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: isEliminated 
+                          ? [const Color(0xFFC0392B), const Color(0xFF8E44AD)]
+                          : [const Color(0xFF27AE60), const Color(0xFF16A085)],
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.white, width: 4),
+                      boxShadow: [
+                        BoxShadow(
+                          color: (isEliminated ? Colors.red : Colors.green).withOpacity(0.5),
+                          blurRadius: 20,
+                          spreadRadius: 2,
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            isEliminated ? Icons.close : Icons.check,
+                            size: 48,
+                            color: Colors.white,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            isEliminated ? 'ELIMINATED' : 'SAFE',
+                            style: GoogleFonts.luckiestGuy(
+                              fontSize: 28,
+                              color: Colors.white,
+                              shadows: [
+                                const Shadow(
+                                  color: Colors.black45,
+                                  offset: Offset(2, 2),
+                                  blurRadius: 4,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                )
+              : Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF34495E),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.white24, width: 3),
+                  ),
+                  child: Center(
+                    child: Text(
+                      '?',
+                      style: GoogleFonts.luckiestGuy(fontSize: 64, color: Colors.white24),
+                    ),
                   ),
                 ),
           );
@@ -337,17 +410,36 @@ class _RoundBonusWidgetState extends State<RoundBonusWidget> {
       );
     }
 
+    // Card drawn but not revealed yet
     if (hasDrawn) {
-      return Image.asset('assets/images/back_card.png', fit: BoxFit.contain);
+      return Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFF34495E),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white24, width: 3),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 8),
+          ],
+        ),
+        child: Center(
+          child: Text(
+            '?',
+            style: GoogleFonts.luckiestGuy(fontSize: 64, color: Colors.white24),
+          ),
+        ),
+      );
     }
 
+    // Empty slot - waiting to draw
     return Container(
       decoration: BoxDecoration(
         color: Colors.black26,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white10, style: BorderStyle.none),
+        border: Border.all(color: Colors.white10, width: 2, style: BorderStyle.solid),
       ),
-      child: const Center(child: Icon(Icons.help_outline, color: Colors.white10, size: 64)),
+      child: const Center(
+        child: Icon(Icons.help_outline, color: Colors.white10, size: 64),
+      ),
     );
   }
 
@@ -382,15 +474,40 @@ class _RoundBonusWidgetState extends State<RoundBonusWidget> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
+          // Card stack representation
           Stack(
             alignment: Alignment.center,
             children: List.generate(
               _cardsRemaining.clamp(0, 5),
               (i) => Transform.translate(
-                offset: Offset(i * 2.0, -i * 4.0),
+                offset: Offset(i * 3.0, -i * 5.0),
                 child: Transform.rotate(
-                  angle: i * 0.01,
-                  child: Image.asset('assets/images/back_card.png', height: 180),
+                  angle: i * 0.02,
+                  child: Container(
+                    width: 140,
+                    height: 180,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF34495E),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.white24, width: 2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.3),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: Text(
+                        '?',
+                        style: GoogleFonts.luckiestGuy(
+                          fontSize: 48,
+                          color: Colors.white24,
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),

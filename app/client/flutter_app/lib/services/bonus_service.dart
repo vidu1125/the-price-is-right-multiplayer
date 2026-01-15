@@ -77,13 +77,23 @@ class BonusService {
   }
 
   Future<void> sendBonusReady(int matchId) async {
-    final payload = ByteData(4)..setInt32(0, matchId, Endian.big);
-    await client.send(Command.bonusReady, payload: payload.buffer.asUint8List());
+    final payload = ByteData(4)..setUint32(0, matchId, Endian.big);
+    final packet = Protocol.buildPacket(
+      command: Command.bonusReady,
+      seqNum: 0,
+      payload: payload.buffer.asUint8List(),
+    );
+    client.send(packet);
   }
 
   Future<void> drawCard(int matchId) async {
-    final payload = ByteData(4)..setInt32(0, matchId, Endian.big);
-    await client.send(Command.bonusDrawCard, payload: payload.buffer.asUint8List());
+    final payload = ByteData(4)..setUint32(0, matchId, Endian.big);
+    final packet = Protocol.buildPacket(
+      command: Command.bonusDrawCard,
+      seqNum: 0,
+      payload: payload.buffer.asUint8List(),
+    );
+    client.send(packet);
   }
 
   void dispose() {
