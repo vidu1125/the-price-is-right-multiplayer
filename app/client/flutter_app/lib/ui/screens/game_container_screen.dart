@@ -7,6 +7,7 @@ import '../widgets/round3_widget.dart';
 import '../widgets/game_button.dart';
 import '../../services/service_locator.dart';
 import '../../services/game_state_service.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 
 class GameContainerScreen extends StatefulWidget {
@@ -29,10 +30,11 @@ class _GameContainerScreenState extends State<GameContainerScreen> {
   bool _initialized = false; // Track if already initialized
   bool _showingResult = false; // Track if currently showing result/feedback
   bool _showDecision = false; // Track if showing Stop/Continue decision
-  int _round3Score = 0; // Current score in Round 3 (Wheel)
+  int _round3Score = -999; // Current score in Round 3 (Wheel). -999 means "pending" or "no result".
   int _spinNumber = 1; // Current spin number (1 or 2)
   int? _myPlayerId; // Current user ID
-  List<String> _wheelSegments = ["5", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55", "60", "65", "70", "75", "80", "85", "90", "95", "100"]; // Default
+  // _wheelSegments is not used anymore as Round3Widget uses hardcoded values.
+  List<String> _wheelSegments = [];
 
   @override
   void initState() {
@@ -307,13 +309,8 @@ class _GameContainerScreenState extends State<GameContainerScreen> {
           print("[GameContainer] Round 3 all ready: ${event.data}");
           final data = event.data as Map<String, dynamic>?;
           
-          if (data?['segments'] != null) {
-             _wheelSegments = List<dynamic>.from(data!['segments']).map((e) => e.toString()).toList();
-             print("[GameContainer] Loaded wheel segments: $_wheelSegments");
-          } else {
-             // Default segments if not provided
-             // _wheelSegments = ["5", "15", "25", "35", "45", "55", "65", "75", "85", "95", "100", "0"];
-          }
+          // NOTE: We ignore 'segments' from JSON here because Round3Widget uses hardcoded segments
+          // to exactly match the visual design requirements (Mario theme colors/ordering).
           
           if (_currentRound == 3) {
              setState(() => _isLoading = false);
@@ -332,15 +329,21 @@ class _GameContainerScreenState extends State<GameContainerScreen> {
                 _showDecision = true;
                 _isLoading = false;
              });
-           } else if (message.contains("Spin the wheel!")) {
-             // Initial round start
-             setState(() {
-               _isLoading = false;
-               _showDecision = false;
-               _round3Score = 0;
-               _spinNumber = 1;
-             });
-           }
+            } else if (message.contains("Spin the wheel!")) {
+              // Initial round start
+              setState(() {
+                _isLoading = false;
+                _showDecision = false;
+                _round3Score = -999; // Reset to "Pending" so it doesn't auto-spin
+                _spinNumber = 1;
+              });
+            } else if (message.contains("Spin again!")) {
+              setState(() {
+                _spinNumber = 2;
+                _round3Score = -999; // Reset to "Pending"
+                _showDecision = false;
+              });
+            }
            break;
 
         case GameEventType.round3SpinResult:
@@ -402,6 +405,15 @@ class _GameContainerScreenState extends State<GameContainerScreen> {
               if (_currentQuestion != null) {
                 _currentQuestion!['correctIndex'] = result['correct_index'];
               }
+              // Update my own score in the ranking list
+              for (int i = 0; i < _players.length; i++) {
+                if (_players[i]['account_id'] == _myPlayerId) {
+                  _players[i]['score'] = _currentScore;
+                  break;
+                }
+              }
+              // Re-sort ranking
+              _players.sort((a, b) => (b['score'] ?? 0).compareTo(a['score'] ?? 0));
             });
           }
           break;
@@ -461,25 +473,34 @@ class _GameContainerScreenState extends State<GameContainerScreen> {
            String winnerName = "None";
            int myScoreDelta = 0;
            
+           List<Map<String, dynamic>> updatedPlayers = List.from(_players);
            for (var b in bids) {
-              int score = b['score_delta'] ?? 0;
-              int id = b['id'] ?? 0;
+              int scoreDelta = b['score_delta'] ?? 0;
+              int totalScore = b['total_score'] ?? 0;
+              int id = b['account_id'] ?? 0;
               
-              if (score > maxScore) {
-                maxScore = score;
+              if (scoreDelta > maxScore) {
+                maxScore = scoreDelta;
                 winnerName = b['name'] ?? "Player";
               }
               
+              for (int i = 0; i < updatedPlayers.length; i++) {
+                if (updatedPlayers[i]['account_id'] == id) {
+                   updatedPlayers[i]['score'] = totalScore;
+                   break;
+                }
+              }
+              
               if (_myPlayerId != null && id == _myPlayerId) {
-                 myScoreDelta = score;
+                 myScoreDelta = scoreDelta;
+                 _currentScore = totalScore;
               }
            }
            
-           if (myScoreDelta > 0) {
-              setState(() {
-                _currentScore += myScoreDelta;
-              });
-           }
+           setState(() {
+             updatedPlayers.sort((a, b) => (b['score'] ?? 0).compareTo(a['score'] ?? 0));
+             _players = updatedPlayers;
+           });
 
            ScaffoldMessenger.of(context).showSnackBar(
              SnackBar(
@@ -589,6 +610,58 @@ class _GameContainerScreenState extends State<GameContainerScreen> {
     _countdownTimer?.cancel();
   }
 
+  Widget _buildTimerSticker(int seconds) {
+    return Container(
+      width: 70,
+      height: 70,
+      decoration: BoxDecoration(
+        color: const Color(0xFFE74C3C), // Red
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white, width: 4),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.3), offset: const Offset(4, 4)),
+        ],
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        "$seconds",
+        style: GoogleFonts.luckiestGuy(color: Colors.white, fontSize: 32),
+      ),
+    );
+  }
+
+  Widget _buildScoreSticker(int score) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          decoration: BoxDecoration(
+            color: const Color(0xFF2ECC71), // Green
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white, width: 4),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withOpacity(0.3), offset: const Offset(4, 4)),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                "YOUR SCORE",
+                style: GoogleFonts.luckiestGuy(color: Colors.white.withOpacity(0.8), fontSize: 12),
+              ),
+              Text(
+                "$score",
+                style: GoogleFonts.luckiestGuy(color: Colors.white, fontSize: 28),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // Get arguments
@@ -635,7 +708,33 @@ class _GameContainerScreenState extends State<GameContainerScreen> {
         ),
         child: Row(
           children: [
-            // LEFT SIDE: MAIN GAME AREA
+            // LEFT SIDE: RANKING BOX (Sidebar) - Swapped to left
+            Expanded(
+              flex: 1,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(30, 30, 0, 30),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 88), // Match top offset
+                    Expanded(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xB32D3436), // Darker gray
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(color: Colors.black26, width: 4),
+                        ),
+                        child: LeaderboardSidebar(
+                          matchId: matchId,
+                          players: _players,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // RIGHT SIDE: MAIN GAME AREA
             Expanded(
               flex: 3,
               child: Padding(
@@ -650,9 +749,9 @@ class _GameContainerScreenState extends State<GameContainerScreen> {
                         RoundIndicatorLarge(roundText: "ROUND $_currentRound"),
                         Row(
                           children: [
-                            TimerBlock(seconds: _timeRemaining),
+                            _buildTimerSticker(_timeRemaining),
                             const SizedBox(width: 20),
-                            ScoreBlock(score: _currentScore),
+                            _buildScoreSticker(_currentScore),
                           ],
                         ),
                       ],
@@ -663,37 +762,11 @@ class _GameContainerScreenState extends State<GameContainerScreen> {
                       child: Container(
                         padding: const EdgeInsets.all(30),
                         decoration: BoxDecoration(
-                          color: const Color(0xB31F2A44),
+                          color: const Color(0xB3000000), // More transparent dark
                           borderRadius: BorderRadius.circular(24),
-                          border: Border.all(color: const Color(0xFF1F2A44), width: 4),
+                          border: Border.all(color: Colors.white24, width: 2),
                         ),
                         child: _buildRoundWidget(),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            // RIGHT SIDE: RANKING BOX (Sidebar)
-            Expanded(
-              flex: 1,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(0, 30, 30, 30),
-                child: Column(
-                  children: [
-                    const SizedBox(height: 88),
-                    Expanded(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: const Color(0xB31F2A44),
-                          borderRadius: BorderRadius.circular(24),
-                          border: Border.all(color: const Color(0xFF1F2A44), width: 4),
-                        ),
-                        child: LeaderboardSidebar(
-                          matchId: matchId,
-                          players: _players,
-                        ),
                       ),
                     ),
                   ],
@@ -921,111 +994,35 @@ class LeaderboardSidebar extends StatelessWidget {
               
               return Opacity(
                 opacity: isOut ? 0.6 : 1.0,
-                child: Container(
-                  margin: const EdgeInsets.only(bottom: 14),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.3),
-                        offset: const Offset(4, 4),
-                        blurRadius: 0,
-                      ),
-                    ],
-                  ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                     decoration: BoxDecoration(
-                      color: isMe ? const Color(0xFFFFDE00) : const Color(0xFF2D3436),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: isMe ? Colors.white : (isOut ? Colors.redAccent : const Color(0xFF1F2A44)),
-                        width: 4,
-                      ),
+                      color: isMe ? Colors.white.withOpacity(0.1) : Colors.black12,
+                      borderRadius: BorderRadius.circular(12),
+                      border: isMe ? Border.all(color: const Color(0xFFFFDE00), width: 2) : null,
                     ),
                     child: Row(
                       children: [
-                        // Coin Style Rank Badge
-                        Container(
-                          width: 46,
-                          height: 46,
-                          decoration: BoxDecoration(
-                            color: isMe ? Colors.white : (rank <= 3 ? const Color(0xFFFFDE00) : Colors.white10),
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: isMe ? const Color(0xFF2D3436) : Colors.white,
-                              width: 3,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.2),
-                                offset: const Offset(2, 2),
-                              )
-                            ]
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            '$rank',
-                            style: TextStyle(
-                              fontFamily: 'LuckiestGuy',
-                              fontSize: 22,
-                              color: isMe ? const Color(0xFF2D3436) : (rank <= 3 ? Colors.black : Colors.white),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 14),
-                        // Player Info
                         Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                p['name'] ?? 'Unknown',
-                                style: TextStyle(
-                                  fontFamily: 'LuckiestGuy',
-                                  fontSize: 18,
-                                  color: isMe ? const Color(0xFF2D3436) : Colors.white,
-                                  decoration: isOut ? TextDecoration.lineThrough : null,
-                                  decorationColor: Colors.red,
-                                  decorationThickness: 2,
-                                  letterSpacing: 1,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 2),
-                              if (!isOut)
-                                Text(
-                                  '${p['score'] ?? 0} PTS',
-                                  style: TextStyle(
-                                    fontFamily: 'LuckiestGuy',
-                                    fontSize: 18,
-                                    color: isMe ? const Color(0xFF2D3436).withOpacity(0.9) : const Color(0xFFFFDE00),
-                                    letterSpacing: 1,
-                                  ),
-                                ),
-                            ],
+                          child: Text(
+                            (p['name'] ?? 'Unknown').toUpperCase(),
+                            style: GoogleFonts.luckiestGuy(
+                              fontSize: 16,
+                              color: Colors.white,
+                              letterSpacing: 1,
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        // Status Stamp
-                        if (isOut)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: Colors.redAccent,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: Colors.white, width: 2),
-                              boxShadow: const [BoxShadow(offset: Offset(2, 2), color: Colors.black26)]
-                            ),
-                            child: const Text(
-                              'OUT',
-                              style: TextStyle(
-                                fontFamily: 'LuckiestGuy',
-                                fontSize: 13,
-                                color: Colors.white,
-                              ),
-                            ),
+                        Text(
+                          '${p['score'] ?? 0}',
+                          style: GoogleFonts.luckiestGuy(
+                            fontSize: 18,
+                            color: const Color(0xFFFFDE00),
                           ),
+                        ),
                       ],
                     ),
                   ),
