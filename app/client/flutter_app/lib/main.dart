@@ -78,10 +78,14 @@ class MyApp extends StatelessWidget {
         '/settings': (context) => const PlayerSettingsPage(),
         '/game': (context) => const GameContainerScreen(),
         '/room': (context) {
-           final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
+           final args = ModalRoute.of(context)!.settings.arguments;
+           if (args is Room) {
+               return RoomScreen(room: args);
+           }
+           final map = args as Map<String, dynamic>;
            return RoomScreen(
-             room: args['room'] as dynamic, // Expecting Room object
-             initialIsHost: args['initialIsHost'] as bool? ?? false
+             room: map['room'] as dynamic, 
+             initialIsHost: map['initialIsHost'] as bool? ?? false
            );
         },
       },

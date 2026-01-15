@@ -7,6 +7,7 @@ import '../../models/room.dart';
 import '../theme/lobby_theme.dart';
 import '../theme/room_theme.dart';
 import '../widgets/user_card.dart';
+import '../widgets/invite_players_dialog.dart';
 
 class RoomScreen extends StatefulWidget {
   final Room room;
@@ -25,6 +26,12 @@ class _RoomScreenState extends State<RoomScreen> {
   int? _currentUserId;
   StreamSubscription? _eventSub;
   bool _editMode = false;
+  
+  // Temp rules for edit mode
+  String _tempMode = "scoring";
+  int _tempMaxPlayers = 6;
+  String _tempVisibility = "public";
+  bool _tempWager = true;
 
   bool get _isHost => _room.hostId == _currentUserId;
 
@@ -32,7 +39,30 @@ class _RoomScreenState extends State<RoomScreen> {
   void initState() {
     super.initState();
     _room = widget.room;
+    // Init temp with current
+    _tempMode = _room.mode;
+    _tempMaxPlayers = _room.maxPlayers;
+    _tempVisibility = _room.visibility;
+    _tempWager = _room.wagerMode;
     _init();
+  }
+
+  // ... (rest)
+
+  Future<void> _saveRules() async {
+      try {
+          await ServiceLocator.roomService.setRules(
+              mode: _tempMode,
+              maxPlayers: _tempMaxPlayers,
+              visibility: _tempVisibility,
+              wager: _tempWager
+          );
+          ScaffoldMessenger.of(context).showSnackBar(
+             const SnackBar(content: Text("Rules updated!"))
+          );
+      } catch (e) {
+          if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Failed to save rules: $e")));
+      }
   }
 
   // ... dispose ...
@@ -419,6 +449,12 @@ class _RoomScreenState extends State<RoomScreen> {
   }
 
   Widget _buildGameRulesPanel() {
+    // Current display values
+    final dMode = _editMode ? _tempMode : _room.mode;
+    final dMax = _editMode ? _tempMaxPlayers : _room.maxPlayers;
+    final dVis = _editMode ? _tempVisibility : _room.visibility;
+    final dWager = _editMode ? _tempWager : _room.wagerMode;
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final w = constraints.maxWidth;
@@ -442,7 +478,7 @@ class _RoomScreenState extends State<RoomScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header Row
+              // Header Row with EDIT/DONE
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.baseline,
@@ -462,16 +498,27 @@ class _RoomScreenState extends State<RoomScreen> {
                   if (_isHost) ...[
                     const SizedBox(width: 8),
                     GestureDetector(
-                      onTap: () {
-                        setState(() {
-                             _editMode = !_editMode;
-                        });
+                      onTap: () async {
+                        if (_editMode) {
+                            // DONE -> Save
+                            await _saveRules();
+                            setState(() => _editMode = false);
+                        } else {
+                            // EDIT -> Init temp
+                            setState(() {
+                                _tempMode = _room.mode;
+                                _tempMaxPlayers = _room.maxPlayers;
+                                _tempVisibility = _room.visibility;
+                                _tempWager = _room.wagerMode;
+                                _editMode = true;
+                            });
+                        }
                       },
                       child: Text(_editMode ? "DONE" : "EDIT", 
                         style: TextStyle(
                           fontFamily: 'LuckiestGuy', 
                           fontSize: 12, 
-                          color: Colors.white.withOpacity(0.4),
+                          color: _editMode ? Colors.greenAccent : Colors.white.withOpacity(0.4),
                           fontStyle: FontStyle.italic,
                           letterSpacing: 1,
                         )
@@ -482,7 +529,7 @@ class _RoomScreenState extends State<RoomScreen> {
               ),
               const SizedBox(height: 25),
               
-              // Max Players Row
+              // Max Players
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -490,47 +537,60 @@ class _RoomScreenState extends State<RoomScreen> {
                   if (_isHost && _editMode)
                     Row(
                       children: [
-                        _controlBtn("-", () => _handleMaxPlayersChange(-1), 
-                          enabled: _room.mode.toLowerCase() != "elimination" && _room.maxPlayers > 4),
+                        _controlBtn("-", () {
+                            if (dMode.toLowerCase() != "elimination" && dMax > 4) {
+                                setState(() => _tempMaxPlayers--);
+                            }
+                        }, enabled: dMode.toLowerCase() != "elimination" && dMax > 4),
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 12),
-                          child: Text("${_room.maxPlayers}", style: const TextStyle(fontFamily: 'LuckiestGuy', fontSize: 28, color: Color(0xFFFFEB3B))),
+                          child: Text("$dMax", style: const TextStyle(fontFamily: 'LuckiestGuy', fontSize: 28, color: Color(0xFFFFEB3B))),
                         ),
-                        _controlBtn("+", () => _handleMaxPlayersChange(1), 
-                          enabled: _room.mode.toLowerCase() != "elimination" && _room.maxPlayers < 6),
+                        _controlBtn("+", () {
+                            if (dMode.toLowerCase() != "elimination" && dMax < 6) {
+                                setState(() => _tempMaxPlayers++);
+                            }
+                        }, enabled: dMode.toLowerCase() != "elimination" && dMax < 6),
                       ],
                     )
                   else
-                    Text("${_room.maxPlayers}", style: const TextStyle(fontFamily: 'LuckiestGuy', fontSize: 28, color: Color(0xFFFFEB3B))),
+                    Text("$dMax", style: const TextStyle(fontFamily: 'LuckiestGuy', fontSize: 28, color: Color(0xFFFFEB3B))),
                 ],
               ),
               const SizedBox(height: 20),
 
-              // Visibility Mode
+              // Visibility
               const Text("VISIBILITY:", style: TextStyle(fontFamily: 'LuckiestGuy', fontSize: 18, color: Color(0xFF29B6F6))),
               const SizedBox(height: 10),
               Row(
                 children: [
-                   _wrToggleButton("PUBLIC", _room.visibility.toLowerCase() == "public", () => _updateRule(visibility: "public")),
+                   _wrToggleButton("PUBLIC", dVis.toLowerCase() == "public", 
+                       () => setState(() => _tempVisibility = "public")),
                    const SizedBox(width: 10),
-                   _wrToggleButton("PRIVATE", _room.visibility.toLowerCase() == "private", () => _updateRule(visibility: "private")),
+                   _wrToggleButton("PRIVATE", dVis.toLowerCase() == "private", 
+                       () => setState(() => _tempVisibility = "private")),
                 ],
               ),
               const SizedBox(height: 20),
 
-              // Game Mode
+              // Mode
               const Text("MODE:", style: TextStyle(fontFamily: 'LuckiestGuy', fontSize: 18, color: Color(0xFF29B6F6))),
               const SizedBox(height: 10),
               Row(
                 children: [
-                   _wrToggleButton("ELIMINATION", _room.mode.toLowerCase() == "elimination", () => _updateRule(mode: "elimination")),
+                   _wrToggleButton("ELIMINATION", dMode.toLowerCase() == "elimination", 
+                       () => setState(() { 
+                           _tempMode = "elimination"; 
+                           _tempMaxPlayers = 4; 
+                       })),
                    const SizedBox(width: 10),
-                   _wrToggleButton("SCORING", _room.mode.toLowerCase() == "scoring", () => _updateRule(mode: "scoring")),
+                   _wrToggleButton("SCORING", dMode.toLowerCase() == "scoring", 
+                       () => setState(() => _tempMode = "scoring")),
                 ],
               ),
               const SizedBox(height: 20),
 
-              // Wager Mode
+              // Wager
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -539,9 +599,9 @@ class _RoomScreenState extends State<RoomScreen> {
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                       _wagerBadge("ON", _room.wagerMode, () => _updateRule(wager: true)),
+                       _wagerBadge("ON", dWager, () => setState(() => _tempWager = true)),
                        const SizedBox(width: 8),
-                       _wagerBadge("OFF", !_room.wagerMode, () => _updateRule(wager: false)),
+                       _wagerBadge("OFF", !dWager, () => setState(() => _tempWager = false)),
                     ],
                   ),
                 ],
@@ -852,7 +912,12 @@ class _RoomScreenState extends State<RoomScreen> {
         ),
         const SizedBox(height: 10),
 
-        _actionButton("INVITE FRIENDS", RoomTheme.accentGreen, Colors.white, () {}),
+        _actionButton("INVITE FRIENDS", RoomTheme.accentGreen, Colors.white, () {
+          showDialog(
+            context: context,
+            builder: (context) => InvitePlayersDialog(roomId: _room.id),
+          );
+        }),
         const SizedBox(height: 10),
         _actionButton("LEAVE ROOM", RoomTheme.accentRed, Colors.white, _leaveRoom),
 

@@ -1,12 +1,87 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../widgets/user_card.dart';
 import '../widgets/app_title.dart';
 import '../widgets/room_card.dart';
+import '../widgets/add_friend_dialog.dart';
 import '../theme/lobby_theme.dart';
 import '../../services/service_locator.dart';
+import '../../services/friend_service.dart';
+import '../../services/room_service.dart';
 
-class LobbyScreen extends StatelessWidget {
+import '../widgets/invitation_dialog.dart';
+
+class LobbyScreen extends StatefulWidget {
   const LobbyScreen({super.key});
+
+  @override
+  State<LobbyScreen> createState() => _LobbyScreenState();
+}
+
+class _LobbyScreenState extends State<LobbyScreen> {
+  int _pendingRequests = 0;
+  StreamSubscription? _friendSub;
+  StreamSubscription? _roomSub;
+  Timer? _pollTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchPendingRequests();
+    
+    // Start polling fallback
+    _pollTimer = Timer.periodic(const Duration(seconds: 10), (_) => _fetchPendingRequests());
+    
+    // Listen for friend updates
+    _friendSub = ServiceLocator.friendService.events.listen((event) {
+        if (!mounted) return;
+        if (event.type == FriendEventType.requestReceived ||
+            event.type == FriendEventType.requestAccepted ||
+            event.type == FriendEventType.requestRejected ||
+            event.type == FriendEventType.friendAdded ||
+            event.type == FriendEventType.friendRemoved) {
+             _fetchPendingRequests();
+        }
+    });
+
+    // Listen for room invitations
+    _roomSub = ServiceLocator.roomService.events.listen((event) {
+        if (!mounted) return;
+        if (event.type == RoomEventType.invitationReceived) {
+             final data = event.data;
+             showDialog(
+                 context: context,
+                 barrierDismissible: false,
+                 builder: (context) => InvitationDialog(
+                     senderId: data['sender_id'],
+                     senderName: data['sender_name'] ?? "Unknown",
+                     roomId: data['room_id'],
+                     roomName: data['room_name'] ?? "Game Room"
+                 )
+             );
+        }
+    });
+  }
+
+  Future<void> _fetchPendingRequests() async {
+      try {
+          final res = await ServiceLocator.friendService.getFriendRequests();
+          print("[DEBUG] Lobby _fetchPendingRequests: $res");
+          if (mounted && res["success"] == true) {
+              setState(() {
+                  _pendingRequests = (res["count"] ?? 0) as int;
+              });
+          }
+      } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+      _friendSub?.cancel();
+      _roomSub?.cancel();
+      _pollTimer?.cancel();
+      super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -25,11 +100,63 @@ class LobbyScreen extends StatelessWidget {
           ),
           Positioned.fill(child: Container(color: Colors.black.withOpacity(0.5))),
 
-          // 1. User Card (Góc trên bên trái - Responsive positioning)
+          // 1. User Card & Add Friend Button (Góc trên bên trái)
           Positioned(
             top: screenHeight * 0.04,
             left: screenWidth * 0.02,
-            child: const UserCard(),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const UserCard(),
+                const SizedBox(width: 12),
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                      Container(
+                         decoration: BoxDecoration(
+                           color: LobbyTheme.yellowGame,
+                           shape: BoxShape.circle,
+                           border: Border.all(color: LobbyTheme.primaryDark, width: 3),
+                           boxShadow: [
+                             BoxShadow(
+                               color: Colors.black.withOpacity(0.3),
+                               offset: const Offset(0, 4),
+                               blurRadius: 8,
+                             )
+                           ],
+                         ),
+                         child: IconButton(
+                           icon: const Icon(Icons.person_add, color: LobbyTheme.primaryDark),
+                           onPressed: () {
+                              showDialog(
+                                context: context,
+                                builder: (context) => AddFriendDialog(initialIndex: _pendingRequests > 0 ? 1 : 0),
+                              ).then((_) => _fetchPendingRequests());
+                           },
+                           tooltip: "Add Friend",
+                         ),
+                      ),
+                      if (_pendingRequests > 0)
+                         Positioned(
+                           right: -5,
+                           top: -5,
+                           child: Container(
+                             padding: const EdgeInsets.all(6),
+                             decoration: const BoxDecoration(
+                               color: Colors.red, 
+                               shape: BoxShape.circle,
+                               boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 2)]
+                             ),
+                             child: Text(
+                               "$_pendingRequests", 
+                               style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)
+                             ),
+                           ),
+                         )
+                  ],
+                ),
+              ],
+            ),
           ),
 
           SafeArea(

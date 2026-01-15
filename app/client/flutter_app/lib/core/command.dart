@@ -40,6 +40,14 @@ class Command {
   static const int history = 0x0502;    // CMD_HIST
   static const int replay = 0x0503;     // CMD_REPLAY
   static const int leaderboard = 0x0504; // CMD_LEAD
+  
+  // Social Extended
+  static const int friendAccept = 0x0505;
+  static const int friendReject = 0x0506;
+  static const int friendRemove = 0x0507;
+  static const int friendList = 0x0508;
+  static const int friendRequests = 0x0509;
+  static const int searchUser = 0x050C;
 
   // === RESPONSE CODES ===
 
@@ -56,7 +64,8 @@ class Command {
   static const int resProfileUpdated = 226;
   static const int resProfileFound = 227;
   static const int resRoomList = 228;
-  static const int resPasswordChanged = 229;
+  static const int resPasswordChanged = 229; // Note: Might match 0xE5
+  static const int resFriendAdded = 229; // 0xE5
   static const int resGameStarted = 301;
 
   // Error
@@ -88,4 +97,11 @@ class Command {
   static const int ntfRulesChanged = 713;
   static const int ntfMemberKicked = 714;
   static const int ntfRoomClosed = 715;
+  
+  static const int ntfFriendRequest = 716;
+  static const int ntfFriendAccepted = 717;
+  static const int ntfFriendStatus = 718;
+  static const int ntfFriendAdded = 719;
+  static const int ntfFriendRemoved = 720;
+  static const int ntfHostChanged = 721;
 }

@@ -16,7 +16,8 @@ enum RoomEventType {
   roomClosed,
   memberKicked,
   rulesChanged,
-  playerReady
+  playerReady,
+  invitationReceived
 }
 
 class RoomEvent {
@@ -73,6 +74,25 @@ class RoomService {
         var json = Protocol.decodeJson(msg.payload);
         _eventController.add(RoomEvent(RoomEventType.playerReady, json));
     });
+
+    dispatcher.register(Command.ntfInvitation, (msg) {
+        var json = Protocol.decodeJson(msg.payload);
+        _eventController.add(RoomEvent(RoomEventType.invitationReceived, json));
+    });
+  }
+
+  Future<bool> inviteFriend(int targetId, int roomId) async {
+      try {
+          final buffer = ByteData(8);
+          buffer.setInt32(0, targetId, Endian.big);
+          buffer.setUint32(4, roomId, Endian.big);
+          
+          final response = await client.request(Command.inviteFriend, payload: buffer.buffer.asUint8List());
+          return response.command == Command.resSuccess;
+      } catch (e) {
+          print("Error inviting friend: $e");
+          return false;
+      }
   }
 
   Future<Map<String, dynamic>> createRoom({

@@ -6,6 +6,8 @@ import 'profile_service.dart';
 import 'room_service.dart';
 import 'game_service.dart';
 
+import 'friend_service.dart';
+
 /// Centralized access to all singletons/services
 class ServiceLocator {
   static final TcpClient tcpClient = TcpClient();
@@ -16,6 +18,7 @@ class ServiceLocator {
   static late final ProfileService profileService;
   static late final RoomService roomService;
   static late final GameService gameService;
+  static late final FriendService friendService;
 
   static void init() {
     dispatcher = Dispatcher(tcpClient);
@@ -24,5 +27,6 @@ class ServiceLocator {
     profileService = ProfileService(tcpClient);
     roomService = RoomService(tcpClient, dispatcher);
     gameService = GameService(tcpClient, dispatcher);
+    friendService = FriendService(tcpClient, dispatcher);
   }
 }
