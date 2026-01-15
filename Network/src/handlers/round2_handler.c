@@ -758,9 +758,8 @@ static char* build_round_end_json(void) {
         cJSON_AddBoolToObject(p, "connected", is_connected(mp->account_id));
         cJSON_AddBoolToObject(p, "eliminated", mp->eliminated != 0);
         
-        char name[32];
-        snprintf(name, sizeof(name), "Player%d", mp->account_id);
-        cJSON_AddStringToObject(p, "name", name);
+        // Add player name
+        cJSON_AddStringToObject(p, "name", mp->name);
         
         cJSON_AddItemToArray(players, p);
     }
@@ -862,9 +861,7 @@ static void process_turn_results(MessageHeader *req) {
         cJSON_AddNumberToObject(bid_obj, "total_score", mp->score);
         cJSON_AddBoolToObject(bid_obj, "overbid", results[i].over);
         
-        char name[32];
-        snprintf(name, sizeof(name), "Player%d", results[i].account_id);
-        cJSON_AddStringToObject(bid_obj, "name", name);
+        cJSON_AddStringToObject(bid_obj, "name", mp->name);
         
         cJSON_AddItemToArray(bids_array, bid_obj);
     }
@@ -1043,6 +1040,22 @@ static void handle_player_ready(int fd, MessageHeader *req, const char *payload)
         cJSON_AddNumberToObject(obj, "current_score", mp->score);
         cJSON_AddNumberToObject(obj, "current_product", round->current_question_idx);
         
+        // Add full player list for leaderboard
+        cJSON *players = cJSON_CreateArray();
+        for (int i = 0; i < g_r2.player_count; i++) {
+            cJSON *p = cJSON_CreateObject();
+            cJSON_AddNumberToObject(p, "account_id", g_r2.players[i].account_id);
+            cJSON_AddBoolToObject(p, "ready", g_r2.players[i].ready);
+            
+            MatchPlayerState *mp_state = get_match_player(g_r2.players[i].account_id);
+            if (mp_state) {
+                cJSON_AddStringToObject(p, "name", mp_state->name);
+                cJSON_AddNumberToObject(p, "score", mp_state->score);
+            }
+            cJSON_AddItemToArray(players, p);
+        }
+        cJSON_AddItemToObject(obj, "players", players);
+        
         char *json = cJSON_PrintUnformatted(obj);
         cJSON_Delete(obj);
         send_json(fd, req, OP_S2C_ROUND2_READY_STATUS, json);
@@ -1074,6 +1087,12 @@ static void handle_player_ready(int fd, MessageHeader *req, const char *payload)
         cJSON *p = cJSON_CreateObject();
         cJSON_AddNumberToObject(p, "account_id", g_r2.players[i].account_id);
         cJSON_AddBoolToObject(p, "ready", g_r2.players[i].ready);
+        
+        MatchPlayerState *mp_state = get_match_player(g_r2.players[i].account_id);
+        if (mp_state) {
+            cJSON_AddStringToObject(p, "name", mp_state->name);
+        }
+        
         cJSON_AddItemToArray(players, p);
     }
     cJSON_AddItemToObject(status, "players", players);

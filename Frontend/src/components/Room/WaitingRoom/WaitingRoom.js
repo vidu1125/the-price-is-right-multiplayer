@@ -270,6 +270,9 @@ export default function WaitingRoom() {
     startGame(room.id);
   };
 
+  // Calculate dynamic isHost based on current room state
+  const isUserHost = room.hostId === profile.account_id;
+
   if (!roomId) return null;
 
   return (
@@ -291,7 +294,7 @@ export default function WaitingRoom() {
         {/* LEFT: Game Rules */}
         <div className="wr-left">
           <GameRulesPanel
-            isHost={isHost}
+            isHost={isUserHost}
             roomId={room.id}
             gameRules={room.rules}
             currentPlayerCount={room.players.length}
@@ -302,7 +305,7 @@ export default function WaitingRoom() {
         {/* CENTER: Members */}
         <div className="wr-center">
           <MemberListPanel
-            isHost={isHost}
+            isHost={isUserHost}
             roomId={room.id}
             hostId={room.hostId} // Might be null initially
             roomName={room.name || "My Room"}
@@ -315,7 +318,7 @@ export default function WaitingRoom() {
 
         {/* RIGHT: Actions */}
         <div className="wr-right-actions">
-          {isHost && (
+          {isUserHost && (
             <button className="start-game-btn" onClick={handleStartGame}>START GAME</button>
           )}
           <button className="invite-btn" onClick={() => setShowInviteModal(true)}>INVITE FRIENDS</button>

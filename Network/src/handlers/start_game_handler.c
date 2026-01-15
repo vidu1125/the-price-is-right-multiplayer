@@ -61,8 +61,34 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
         forward_response(client_fd, req, ERR_BAD_REQUEST, "Room not in waiting state", 26);
         return;
     }
+    for (int i = 0; i < room->player_count; i++) {
+    RoomPlayerState *p = &room->players[i];
 
-    //
+    if (!p->connected) {
+        printf("[HANDLER] <startgame> Error: Player %u disconnected\n", p->account_id);
+        forward_response(
+            client_fd,
+            req,
+            ERR_BAD_REQUEST,
+            "Player disconnected",
+            19
+        );
+        return;
+    }
+
+    if (!p->is_ready) {
+        printf("[HANDLER] <startgame> Error: Player %u not ready\n", p->account_id);
+        forward_response(
+            client_fd,
+            req,
+            ERR_BAD_REQUEST,
+            "Not all players are ready",
+            26
+        );
+        return;
+    }
+}
+    
     printf("[HANDLER] <startgame> All players are ready\n");
 
     // =========================================================================
@@ -72,7 +98,7 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
     
     printf("[HANDLER] <startgame> Starting with %d player(s)\n", player_count);
     
-    if (player_count < 2) {
+    if (player_count < 1) {
         forward_response(client_fd, req, ERR_BAD_REQUEST, "Need at least 2 players to start", 32);
         return;
     }
@@ -133,6 +159,10 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
         match->players[i].account_id = room->players[i].account_id;
         match->players[i].score = 0;
         match->players[i].connected = room->players[i].connected ? 1 : 0;
+        
+        // Copy player name
+        strncpy(match->players[i].name, room->players[i].name, sizeof(match->players[i].name) - 1);
+        match->players[i].name[sizeof(match->players[i].name) - 1] = '\0';
         
         printf("[HANDLER] <startgame>   - Added match player: %d\n", 
                match->players[i].account_id);
