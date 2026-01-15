@@ -152,6 +152,22 @@ export default function WaitingRoom() {
       }
     });
 
+    // Handler for NTF_MEMBER_KICKED (chỉ người bị kick nhận được)
+    registerHandler(OPCODE.NTF_MEMBER_KICKED, (payload) => {
+      const text = new TextDecoder().decode(payload);
+      try {
+        const { room_id } = JSON.parse(text);
+        console.log('[WaitingRoom] ❌ You were kicked from room:', room_id);
+
+        alert('⚠️ Bạn đã bị kick khỏi phòng!');
+
+        // Quay về lobby
+        navigate('/lobby');
+      } catch (e) {
+        console.error('[WaitingRoom] Failed to parse NTF_MEMBER_KICKED:', e);
+      }
+    });
+
     // 5. NTF_PLAYER_READY
     registerHandler(OPCODE.NTF_PLAYER_READY, (payload) => {
       const text = new TextDecoder().decode(payload);
