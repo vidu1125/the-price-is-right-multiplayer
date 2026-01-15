@@ -44,7 +44,7 @@ class _AddFriendDialogState extends State<AddFriendDialog> with SingleTickerProv
         }
     });
 
-    _fetchFriends(force: true);
+    _fetchFriends(force: false);
     _fetchRequests();
     
     // Listen for real-time updates

@@ -33,8 +33,13 @@ class _LobbyScreenState extends State<LobbyScreen> {
     // Listen for friend updates (Real-time instead of polling)
     _friendSub = ServiceLocator.friendService.events.listen((event) {
         if (!mounted) return;
-        if (event.type == FriendEventType.requestReceived ||
-            event.type == FriendEventType.requestAccepted ||
+        
+        if (event.type == FriendEventType.requestReceived) {
+             setState(() {
+                 _pendingRequests++;
+             });
+             _fetchPendingRequests();
+        } else if (event.type == FriendEventType.requestAccepted ||
             event.type == FriendEventType.requestRejected ||
             event.type == FriendEventType.friendAdded ||
             event.type == FriendEventType.friendRemoved) {

@@ -24,10 +24,12 @@ class RoomList extends StatelessWidget {
         final room = rooms[index];
         bool isPlaying = room.status.toLowerCase() != "waiting";
         bool isFull = room.currentPlayerCount >= room.maxPlayers;
-        bool isLocked = isPlaying || isFull;
+        bool isPrivate = room.visibility.toLowerCase() == "private";
+        bool isLocked = isPlaying || isFull || isPrivate;
 
         String buttonText = "JOIN";
-        if (isPlaying) buttonText = "PLAYING";
+        if (isPrivate) buttonText = "PRIVATE";
+        else if (isPlaying) buttonText = "PLAYING";
         else if (isFull) buttonText = "FULL";
 
         return Container(

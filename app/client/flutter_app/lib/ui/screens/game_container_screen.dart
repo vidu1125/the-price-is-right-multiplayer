@@ -104,6 +104,15 @@ class _GameContainerScreenState extends State<GameContainerScreen> {
           _isLoading = false;
           break;
 
+        case GameEventType.round1ReadyStatus:
+        case GameEventType.round2ReadyStatus:
+        case GameEventType.round3ReadyStatus:
+           final _statusData = event.data as Map<String, dynamic>?;
+           if (_statusData?['players'] != null) {
+              _updateLeaderboard(_statusData!['players']);
+           }
+           break;
+
         case GameEventType.round1Question:
           print("[GameContainer] Question received: ${event.data}");
           final questionData = event.data as Map<String, dynamic>?;
@@ -158,7 +167,9 @@ class _GameContainerScreenState extends State<GameContainerScreen> {
           
           // Update players/scoreboard
           if (data?['players'] != null) {
-            _players = List<Map<String, dynamic>>.from(data!['players']);
+             _updateLeaderboard(data!['players']);
+          } else if (data?['rankings'] != null) {
+             _updateLeaderboard(data!['rankings']);
           }
           
           // Get next round number
@@ -197,7 +208,7 @@ class _GameContainerScreenState extends State<GameContainerScreen> {
           print("[GameContainer] Scoreboard update: ${event.data}");
           final data = event.data as Map<String, dynamic>?;
           if (data?['players'] != null) {
-            _players = List<Map<String, dynamic>>.from(data!['players']);
+            _updateLeaderboard(data!['players']);
           }
           break;
 
@@ -266,7 +277,9 @@ class _GameContainerScreenState extends State<GameContainerScreen> {
           // Update players/scoreboard
           if (data?['players'] != null) {
              print("[GameContainer] Updating scoreboard");
-            _players = List<Map<String, dynamic>>.from(data!['players']);
+            _updateLeaderboard(data!['players']);
+          } else if (data?['rankings'] != null) {
+            _updateLeaderboard(data!['rankings']);
           }
           
           // Get next round number
@@ -388,75 +401,17 @@ class _GameContainerScreenState extends State<GameContainerScreen> {
 
         case GameEventType.round3AllFinished:
            print("[GameContainer] Round 3 all finished: ${event.data}");
-           // You could show a final game summary here or wait for NTF_GAME_END
+           final r3Data = event.data as Map<String, dynamic>?;
+           if (r3Data?['players'] != null) {
+              _updateLeaderboard(r3Data!['players']);
+           } else if (r3Data?['rankings'] != null) {
+              _updateLeaderboard(r3Data!['rankings']);
+           }
            break;
 
-        case GameEventType.round1Question:
-          print("[GameContainer] Question received: ${event.data}");
-          _applyNextQuestion(event.data as Map<String, dynamic>?);
-          break;
+        // Duplicate cases removed
 
-        case GameEventType.round1Result:
-          print("[GameContainer] Answer result: ${event.data}");
-          final result = event.data as Map<String, dynamic>?;
-          if (result != null) {
-            setState(() {
-              _currentScore = result['current_score'] ?? _currentScore;
-              if (_currentQuestion != null) {
-                _currentQuestion!['correctIndex'] = result['correct_index'];
-              }
-              // Update my own score in the ranking list
-              for (int i = 0; i < _players.length; i++) {
-                if (_players[i]['account_id'] == _myPlayerId) {
-                  _players[i]['score'] = _currentScore;
-                  break;
-                }
-              }
-              // Re-sort ranking
-              _players.sort((a, b) => (b['score'] ?? 0).compareTo(a['score'] ?? 0));
-            });
-          }
-          break;
-
-        case GameEventType.round1AllFinished:
-          print("[GameContainer] Round 1 finished: ${event.data}");
-          final data = event.data as Map<String, dynamic>?;
-          final int nextRound = data?['next_round'] ?? 2;
-          
-          if (data?['players'] != null) {
-            setState(() {
-              _players = List<Map<String, dynamic>>.from(data!['players']);
-              // Sync our score
-              if (_myPlayerId != null) {
-                final me = _players.firstWhere((p) => p['id'] == _myPlayerId || p['account_id'] == _myPlayerId, orElse: () => {});
-                if (me.isNotEmpty) {
-                  _currentScore = me['score'] ?? me['points'] ?? _currentScore;
-                }
-              }
-            });
-          }
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Round 1 Finished! Your Score: $_currentScore"), backgroundColor: Colors.blueAccent),
-          );
-
-          if (nextRound > 0) {
-            Future.delayed(const Duration(seconds: 3), () {
-              if (mounted) {
-                print("[GameContainer] Switching to round $nextRound");
-                setState(() {
-                  _currentRound = nextRound;
-                  _currentQuestion = null;
-                  _isLoading = true;
-                });
-                
-                if (nextRound == 2) {
-                   ServiceLocator.gameStateService.sendRound2PlayerReady(_matchId, 0);
-                }
-              }
-            });
-          }
-          break;
+        // Duplicate case removed
 
         case GameEventType.round2Product:
           print("[GameContainer] Product received: ${event.data}");
@@ -843,6 +798,53 @@ class _GameContainerScreenState extends State<GameContainerScreen> {
         _round3Score = 0; // Clear score to indicate we are spinning again
       }
     });
+  }
+
+  void _updateLeaderboard(List<dynamic>? playersData) {
+    if (playersData == null) return;
+    
+    // Normalize and process player list
+    List<Map<String, dynamic>> newPlayers = [];
+    for (var p in playersData) {
+      if (p is Map<String, dynamic>) {
+        final newP = Map<String, dynamic>.from(p);
+        
+        // Handle ID variations
+        final accId = newP['id'] ?? newP['account_id'];
+        newP['id'] = accId;
+        newP['account_id'] = accId;
+        
+        // Mark if this is me
+        if (_myPlayerId != null && (accId == _myPlayerId || accId == _myPlayerId.toString())) {
+          newP['isMe'] = true;
+        } else {
+          newP['isMe'] = false;
+        }
+        
+        // Ensure name fallback if missing
+        if (newP['name'] == null || newP['name'].toString().isEmpty) {
+          newP['name'] = 'Player $accId';
+        }
+        
+        newPlayers.add(newP);
+      }
+    }
+    
+    // Sort by score descending
+    newPlayers.sort((a, b) => (b['score'] ?? 0).compareTo(a['score'] ?? 0));
+    
+    _players = newPlayers;
+    
+    // Sync my score
+    if (_myPlayerId != null) {
+       // We can find 'me' efficiently
+       try {
+         final me = newPlayers.firstWhere((p) => p['isMe'] == true);
+         _currentScore = me['score'] ?? _currentScore;
+       } catch (e) {
+         // Not in list
+       }
+    }
   }
 }
 

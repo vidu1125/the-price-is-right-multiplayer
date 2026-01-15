@@ -72,7 +72,7 @@ class _RoomCardState extends State<RoomCard> {
     if (newMode == null) return;
     setState(() {
       mode = newMode;
-      if (mode == "eliminate") {
+      if (mode == "elimination") {
         maxPlayers = 4;
       } else {
         if (maxPlayers < 4) maxPlayers = 4;
@@ -162,7 +162,7 @@ class _RoomCardState extends State<RoomCard> {
                                     const SizedBox(height: 8),
                                     _buildDropdown(
                                       value: mode,
-                                      items: const ["scoring", "eliminate"],
+                                      items: const ["scoring", "elimination"],
                                       onChanged: (val) => setModalState(() => handleModeChange(val)),
                                       icon: Icons.sports_esports_rounded,
                                     ),
@@ -184,7 +184,7 @@ class _RoomCardState extends State<RoomCard> {
                                     const SizedBox(height: 8),
                                     _buildTextField(
                                       initialValue: maxPlayers.toString(),
-                                      enabled: mode != "eliminate",
+                                      enabled: mode != "elimination",
                                       keyboardType: TextInputType.number,
                                       onChanged: (val) => maxPlayers = int.tryParse(val) ?? 4,
                                       icon: Icons.group_rounded,

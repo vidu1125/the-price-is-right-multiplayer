@@ -171,3 +171,22 @@
 #define OP_S2C_ROUND3_DECISION_ACK  0x0653  // Decision acknowledged
 #define OP_S2C_ROUND3_FINAL_RESULT  0x0654  // Final bonus + updated scores
 #define OP_S2C_ROUND3_ALL_FINISHED  0x0655  // Round finished, show final results
+
+// Bonus Round - Tiebreaker (0x0660 - 0x067F)
+#define OP_C2S_BONUS_READY          0x0660  // Client ready for bonus round
+#define OP_C2S_BONUS_DRAW_CARD      0x0661  // Player draws a card
+#define OP_S2C_BONUS_INIT           0x0670  // Server initializes bonus round
+#define OP_S2C_BONUS_PARTICIPANT    0x0671  // Notify: you are a participant
+#define OP_S2C_BONUS_SPECTATOR      0x0672  // Notify: you are a spectator
+#define OP_S2C_BONUS_CARD_DRAWN     0x0673  // Card drawn confirmation
+#define OP_S2C_BONUS_PLAYER_DREW    0x0674  // Broadcast: player drew card
+#define OP_S2C_BONUS_REVEAL         0x0675  // Reveal all cards
+#define OP_S2C_BONUS_RESULT         0x0676  // Final result (who eliminated/won)
+#define OP_S2C_BONUS_TRANSITION     0x0677  // Transition to next phase
+
+// End Game (0x0680 - 0x068F)
+#define OP_C2S_END_GAME_READY       0x0680  // Client ready for end game screen
+#define OP_C2S_END_GAME_BACK_LOBBY  0x0681  // Player clicks back to lobby
+#define OP_S2C_END_GAME_RESULT      0x0690  // Server sends final game result
+#define OP_S2C_END_GAME_RANKINGS    0x0691  // Final rankings with all details
+#define OP_S2C_END_GAME_BACK_ACK    0x0692  // Acknowledge back to lobby

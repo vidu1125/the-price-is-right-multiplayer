@@ -1,0 +1,642 @@
+/**
+ * EndGame.css - End Game Screen Styling
+ * 
+ * Features:
+ * - Dramatic winner celebration with crown, glow, and confetti
+ * - Clean rankings table with elimination status
+ * - Responsive design
+ * - Smooth animations
+ */
+
+/* ============================================
+   BASE WRAPPER
+   ============================================ */
+.end-game-wrapper {
+    width: 100%;
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+}
+
+.end-game-wrapper.winner-view {
+    background: linear-gradient(135deg, #1a1a2e 0%, #2d1b4e 50%, #4a1942 100%);
+}
+
+.end-game-wrapper.elimination {
+    background: linear-gradient(135deg, #1a1a2e 0%, #2e1a1a 50%, #4a1919 100%);
+}
+
+/* ============================================
+   CONFETTI ANIMATION
+   ============================================ */
+.confetti-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 100;
+    overflow: hidden;
+}
+
+.confetti-piece {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    top: -20px;
+    animation: confetti-fall 4s ease-out forwards;
+}
+
+@keyframes confetti-fall {
+    0% {
+        transform: translateY(0) rotate(0deg);
+        opacity: 1;
+    }
+    100% {
+        transform: translateY(100vh) rotate(720deg);
+        opacity: 0;
+    }
+}
+
+/* ============================================
+   LOADING STATE
+   ============================================ */
+.end-game-wrapper.loading {
+    justify-content: center;
+}
+
+.loading-spinner {
+    width: 60px;
+    height: 60px;
+    border: 4px solid rgba(255, 215, 0, 0.2);
+    border-top-color: #FFD700;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+.loading-text {
+    margin-top: 20px;
+    color: #FFD700;
+    font-size: 1.2rem;
+    font-family: 'Luckiest Guy', cursive;
+    letter-spacing: 2px;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ============================================
+   CONTENT CONTAINER
+   ============================================ */
+.end-game-content {
+    width: 100%;
+    max-width: 700px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+}
+
+/* ============================================
+   HEADER
+   ============================================ */
+.end-game-header {
+    text-align: center;
+    margin-bottom: 10px;
+}
+
+.game-over-label {
+    font-family: 'Luckiest Guy', cursive;
+    font-size: 2.5rem;
+    color: #FFD700;
+    text-shadow: 
+        0 0 10px rgba(255, 215, 0, 0.5),
+        0 4px 0 #B8860B,
+        0 6px 10px rgba(0, 0, 0, 0.5);
+    letter-spacing: 4px;
+    margin: 0;
+    animation: pulse-glow 2s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+    0%, 100% { text-shadow: 0 0 10px rgba(255, 215, 0, 0.5), 0 4px 0 #B8860B, 0 6px 10px rgba(0, 0, 0, 0.5); }
+    50% { text-shadow: 0 0 30px rgba(255, 215, 0, 0.8), 0 4px 0 #B8860B, 0 6px 10px rgba(0, 0, 0, 0.5); }
+}
+
+.mode-badge {
+    display: inline-block;
+    margin-top: 10px;
+    padding: 6px 16px;
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 20px;
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #fff;
+    letter-spacing: 2px;
+}
+
+/* ============================================
+   WINNER BANNER
+   ============================================ */
+.winner-banner {
+    width: 100%;
+    padding: 30px;
+    background: linear-gradient(145deg, rgba(255, 215, 0, 0.15), rgba(255, 165, 0, 0.1));
+    border: 2px solid rgba(255, 215, 0, 0.3);
+    border-radius: 20px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.winner-banner.you-won {
+    background: linear-gradient(145deg, rgba(255, 215, 0, 0.25), rgba(255, 165, 0, 0.2));
+    border-color: rgba(255, 215, 0, 0.6);
+    box-shadow: 
+        0 0 40px rgba(255, 215, 0, 0.3),
+        inset 0 0 60px rgba(255, 215, 0, 0.1);
+}
+
+.winner-banner::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(255, 215, 0, 0.1) 0%, transparent 70%);
+    animation: rotate-glow 10s linear infinite;
+}
+
+@keyframes rotate-glow {
+    to { transform: rotate(360deg); }
+}
+
+/* Bonus Badge */
+.bonus-badge {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    padding: 6px 12px;
+    background: linear-gradient(135deg, #9b59b6, #8e44ad);
+    border-radius: 15px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #fff;
+    z-index: 2;
+}
+
+/* Crown */
+.crown-container {
+    position: relative;
+    z-index: 2;
+    margin-bottom: -20px;
+}
+
+.winner-crown {
+    width: 80px;
+    height: auto;
+    filter: drop-shadow(0 0 20px rgba(255, 215, 0, 0.8));
+    animation: crown-bounce 2s ease-in-out infinite;
+}
+
+@keyframes crown-bounce {
+    0%, 100% { transform: translateY(0) rotate(-5deg); }
+    50% { transform: translateY(-10px) rotate(5deg); }
+}
+
+/* Winner Avatar */
+.winner-avatar {
+    position: relative;
+    width: 100px;
+    height: 100px;
+    margin: 0 auto 15px;
+    background: linear-gradient(135deg, #FFD700, #FFA500);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2;
+    box-shadow: 0 8px 30px rgba(255, 215, 0, 0.4);
+}
+
+.avatar-letter {
+    font-family: 'Luckiest Guy', cursive;
+    font-size: 3rem;
+    color: #1a1a2e;
+}
+
+.winner-glow {
+    position: absolute;
+    top: -10px;
+    left: -10px;
+    right: -10px;
+    bottom: -10px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 215, 0, 0.4) 0%, transparent 70%);
+    animation: pulse-avatar 2s ease-in-out infinite;
+}
+
+@keyframes pulse-avatar {
+    0%, 100% { transform: scale(1); opacity: 0.5; }
+    50% { transform: scale(1.2); opacity: 0.8; }
+}
+
+/* Winner Name */
+.winner-name {
+    font-family: 'Luckiest Guy', cursive;
+    font-size: 2.2rem;
+    color: #FFD700;
+    margin: 0 0 10px;
+    text-shadow: 0 3px 0 #B8860B, 0 5px 15px rgba(0, 0, 0, 0.5);
+    position: relative;
+    z-index: 2;
+}
+
+.winner-subtitle {
+    font-family: 'Poppins', sans-serif;
+    font-size: 1rem;
+    color: rgba(255, 255, 255, 0.8);
+    margin: 5px 0 0;
+    position: relative;
+    z-index: 2;
+}
+
+/* Winner Score */
+.winner-score {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    position: relative;
+    z-index: 2;
+}
+
+.winner-score .score-label {
+    font-size: 0.85rem;
+    color: rgba(255, 215, 0, 0.7);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+.winner-score .score-value {
+    font-family: 'Luckiest Guy', cursive;
+    font-size: 2rem;
+    color: #fff;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+}
+
+/* ============================================
+   TIE BANNER
+   ============================================ */
+.tie-banner {
+    background: linear-gradient(145deg, rgba(100, 149, 237, 0.2), rgba(65, 105, 225, 0.15));
+    border-color: rgba(100, 149, 237, 0.5);
+}
+
+.tie-icon {
+    font-size: 4rem;
+    margin-bottom: 10px;
+}
+
+.tie-title {
+    font-family: 'Luckiest Guy', cursive;
+    font-size: 2.5rem;
+    color: #6495ED;
+    margin: 0;
+    text-shadow: 0 3px 0 #4169E1, 0 5px 15px rgba(0, 0, 0, 0.5);
+}
+
+.tie-message {
+    font-family: 'Poppins', sans-serif;
+    font-size: 1.1rem;
+    color: rgba(255, 255, 255, 0.9);
+    margin: 10px 0 0;
+}
+
+/* ============================================
+   RANKINGS CONTAINER
+   ============================================ */
+.rankings-container {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 16px;
+    padding: 20px;
+    backdrop-filter: blur(10px);
+}
+
+.rankings-title {
+    font-family: 'Luckiest Guy', cursive;
+    font-size: 1.5rem;
+    color: #fff;
+    text-align: center;
+    margin: 0 0 20px;
+    letter-spacing: 3px;
+}
+
+.rankings-table {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* ============================================
+   RANKING ROW
+   ============================================ */
+.ranking-row {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 12px 15px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: all 0.3s ease;
+    animation: slide-in 0.5s ease forwards;
+    opacity: 0;
+    transform: translateX(-20px);
+}
+
+@keyframes slide-in {
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.ranking-row:hover {
+    background: rgba(255, 255, 255, 0.1);
+    transform: translateX(5px);
+}
+
+.ranking-row.is-me {
+    background: rgba(255, 215, 0, 0.15);
+    border-color: rgba(255, 215, 0, 0.3);
+}
+
+.ranking-row.is-top {
+    background: linear-gradient(90deg, rgba(255, 215, 0, 0.2), rgba(255, 165, 0, 0.1));
+    border-color: rgba(255, 215, 0, 0.4);
+}
+
+.ranking-row.is-eliminated {
+    opacity: 0.7;
+}
+
+/* Rank Badge */
+.rank-badge {
+    width: 45px;
+    height: 45px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+    font-weight: bold;
+    flex-shrink: 0;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.rank-badge.rank-1 {
+    background: linear-gradient(135deg, #FFD700, #FFA500);
+    color: #1a1a2e;
+    box-shadow: 0 4px 15px rgba(255, 215, 0, 0.4);
+}
+
+.rank-badge.rank-2 {
+    background: linear-gradient(135deg, #C0C0C0, #A8A8A8);
+    color: #1a1a2e;
+}
+
+.rank-badge.rank-3 {
+    background: linear-gradient(135deg, #CD7F32, #B8860B);
+    color: #1a1a2e;
+}
+
+/* Player Info */
+.player-info {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+
+.player-avatar-small {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Luckiest Guy', cursive;
+    font-size: 1.2rem;
+    color: #fff;
+    flex-shrink: 0;
+}
+
+.player-details {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.player-name {
+    font-family: 'Poppins', sans-serif;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.you-tag {
+    margin-left: 8px;
+    padding: 2px 8px;
+    background: rgba(255, 215, 0, 0.3);
+    border-radius: 10px;
+    font-size: 0.7rem;
+    color: #FFD700;
+    font-weight: 700;
+}
+
+.player-status {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.player-status.winner {
+    color: #FFD700;
+    font-weight: 600;
+}
+
+.player-status.eliminated {
+    color: #FF6B6B;
+}
+
+/* Player Score */
+.player-score {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.player-score .score-number {
+    font-family: 'Luckiest Guy', cursive;
+    font-size: 1.4rem;
+    color: #fff;
+}
+
+.player-score .score-label {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.5);
+    text-transform: uppercase;
+}
+
+/* ============================================
+   RESULT MESSAGE
+   ============================================ */
+.result-message {
+    text-align: center;
+    padding: 15px 25px;
+    background: rgba(255, 215, 0, 0.1);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 215, 0, 0.2);
+    font-family: 'Poppins', sans-serif;
+    font-size: 1.1rem;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+/* ============================================
+   BACK TO LOBBY BUTTON
+   ============================================ */
+.back-to-lobby-container {
+    margin-top: 20px;
+}
+
+.back-to-lobby-btn {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 40px;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    border: none;
+    border-radius: 50px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+}
+
+.back-to-lobby-btn:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 35px rgba(102, 126, 234, 0.5);
+}
+
+.back-to-lobby-btn:active {
+    transform: translateY(0);
+}
+
+.btn-icon {
+    font-size: 1.5rem;
+}
+
+.btn-text {
+    font-family: 'Luckiest Guy', cursive;
+    font-size: 1.3rem;
+    color: #fff;
+    letter-spacing: 2px;
+}
+
+/* ============================================
+   ANIMATIONS
+   ============================================ */
+.animate-in {
+    animation: fade-scale-in 0.6s ease forwards;
+}
+
+@keyframes fade-scale-in {
+    from {
+        opacity: 0;
+        transform: scale(0.9) translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+/* ============================================
+   RESPONSIVE
+   ============================================ */
+@media (max-width: 600px) {
+    .end-game-wrapper {
+        padding: 15px;
+    }
+    
+    .game-over-label {
+        font-size: 2rem;
+    }
+    
+    .winner-name {
+        font-size: 1.8rem;
+    }
+    
+    .winner-avatar {
+        width: 80px;
+        height: 80px;
+    }
+    
+    .avatar-letter {
+        font-size: 2.5rem;
+    }
+    
+    .winner-crown {
+        width: 60px;
+    }
+    
+    .ranking-row {
+        padding: 10px 12px;
+        gap: 10px;
+    }
+    
+    .rank-badge {
+        width: 38px;
+        height: 38px;
+        font-size: 1.1rem;
+    }
+    
+    .player-avatar-small {
+        width: 35px;
+        height: 35px;
+        font-size: 1rem;
+    }
+    
+    .player-name {
+        font-size: 0.9rem;
+    }
+    
+    .player-score .score-number {
+        font-size: 1.2rem;
+    }
+    
+    .back-to-lobby-btn {
+        padding: 14px 30px;
+    }
+    
+    .btn-text {
+        font-size: 1.1rem;
+    }
+}
