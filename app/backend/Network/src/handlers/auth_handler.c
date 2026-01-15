@@ -8,6 +8,7 @@
 #include "db/repo/session_repo.h"
 #include "db/repo/profile_repo.h"
 #include "handlers/session_context.h"
+#include "handlers/presence_manager.h"
 #include "transport/room_manager.h"
 #include "handlers/session_manager.h"
 #include "protocol/protocol.h"
@@ -203,6 +204,12 @@ void handle_login(
 
     // Bind legacy mapping for handlers that rely on it
     set_client_session(client_fd, session->session_id, account->id);
+
+    // Register user as online in presence manager
+    // This will load friend list from DB and broadcast status to online friends
+    const char *profile_name = profile && profile->name ? profile->name : "User";
+    const char *profile_avatar = profile && profile->avatar ? profile->avatar : "";
+    presence_register_online(account->id, client_fd, profile_name, profile_avatar);
 
     // Build success response
     cJSON *response = cJSON_CreateObject();
@@ -569,6 +576,13 @@ void handle_reconnect(
     if (profile_err == DB_ERROR_NOT_FOUND) {
         profile_create(account->id, NULL, NULL, NULL, &profile);
     }
+
+    // Register user as online in presence manager (reconnect)
+    const char *profile_name = profile && profile->name ? profile->name : "User";
+    const char *profile_avatar = profile && profile->avatar ? profile->avatar : "";
+    presence_register_online(account->id, client_fd, profile_name, profile_avatar);
+
+    // TODO: Restore room state if player was in a room
 
     // Build success response
     cJSON *response = cJSON_CreateObject();

@@ -9,6 +9,8 @@
 #include "handlers/session_manager.h"
 #include "db/core/db_client.h"
 #include <cjson/cJSON.h>
+#include <limits.h>
+#include <stdlib.h>
 
 //==============================================================================
 // PAYLOAD DEFINITIONS (Room Handler)
@@ -36,10 +38,15 @@ typedef struct PACKED {
     char room_code[8];
 } CreateRoomResponsePayload;
 
+
 // Other payloads (keep for now)
 typedef struct PACKED {
     uint32_t room_id;
 } RoomIDPayload;
+
+typedef struct PACKED {
+    uint32_t target_account_id; // network byte order
+} KickMemberPayload;
 
 typedef struct PACKED {
     uint8_t mode;
@@ -568,123 +575,380 @@ void handle_set_rules(int client_fd, MessageHeader *req, const char *payload) {
 // KICK MEMBER (Host only)
 //==============================================================================
 void handle_kick_member(int client_fd, MessageHeader *req, const char *payload) {
-    (void)payload; // Unused
-    send_error(client_fd, req, ERR_BAD_REQUEST, "Not implemented yet");
-    /*
-    // 1. Validate
+    printf("[HANDLER] <KICK_MEMBER> Request from fd=%d\n", client_fd);
+    
+    // ========== BƯỚC 1: VALIDATE PAYLOAD ==========
     if (req->length != sizeof(KickMemberPayload)) {
         send_error(client_fd, req, ERR_BAD_REQUEST, "Invalid payload");
         return;
     }
     
-    // 2. Copy & extract
+    // ========== BƯỚC 2: PARSE PAYLOAD ==========
     KickMemberPayload data;
     memcpy(&data, payload, sizeof(data));
-    uint32_t room_id = ntohl(data.room_id);
-    uint32_t target_id = ntohl(data.target_id);
+    uint32_t target_id = ntohl(data.target_account_id);
     
-   
+    printf("[Kick Member] Target account_id: %u\n", target_id);
     
-    // // 3. Build JSON
-    // snprintf(json, ...);
-
-    // // 4. HTTP POST (parsed)
-    // HttpResponse http_resp = http_post_parse(...);
-
-    // if (http_resp.status_code < 0) ...
-    // if (http_resp.status_code >= 400) ...
-
-
-
-    char resp_buf[1024];
-
-    int rc = room_repo_kick_member(
-        room_id,
-        target_id,
-        resp_buf,
-        sizeof(resp_buf)
-    );
-
-    if (rc != 0) {
-        send_error(client_fd, req, ERR_SERVER_ERROR, "Failed to kick member");
+    // ========== BƯỚC 3: VALIDATE SESSION ==========
+    UserSession *session = session_get_by_socket(client_fd);
+    if (!session || session->state != SESSION_LOBBY) {
+        send_error(client_fd, req, ERR_NOT_LOGGED_IN, "Not logged in");
         return;
     }
-
-    // 5. Broadcast success to all members
-    room_broadcast(room_id, NTF_MEMBER_KICKED,
-              resp_buf, strlen(resp_buf), -1);
-
-    // 6. Forward response to host
-    forward_response(client_fd, req, RES_MEMBER_KICKED,
-                    resp_buf, strlen(resp_buf));
-    */
+    
+    uint32_t kicker_id = session->account_id;
+    printf("[Kick Member] Kicker account_id: %u\n", kicker_id);
+    
+    // ========== BƯỚC 4: TÌM ROOM ==========
+    uint32_t room_id = room_find_by_player_account(kicker_id);
+    if (room_id == 0) {
+        send_error(client_fd, req, ERR_BAD_REQUEST, "Not in any room");
+        return;
+    }
+    
+    RoomState *room = room_get_state(room_id);
+    if (!room) {
+        send_error(client_fd, req, ERR_BAD_REQUEST, "Room not found");
+        return;
+    }
+    
+    printf("[Kick Member] Room ID: %u\n", room_id);
+    
+    // ========== BƯỚC 5: VALIDATE HOST PERMISSION ==========
+    if (room->host_id != kicker_id) {
+        send_error(client_fd, req, ERR_NOT_HOST, "Only host can kick members");
+        return;
+    }
+    
+    // ========== BƯỚC 6: VALIDATE ROOM STATUS ==========
+    if (room->status != ROOM_WAITING) {
+        send_error(client_fd, req, ERR_BAD_REQUEST, "Cannot kick during game");
+        return;
+    }
+    
+    // ========== BƯỚC 7: VALIDATE TARGET TỒN TẠI ==========
+    int target_index = -1;
+    for (int i = 0; i < room->player_count; i++) {
+        if (room->players[i].account_id == target_id) {
+            target_index = i;
+            break;
+        }
+    }
+    
+    if (target_index == -1) {
+        send_error(client_fd, req, ERR_BAD_REQUEST, "Target player not in room");
+        return;
+    }
+    
+    // ========== BƯỚC 8: KHÔNG THỂ KICK CHÍNH MÌNH ==========
+    if (target_id == kicker_id) {
+        send_error(client_fd, req, ERR_BAD_REQUEST, "Cannot kick yourself");
+        return;
+    }
+    
+    // ========== LOG BEFORE STATE ==========
+    printf("[Kick Member] ===== BEFORE STATE =====\n");
+    printf("[Kick Member] [RoomState] Room ID: %u\n", room->id);
+    printf("[Kick Member] [RoomState] Host ID: %u\n", room->host_id);
+    printf("[Kick Member] [RoomState] Player Count: %d\n", room->player_count);
+    printf("[Kick Member] [RoomPlayerState] Players:\n");
+    for (int i = 0; i < room->player_count; i++) {
+        printf("[Kick Member] [RoomPlayerState]   [%d] %s (id=%u, host=%s, ready=%s, connected=%s)\n",
+               i, room->players[i].name, room->players[i].account_id,
+               room->players[i].is_host ? "YES" : "NO",
+               room->players[i].is_ready ? "YES" : "NO",
+               room->players[i].connected ? "YES" : "NO");
+    }
+    printf("[Kick Member] Kicker: %u (host)\n", kicker_id);
+    printf("[Kick Member] Target: %u\n", target_id);
+    
+    // ========== BƯỚC 9: TÌM TARGET SESSION VÀ SOCKET ==========
+    UserSession *target_session = session_get_by_account(target_id);
+    int target_fd = -1;
+    if (target_session) {
+        target_fd = target_session->socket_fd;
+        printf("[Kick Member] Target socket fd: %d\n", target_fd);
+    } else {
+        printf("[Kick Member] ⚠️  Target session not found (offline?)\n");
+    }
+    
+    // ========== BƯỚC 10: XÓA KHỎI IN-MEMORY (QUAN TRỌNG: PHẢI TRƯỚC KHI BROADCAST!) ==========
+    int removed = room_remove_player(room_id, target_id);
+    if (removed != 0) {
+        send_error(client_fd, req, ERR_BAD_REQUEST, "Failed to remove player");
+        return;
+    }
+    
+    printf("[Kick Member] ✅ Removed player %u from in-memory state\n", target_id);
+    
+    // ========== BƯỚC 11: XÓA KHỎI DATABASE ==========
+    int rc = room_repo_remove_player(room_id, target_id);
+    if (rc != 0) {
+        printf("[Kick Member] ⚠️  Warning: Failed to remove from DB\n");
+    }
+    
+    // ========== BƯỚC 12: CẬP NHẬT TARGET SESSION STATE ==========
+    if (target_session) {
+        target_session->state = SESSION_LOBBY;
+        printf("[Kick Member] Updated target session state to SESSION_LOBBY\n");
+    }
+    
+    // ========== LOG AFTER STATE ==========
+    printf("[Kick Member] ===== AFTER STATE =====\n");
+    printf("[Kick Member] [RoomState] Room ID: %u\n", room->id);
+    printf("[Kick Member] [RoomState] Player Count: %d\n", room->player_count);
+    printf("[Kick Member] [RoomPlayerState] Players:\n");
+    for (int i = 0; i < room->player_count; i++) {
+        printf("[Kick Member] [RoomPlayerState]   [%d] %s (id=%u, host=%s, ready=%s, connected=%s)\n",
+               i, room->players[i].name, room->players[i].account_id,
+               room->players[i].is_host ? "YES" : "NO",
+               room->players[i].is_ready ? "YES" : "NO",
+               room->players[i].connected ? "YES" : "NO");
+    }
+    
+    // ========== BƯỚC 13: GỬI RESPONSE CHO HOST ==========
+    forward_response(client_fd, req, RES_MEMBER_KICKED, "", 0);
+    printf("[Kick Member] Sent RES_MEMBER_KICKED to host (fd=%d)\n", client_fd);
+    
+    // ========== BƯỚC 14: GỬI NTF_MEMBER_KICKED CHO NGƯỜI BỊ KICK (UNICAST) ==========
+    if (target_fd >= 0) {
+        cJSON *kick_json = cJSON_CreateObject();
+        cJSON_AddNumberToObject(kick_json, "room_id", room_id);
+        char *kick_str = cJSON_PrintUnformatted(kick_json);
+        
+        // Manual send (vì không có helper function cho unicast)
+        MessageHeader ntf;
+        memset(&ntf, 0, sizeof(ntf));
+        ntf.magic = htons(MAGIC_NUMBER);
+        ntf.version = PROTOCOL_VERSION;
+        ntf.command = htons(NTF_MEMBER_KICKED);
+        ntf.seq_num = 0;
+        ntf.length = htonl(strlen(kick_str));
+        
+        send(target_fd, &ntf, sizeof(ntf), 0);
+        send(target_fd, kick_str, strlen(kick_str), 0);
+        
+        free(kick_str);
+        cJSON_Delete(kick_json);
+        
+        printf("[Kick Member] Sent NTF_MEMBER_KICKED to target (fd=%d)\n", target_fd);
+    }
+    
+    // ========== BƯỚC 15: BROADCAST NTF_PLAYER_LEFT CHO NGƯỜI CHƠI CÒN LẠI ==========
+    // (Target đã bị xóa, nên sẽ không nhận broadcast này)
+    cJSON *left_json = cJSON_CreateObject();
+    cJSON_AddNumberToObject(left_json, "account_id", target_id);
+    cJSON_AddStringToObject(left_json, "reason", "kicked");  // Phân biệt kicked vs left
+    char *left_str = cJSON_PrintUnformatted(left_json);
+    
+    printf("[Kick Member] Broadcasting NTF_PLAYER_LEFT: %s\n", left_str);
+    room_broadcast(room_id, NTF_PLAYER_LEFT, left_str, strlen(left_str), -1);
+    
+    free(left_str);
+    cJSON_Delete(left_json);
+    
+    // ========== BƯỚC 16: BROADCAST NTF_PLAYER_LIST CHO NGƯỜI CHƠI CÒN LẠI ==========
+    printf("[Kick Member] Broadcasting NTF_PLAYER_LIST\n");
+    broadcast_player_list(room_id);
+    
+    printf("[Kick Member] ✅ SUCCESS: player %u kicked from room %u by host %u\n",
+           target_id, room_id, kicker_id);
 }
 
 //==============================================================================
 // LEAVE ROOM (Any member)
 //==============================================================================
 void handle_leave_room(int client_fd, MessageHeader *req, const char *payload) {
-    // 1. Validate
-    if (req->length != sizeof(RoomIDPayload)) {
-        send_error(client_fd, req, ERR_BAD_REQUEST, "Invalid payload");
+    (void)payload; // Empty payload
+    printf("[HANDLER] <LEAVE_ROOM> Request from fd=%d\n", client_fd);
+    
+    // STEP 1: Validate session
+    UserSession *session = session_get_by_socket(client_fd);
+    if (!session || session->state != SESSION_LOBBY) {
+        send_error(client_fd, req, ERR_NOT_LOGGED_IN, "Not logged in or not in lobby");
         return;
     }
     
-    // 2. Copy & extract
-    RoomIDPayload data;
-    memcpy(&data, payload, sizeof(data));
-    uint32_t room_id = ntohl(data.room_id);
+    // STEP 2: Find room
+    uint32_t room_id = room_find_by_player_account(session->account_id);
+    if (room_id == 0) {
+        send_error(client_fd, req, ERR_BAD_REQUEST, "Not in any room");
+        return;
+    }
     
-    // // 3. Build path
-    // char path[256];
-    // snprintf(path, sizeof(path), "/api/room/%u/leave", room_id);
+    RoomState *room = room_get_state(room_id);
+    if (!room) {
+        send_error(client_fd, req, ERR_BAD_REQUEST, "Room not found");
+        return;
+    }
     
-    // // 4. HTTP POST (parsed)
-    // char resp_buf[1024];
-    // HttpResponse http_resp = http_post_parse("backend", 5000, path, "{}",
-    //                                         resp_buf, sizeof(resp_buf));
+    // STEP 3: Validate room status
+    if (room->status != ROOM_WAITING) {
+        send_error(client_fd, req, ERR_BAD_REQUEST, "Cannot leave room during game");
+        return;
+    }
     
-    // if (http_resp.status_code < 0) {
-    //     send_error(client_fd, req, ERR_SERVER_ERROR, "Backend unreachable");
-    //     return;
-    // }
+    // LOG BEFORE STATE
+    printf("[Leave Room] ===== BEFORE STATE =====\n");
+    printf("[Leave Room] [RoomState] Room ID: %u\n", room->id);
+    printf("[Leave Room] [RoomState] Host ID: %u\n", room->host_id);
+    printf("[Leave Room] [RoomState] Player Count: %d\n", room->player_count);
+    printf("[Leave Room] [RoomPlayerState] Players:\n");
+    for (int i = 0; i < room->player_count; i++) {
+        printf("[Leave Room] [RoomPlayerState]   [%d] %s (id=%u, host=%s, ready=%s, connected=%s)\n",
+               i, room->players[i].name, room->players[i].account_id,
+               room->players[i].is_host ? "YES" : "NO",
+               room->players[i].is_ready ? "YES" : "NO",
+               room->players[i].connected ? "YES" : "NO");
+    }
     
-    // if (http_resp.status_code >= 400) {
-    //     send_error(client_fd, req, ERR_BAD_REQUEST, http_resp.body);
-    //     return;
-    // }
-
-    char resp_buf[1024];
-
-    int rc = room_repo_leave(
-        room_id,
-        resp_buf,
-        sizeof(resp_buf)
-    );
-
+    uint32_t leaver_id = session->account_id;
+    bool was_host = (room->host_id == leaver_id);
+    
+    printf("[Leave Room] Leaver: %u (was_host=%s)\n", leaver_id, was_host ? "YES" : "NO");
+    
+    // STEP 4: Remove player from in-memory state
+    int removed = room_remove_player(room_id, leaver_id);
+    if (removed != 0) {
+        send_error(client_fd, req, ERR_BAD_REQUEST, "Failed to remove player from room");
+        return;
+    }
+    
+    printf("[Leave Room] ✅ Removed player %u from in-memory state\n", leaver_id);
+    
+    // STEP 5: Remove from DB
+    int rc = room_repo_remove_player(room_id, leaver_id);
     if (rc != 0) {
-        send_error(client_fd, req, ERR_SERVER_ERROR, "Failed to leave room");
-        return;
+        printf("[Leave Room] ⚠️  Warning: Failed to remove player from DB\n");
+        // Continue anyway - in-memory is authoritative
     }
-
     
-    // 5. Broadcast NTF_PLAYER_LEFT to remaining members
-    // room_broadcast(room_id, NTF_PLAYER_LEFT, http_resp.body,
-    //               http_resp.body_length, client_fd);
-    room_broadcast(room_id, NTF_PLAYER_LEFT,
-              resp_buf, strlen(resp_buf), client_fd);
-    // 6. Remove from room tracking
-    room_remove_member(room_id, client_fd);
+    // STEP 6: Host transfer logic
+    uint32_t new_host_id = 0;
+    bool room_empty = (room->player_count == 0);
     
-    // // 7. Forward response
-    // forward_response(client_fd, req, RES_ROOM_LEFT,
-    //                 http_resp.body, http_resp.body_length);
+    if (was_host && !room_empty) {
+        printf("[Leave Room] Host is leaving, finding new host...\n");
+        printf("[Leave Room] Candidates for new host:\n");
+        
+        // Log all candidates with their joined_at and connected status
+        for (int i = 0; i < room->player_count; i++) {
+            printf("[Leave Room]   [%d] %s (id=%u, joined_at=%ld, connected=%s)\n",
+                   i, room->players[i].name, room->players[i].account_id,
+                   room->players[i].joined_at,
+                   room->players[i].connected ? "YES" : "NO");
+        }
+        
+        // Find earliest joiner (min joined_at) WHO IS CONNECTED
+        time_t earliest_join = LONG_MAX;
+        for (int i = 0; i < room->player_count; i++) {
+            // ⚠️ CHỈ XÉT NGƯỜI ĐANG CONNECTED
+            if (room->players[i].connected && room->players[i].joined_at < earliest_join) {
+                earliest_join = room->players[i].joined_at;
+                new_host_id = room->players[i].account_id;
+            }
+        }
+        
+        if (new_host_id != 0) {
+            printf("[Leave Room] ✅ New host selected: %u (earliest connected joiner, joined_at=%ld)\n", 
+                   new_host_id, earliest_join);
+        } else {
+            printf("[Leave Room] ⚠️  No connected players found for host transfer!\n");
+        }
+        
+        printf("[Leave Room] Host transfer: %u -> %u\n", leaver_id, new_host_id);
+        
+        // Update in-memory
+        room->host_id = new_host_id;
+        for (int i = 0; i < room->player_count; i++) {
+            room->players[i].is_host = (room->players[i].account_id == new_host_id);
+        }
+        
+        // Update DB
+        rc = room_repo_update_host(room_id, new_host_id);
+        if (rc != 0) {
+            printf("[Leave Room] ⚠️  Warning: Failed to update host in DB\n");
+        }
+    }
     
-
-    forward_response(client_fd, req, RES_ROOM_LEFT,
-                    resp_buf, strlen(resp_buf));
-
+    // STEP 7: Close room if empty
+    if (room_empty) {
+        printf("[Leave Room] Room is empty, closing room %u\n", room_id);
+        
+        // Close in DB
+        rc = room_repo_close_room(room_id);
+        if (rc != 0) {
+            printf("[Leave Room] ⚠️  Warning: Failed to close room in DB\n");
+        }
+        
+        // Destroy in-memory state
+        room_destroy(room_id);
+        printf("[Leave Room] ✅ Destroyed in-memory state for room %u\n", room_id);
+    }
+    
+    // LOG AFTER STATE
+    if (!room_empty) {
+        printf("[Leave Room] ===== AFTER STATE =====\n");
+        printf("[Leave Room] [RoomState] Room ID: %u\n", room->id);
+        printf("[Leave Room] [RoomState] Host ID: %u (changed=%s)\n", room->host_id, was_host ? "YES" : "NO");
+        printf("[Leave Room] [RoomState] Player Count: %d\n", room->player_count);
+        printf("[Leave Room] [RoomPlayerState] Players:\n");
+        for (int i = 0; i < room->player_count; i++) {
+            printf("[Leave Room] [RoomPlayerState]   [%d] %s (id=%u, host=%s, ready=%s, connected=%s)\n",
+                   i, room->players[i].name, room->players[i].account_id,
+                   room->players[i].is_host ? "YES" : "NO",
+                   room->players[i].is_ready ? "YES" : "NO",
+                   room->players[i].connected ? "YES" : "NO");
+        }
+    } else {
+        printf("[Leave Room] ===== ROOM CLOSED =====\n");
+    }
+    
+    // STEP 8: Send response to leaver
+    forward_response(client_fd, req, RES_ROOM_LEFT, "", 0);
+    printf("[Leave Room] Sent RES_ROOM_LEFT to leaver (fd=%d)\n", client_fd);
+    
+    // STEP 9: Update session state
+    session->state = SESSION_LOBBY;
+    printf("[Leave Room] Updated session state to SESSION_LOBBY\n");
+    
+    // STEP 10: Broadcast to remaining players
+    if (!room_empty) {
+     // ========== BƯỚC 8: BROADCAST NTF_PLAYER_LEFT ==========
+    // Notify remaining players
+    cJSON *left_json = cJSON_CreateObject();
+    cJSON_AddNumberToObject(left_json, "account_id", leaver_id);
+    cJSON_AddStringToObject(left_json, "reason", "left");  // Phân biệt kicked vs left
+    char *json_str = cJSON_PrintUnformatted(left_json);
+    
+    printf("[Leave Room] Broadcasting NTF_PLAYER_LEFT: %s\n", json_str);
+    room_broadcast(room_id, NTF_PLAYER_LEFT, json_str, strlen(json_str), -1);
+        
+        free(json_str);
+        cJSON_Delete(left_json);
+        
+        // Broadcast NTF_HOST_CHANGED if host transferred
+        if (was_host && new_host_id != 0) {
+            cJSON *host_json = cJSON_CreateObject();
+            cJSON_AddNumberToObject(host_json, "new_host_id", new_host_id);
+            char *host_str = cJSON_PrintUnformatted(host_json);
+            
+            printf("[Leave Room] Broadcasting NTF_HOST_CHANGED: %s\n", host_str);
+            room_broadcast(room_id, NTF_HOST_CHANGED, host_str, strlen(host_str), -1);
+            
+            free(host_str);
+            cJSON_Delete(host_json);
+        }
+        
+        // Broadcast NTF_PLAYER_LIST
+        printf("[Leave Room] Broadcasting NTF_PLAYER_LIST\n");
+        broadcast_player_list(room_id);
+    }
+    
+    printf("[Leave Room] ✅ SUCCESS: player %u left room %u\n", leaver_id, room_id);
 }
+
 
 //==============================================================================
 // GET ROOM LIST

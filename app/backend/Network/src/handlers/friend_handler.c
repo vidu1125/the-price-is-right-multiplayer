@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <cjson/cJSON.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
 
 #include "handlers/friend_handler.h"
 #include "handlers/auth_guard.h"
@@ -45,6 +47,21 @@ static void send_error(
 
     send_response(client_fd, req, error_code, payload);
     cJSON_Delete(payload);
+}
+
+static void send_notification_to_fd(int client_fd, uint16_t command, const char *payload, uint32_t payload_len) {
+    MessageHeader header;
+    memset(&header, 0, sizeof(header));
+    header.magic = htons(MAGIC_NUMBER);
+    header.version = PROTOCOL_VERSION;
+    header.command = htons(command);
+    header.seq_num = 0;
+    header.length = htonl(payload_len);
+    
+    send(client_fd, &header, sizeof(header), 0);
+    if (payload_len > 0 && payload) {
+        send(client_fd, payload, payload_len, 0);
+    }
 }
 
 // ============================================================================
