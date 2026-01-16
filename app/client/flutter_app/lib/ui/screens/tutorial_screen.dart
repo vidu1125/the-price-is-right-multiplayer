@@ -15,13 +15,10 @@ class _TutorialPageState extends State<TutorialPage> {
 
   // Dữ liệu từ file JS của bạn
   final List<Map<String, dynamic>> sections = [
-    {"id": "mechanics", "title": "Core Mechanics", "type": "mechanics"},
     {"id": "round1", "title": "Round 1 — Speed Challenge", "type": "round", "index": 0},
     {"id": "round2", "title": "Round 2 — The Bid", "type": "round", "index": 1},
     {"id": "round3", "title": "Round 3 — Bonus Wheel", "type": "round", "index": 2},
-    {"id": "elimination", "title": "Elimination Flow", "type": "elimination"},
-    {"id": "bonusduel", "title": "Bonus Duel", "type": "bonusduel"},
-    {"id": "badges", "title": "Badges", "type": "badges"},
+    {"id": "bonus", "title": "Round Bonus", "type": "round", "index": 3},
   ];
 
 
@@ -79,14 +76,13 @@ class _TutorialPageState extends State<TutorialPage> {
           ),
           
           // Unified Full-Screen Panel
-          // Unified Full-Screen Panel
           Positioned.fill(
             child: LayoutBuilder(
               builder: (context, constraints) {
                 return Center(
                   child: Container(
-                    width: constraints.maxWidth * 0.85, // Reduced flexible width
-                    height: constraints.maxHeight * 0.75, // Reduced flexible height
+                    width: constraints.maxWidth * 0.85, 
+                    height: constraints.maxHeight * 0.75, 
                     margin: const EdgeInsets.all(24),
                     padding: const EdgeInsets.all(40),
                     decoration: BoxDecoration(
@@ -106,9 +102,9 @@ class _TutorialPageState extends State<TutorialPage> {
                           crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
                             Expanded(
-                              flex: 5,
-                              child: SingleChildScrollView(child: _buildHeroSection())
-                            ),
+                                flex: 5,
+                                child: SingleChildScrollView(child: _buildHeroSection())
+                              ),
                             Container(
                               width: 2, 
                               decoration: BoxDecoration(
@@ -148,7 +144,6 @@ class _TutorialPageState extends State<TutorialPage> {
   }
 
   Widget _buildHeroSection() {
-    // Removed external container decoration, integrating into unified panel
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisAlignment: MainAxisAlignment.center,
@@ -316,32 +311,7 @@ class _TutorialPageState extends State<TutorialPage> {
   }
 
   Widget _getContentWidget(String type, Map<String, dynamic> section) {
-    final Color titleColor = const Color(0xFF1A237E); // Xanh Navy đậm
-
     switch (type) {
-      case "mechanics":
-        return Column(
-          children: mechanics.map((m) => Container(
-            margin: const EdgeInsets.only(bottom: 20),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(Icons.stars_rounded, color: TutorialTheme.primaryBlue, size: 48), // Increased 
-                const SizedBox(width: 15),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(m['title']!, style: GoogleFonts.luckiestGuy(fontSize: 36, color: titleColor)), // Increased
-                      const SizedBox(height: 5),
-                      Text(m['detail']!, style: TutorialTheme.detailTextStyle),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          )).toList(),
-        );
       case "round":
         var r = rounds[section['index']];
         return Column(
@@ -359,48 +329,6 @@ class _TutorialPageState extends State<TutorialPage> {
               ),
             )).toList(),
           ],
-        );
-      case "elimination":
-        return Column(
-          children: elimination.map((e) => Padding(
-            padding: const EdgeInsets.only(bottom: 16),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text("💀", style: TextStyle(fontSize: 28)),
-                const SizedBox(width: 12),
-                Expanded(child: Text(e, style: TutorialTheme.detailTextStyle)),
-              ],
-            ),
-          )).toList(),
-        );
-      case "bonusduel":
-        return Column(
-          children: bonusDuel.map((e) => Padding(
-            padding: const EdgeInsets.only(bottom: 16),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text("⚔️", style: TextStyle(fontSize: 28)),
-                const SizedBox(width: 12),
-                Expanded(child: Text(e, style: TutorialTheme.detailTextStyle)),
-              ],
-            ),
-          )).toList(),
-        );
-      case "badges":
-        return Column(
-          children: badges.map((e) => Padding(
-            padding: const EdgeInsets.only(bottom: 16),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text("🏅", style: TextStyle(fontSize: 28)),
-                const SizedBox(width: 12),
-                Expanded(child: Text(e, style: TutorialTheme.detailTextStyle)),
-              ],
-            ),
-          )).toList(),
         );
       default:
         return const SizedBox();
