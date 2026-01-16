@@ -184,6 +184,14 @@ class _GameContainerScreenState extends State<GameContainerScreen> {
              _updateLeaderboard(data!['rankings']);
           }
           
+          // Check if bonus round is triggered
+          final bool bonusTriggered = data?['bonus_triggered'] == true;
+          if (bonusTriggered) {
+            print("[GameContainer] Bonus round triggered - waiting for bonus notifications");
+            // Don't advance to next round - bonus handler will send notifications
+            break;
+          }
+          
           // Get next round number
           final nextRound = data?['next_round'] ?? 0;
           print("[GameContainer] Next round: $nextRound");
@@ -654,12 +662,19 @@ class _GameContainerScreenState extends State<GameContainerScreen> {
     
     int questionIndex = _currentQuestion?['question_idx'] ?? 0;
     
-    print("[GameContainer] Answer selected: question=$questionIndex, choice=$choiceIndex");
+    // Calculate time taken (Total time 15s - Remaining)
+    int timeTakenMs = (15 - _timeRemaining) * 1000;
+    // Safety check just in case
+    if (timeTakenMs < 0) timeTakenMs = 0;
+    if (timeTakenMs > 15000) timeTakenMs = 15000;
+    
+    print("[GameContainer] Answer selected: question=$questionIndex, choice=$choiceIndex, time=${timeTakenMs}ms");
     
     ServiceLocator.gameStateService.submitRound1Answer(
       _matchId,
       questionIndex,
       choiceIndex,
+      timeTakenMs: timeTakenMs,
     );
     
     _countdownTimer?.cancel();

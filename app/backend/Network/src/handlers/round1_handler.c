@@ -415,11 +415,14 @@ static void end_game_now(MessageHeader *req, const char *reason) {
 }
 
 // returns true nếu match kết thúc tại đây (END GAME), false nếu còn tiếp
-static bool r1_finalize_round(MessageHeader *req) {
+static bool r1_finalize_round(MessageHeader *req, bool *out_bonus_triggered) {
     MatchState *match = get_match();
     if (!match) return true;
 
     uint32_t match_id = match->runtime_match_id;
+    
+    // Initialize output parameter
+    if (out_bonus_triggered) *out_bonus_triggered = false;
 
     // END ROUND → CHECK DISCONNECTED
     cleanup_disconnected_and_forfeit(match_id);
@@ -450,7 +453,9 @@ static bool r1_finalize_round(MessageHeader *req) {
     // NO (ELIMINATION) → CHECK LOWEST SCORE
     bool bonus_triggered = perform_elimination(); // chỉ làm tie/lowest/eliminate, KHÔNG end game ở đây
     if (bonus_triggered) {
-        // BONUS ROUND: bonus handler sẽ tự điều hướng (đúng như bạn đang làm)
+        // BONUS ROUND: bonus handler sẽ tự điều hướng
+        if (out_bonus_triggered) *out_bonus_triggered = true;
+        printf("[Round1] Bonus triggered, setting output flag\n");
         return false;
     }
 
@@ -898,23 +903,41 @@ void advance_to_next_question(MessageHeader *req) {
     round->ended_at = time(NULL);
     g_r1.is_active = false;
 
-    bool match_ended = r1_finalize_round(req);
+    bool bonus_triggered = false;
+    bool match_ended = r1_finalize_round(req, &bonus_triggered);
+    
+    printf("[Round1] After finalize: match_ended=%d, bonus_triggered=%d\n", match_ended, bonus_triggered);
 
     // =================================================
     // Nếu match CHƯA END → broadcast end-round summary
     // =================================================
     if (!match_ended) {
-        // Check if bonus round is active (don't send summary if bonus triggered)
-        if (is_bonus_active(g_r1.match_id)) {
-            printf("[Round1] Bonus round active - letter bonus handler manage transition\n");
-            return;
-        }
-
+        printf("[Round1] Building round end JSON...\n");
         char *json = build_round_end_json();
         if (json) {
+            // Add bonus_triggered flag if bonus was triggered
+            if (bonus_triggered) {
+                printf("[Round1] Bonus round triggered - adding bonus_triggered flag to summary\n");
+                
+                // Parse JSON, add bonus_triggered flag, then re-serialize
+                cJSON *obj = cJSON_Parse(json);
+                if (obj) {
+                    cJSON_AddBoolToObject(obj, "bonus_triggered", true);
+                    free(json);
+                    json = cJSON_PrintUnformatted(obj);
+                    cJSON_Delete(obj);
+                    printf("[Round1] Updated JSON with bonus_triggered flag\n");
+                }
+            }
+            
+            printf("[Round1] Broadcasting OP_S2C_ROUND1_ALL_FINISHED: %s\n", json);
             broadcast_json(req, OP_S2C_ROUND1_ALL_FINISHED, json);
             free(json);
+        } else {
+            printf("[Round1] ERROR: Failed to build round end JSON!\n");
         }
+    } else {
+        printf("[Round1] Match ended, not sending ALL_FINISHED\n");
     }
 }
 
