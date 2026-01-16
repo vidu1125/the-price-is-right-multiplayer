@@ -272,9 +272,8 @@ class RoomService {
   }
   
   Future<void> kickMember(int roomId, int targetId) async {
-      final buffer = ByteData(8);
-      buffer.setUint32(0, roomId);
-      buffer.setUint32(4, targetId);
+      final buffer = ByteData(4);
+      buffer.setUint32(0, targetId, Endian.big);
       await client.request(Command.kick, payload: buffer.buffer.asUint8List());
   }
 

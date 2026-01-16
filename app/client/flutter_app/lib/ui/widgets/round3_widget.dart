@@ -35,7 +35,8 @@ class _Round3WidgetState extends State<Round3Widget> with SingleTickerProviderSt
   // Segments matching backend logic (10-100 in steps of 10)
   // Scrambled order for better gameplay feel (10 items)
   final List<String> _hardcodedSegments = [
-    "100", "50", "90", "20", "80", "60", "30", "70", "40", "10"
+    "100", "15", "80", "35", "60", "20", "40", "75", "55", "95", 
+    "50", "85", "30", "65", "10", "45", "70", "25", "90", "5"
   ];
 
   // Base colors - we'll cycle through these if exact key missing
@@ -490,8 +491,8 @@ class WheelPainter extends CustomPainter {
           text: label,
           style: GoogleFonts.luckiestGuy(
             color: Colors.white,
-            fontSize: radius * 0.2, 
-            shadows: [const Shadow(offset: Offset(2, 2), blurRadius: 4, color: Colors.black45)],
+            fontSize: radius * 0.14, 
+            shadows: [const Shadow(offset: Offset(1, 1), blurRadius: 2, color: Colors.black45)],
           ),
         ),
         textDirection: TextDirection.ltr,

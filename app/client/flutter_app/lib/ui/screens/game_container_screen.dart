@@ -104,6 +104,7 @@ class _GameContainerScreenState extends State<GameContainerScreen> {
           final data = event.data as Map<String, dynamic>?;
           _currentRound = data?['round'] ?? 1;
           _isLoading = false;
+          _round3Finished = false; // Reset for new round
           break;
 
         case GameEventType.round1ReadyStatus:
@@ -519,6 +520,9 @@ class _GameContainerScreenState extends State<GameContainerScreen> {
            } else if (r3Data?['rankings'] != null) {
               _updateLeaderboard(r3Data!['rankings']);
            }
+           setState(() {
+              _round3Finished = true;
+           });
            break;
 
         // Duplicate cases removed
