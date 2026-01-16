@@ -24,16 +24,12 @@ class _TutorialPageState extends State<TutorialPage> {
     {"id": "badges", "title": "Badges", "type": "badges"},
   ];
 
-  final List<Map<String, String>> mechanics = [
-    {"title": "Wager x2", "detail": "Activate before answering. Correct → +2x points. Wrong → -2x points (never below 0)."},
-    {"title": "Perfect Guess", "detail": "Round 2 only. Exact product price → +2x that question's points."},
-  ];
 
   final List<Map<String, dynamic>> rounds = [
     {
       "title": "Round 1 — Speed Challenge",
       "bullets": [
-        "10 multiple-choice questions about prices or combos.",
+        "Answer fast. The quicker you response, the higher is your score",
         "15 seconds each question.",
         "Score = 200 - (answer_time / 15) * 100 (floored to nearest ten).",
       ],
@@ -41,7 +37,7 @@ class _TutorialPageState extends State<TutorialPage> {
     {
       "title": "Round 2 — The Bid",
       "bullets": [
-        "5 products, enter your numeric price guess.",
+        "Make a bold estimate. Closest answer wins big points",
         "15 seconds each product.",
         "100 points to the closest guess without going over.",
         "If everyone is over, 50 points to the smallest overbid.",
@@ -50,32 +46,20 @@ class _TutorialPageState extends State<TutorialPage> {
     {
       "title": "Round 3 — Bonus Wheel",
       "bullets": [
-        "Spin values from 5 to 100.",
+        "Spin your luck and watch the game turn in an instance",
         "Up to 2 spins: after the first spin, choose to stop or spin again.",
         "If total ≤ 100: you score the total. If total > 100: score total - 100.",
         "Total exactly 100 or 200: you earn 100 points.",
       ],
     },
-  ];
-
-  final List<String> elimination = [
-    "Applies only in Elimination Mode.",
-    "After each main round the lowest total is eliminated.",
-    "Round order: after R1 → 3 players, after R2 → 2 players, after R3 → 1 winner.",
-  ];
-
-  final List<String> bonusDuel = [
-    "Used to break ties for elimination or for the final winner.",
-    "Game shows a product and a reference price.",
-    "Choose HIGHER or LOWER than the real price.",
-    "Fastest correct wins; any wrong answer is eliminated.",
-    "Ends when only one player remains.",
-  ];
-
-  final List<String> badges = [
-    "Spin Master — reach a total spin of 100.",
-    "Perfect Bidder — exact product price in Round 2.",
-    "Sudden Death Winner — win a Bonus Duel.",
+    {
+      "title": "Round bonus",
+      "bullets": [
+        "One draw decides who stays",
+        "Trigger in elimination mode after a round if more than two players are tied at the lowest scores",
+         "Trigger in scoring mode in the final round if more than two players are tied at the highest scores"
+      ],
+    },
   ];
 
   @override
@@ -102,7 +86,7 @@ class _TutorialPageState extends State<TutorialPage> {
                 return Center(
                   child: Container(
                     width: constraints.maxWidth * 0.85, // Reduced flexible width
-                    height: constraints.maxHeight * 0.65, // Reduced flexible height
+                    height: constraints.maxHeight * 0.75, // Reduced flexible height
                     margin: const EdgeInsets.all(24),
                     padding: const EdgeInsets.all(40),
                     decoration: BoxDecoration(
