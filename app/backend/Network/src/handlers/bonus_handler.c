@@ -98,6 +98,10 @@ typedef struct {
     
     time_t started_at;
     time_t reveal_at;
+    
+    // Timer
+    bool timer_running;
+    pthread_t timer_thread;
 } BonusContext;
 
 static BonusContext g_bonus = {0};
@@ -123,6 +127,9 @@ static void reveal_results(MessageHeader *req);
 static void apply_results(MessageHeader *req);
 static void transition_to_next_phase(MessageHeader *req);
 static void reset_context(void);
+static void force_finish_draw(MessageHeader *req);
+static void start_bonus_timer(void);
+static void stop_bonus_timer(void);
 
 //==============================================================================
 // HELPER: Get states from other PICs (READ ONLY)
@@ -239,6 +246,90 @@ static void reset_context(void) {
 }
 
 //==============================================================================
+// TIMER LOGIC & AUTO DRAW
+//==============================================================================
+static void* bonus_timer_thread(void* arg) {
+    (void)arg;
+    sleep(20); // 20s timeout for selecting card
+    
+    pthread_mutex_lock(&g_bonus_mutex);
+    if (!g_bonus.timer_running || g_bonus.state != BONUS_STATE_DRAWING) {
+        pthread_mutex_unlock(&g_bonus_mutex);
+        return NULL;
+    }
+    g_bonus.timer_running = false;
+    pthread_mutex_unlock(&g_bonus_mutex);
+    
+    printf("[Bonus] Timeout reached - forcing finish draw\n");
+    MessageHeader dummy = {0};
+    dummy.magic = htons(MAGIC_NUMBER);
+    dummy.version = PROTOCOL_VERSION;
+    force_finish_draw(&dummy);
+    return NULL;
+}
+
+static void start_bonus_timer(void) {
+    pthread_mutex_lock(&g_bonus_mutex);
+    if (g_bonus.timer_running) {
+        pthread_mutex_unlock(&g_bonus_mutex);
+        return;
+    }
+    g_bonus.timer_running = true;
+    pthread_mutex_unlock(&g_bonus_mutex);
+
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+    if (pthread_create(&g_bonus.timer_thread, &attr, bonus_timer_thread, NULL) != 0) {
+        printf("[Bonus] Failed to start timer thread\n");
+    }
+    pthread_attr_destroy(&attr);
+}
+
+static void stop_bonus_timer(void) {
+    pthread_mutex_lock(&g_bonus_mutex);
+    g_bonus.timer_running = false;
+    pthread_mutex_unlock(&g_bonus_mutex);
+}
+
+static void force_finish_draw(MessageHeader *req) {
+    bool any_drawn = false;
+    
+    pthread_mutex_lock(&g_bonus_mutex);
+    for (int i=0; i < g_bonus.participant_count; i++) {
+        if (g_bonus.participants[i].state == PLAYER_BONUS_WAITING_TO_DRAW) {
+             if (g_bonus.cards_remaining > 0) {
+                 CardType drawn = g_bonus.card_stack[g_bonus.total_cards - g_bonus.cards_remaining];
+                 g_bonus.cards_remaining--;
+                 
+                 g_bonus.participants[i].drawn_card = drawn;
+                 g_bonus.participants[i].state = PLAYER_BONUS_CARD_DRAWN;
+                 g_bonus.participants[i].drawn_at = time(NULL);
+                 g_bonus.drawn_count++;
+                 any_drawn = true;
+                 
+                 printf("[Bonus] Auto-assigned card %d to player %d\n", drawn, g_bonus.participants[i].account_id);
+             }
+        }
+    }
+    pthread_mutex_unlock(&g_bonus_mutex);
+    
+    if (any_drawn) {
+        cJSON *broadcast = cJSON_CreateObject();
+        cJSON_AddBoolToObject(broadcast, "timeout", true);
+        cJSON_AddStringToObject(broadcast, "message", "Timeout reached - cards auto-assigned");
+        char *json = cJSON_PrintUnformatted(broadcast);
+        broadcast_to_all(req, OP_S2C_BONUS_PLAYER_DREW, json); 
+        free(json);
+        cJSON_Delete(broadcast);
+        
+        check_all_drawn(req);
+    }
+
+
+}
+
+//==============================================================================
 // INITIALIZE BONUS ROUND
 //==============================================================================
 static void initialize_bonus(uint32_t match_id, int after_round, BonusType type,
@@ -283,7 +374,12 @@ static void initialize_bonus(uint32_t match_id, int after_round, BonusType type,
     // Create card stack: 1 ELIMINATED, rest SAFE
     g_bonus.total_cards = tied_count;
     g_bonus.cards_remaining = tied_count;
-    g_bonus.card_stack[0] = CARD_TYPE_ELIMINATED;
+    if (g_bonus.type == BONUS_TYPE_ELIMINATION) {
+        g_bonus.card_stack[0] = CARD_TYPE_ELIMINATED;
+    } else {
+        g_bonus.card_stack[0] = CARD_TYPE_WINNER;
+    }
+
     for (int i = 1; i < tied_count; i++) {
         g_bonus.card_stack[i] = CARD_TYPE_SAFE;
     }
@@ -292,6 +388,9 @@ static void initialize_bonus(uint32_t match_id, int after_round, BonusType type,
     shuffle_cards();
     
     g_bonus.state = BONUS_STATE_DRAWING;
+    
+    // Start timer
+    start_bonus_timer();
     
     pthread_mutex_unlock(&g_bonus_mutex);
     
@@ -657,6 +756,8 @@ static void check_all_drawn(MessageHeader *req) {
     if (g_bonus.drawn_count >= g_bonus.participant_count) {
         printf("[Bonus] All participants have drawn - preparing reveal\n");
         
+        stop_bonus_timer();
+        
         g_bonus.state = BONUS_STATE_REVEALING;
         g_bonus.reveal_at = time(NULL) + (REVEAL_DELAY_MS / 1000);
         
@@ -692,14 +793,16 @@ static void reveal_results(MessageHeader *req) {
         snprintf(name, sizeof(name), "Player%d", p->account_id);
         cJSON_AddStringToObject(r, "name", name);
         
-        cJSON_AddStringToObject(r, "card", 
-            p->drawn_card == CARD_TYPE_ELIMINATED ? "eliminated" : "safe");
-        
         if (p->drawn_card == CARD_TYPE_ELIMINATED) {
-            eliminated_id = p->account_id;
-            p->state = PLAYER_BONUS_REVEALED_ELIMINATED;
+             cJSON_AddStringToObject(r, "card", "eliminated");
+             p->state = PLAYER_BONUS_REVEALED_ELIMINATED;
+             eliminated_id = p->account_id;
+        } else if (p->drawn_card == CARD_TYPE_WINNER) {
+             cJSON_AddStringToObject(r, "card", "winner");
+             p->state = PLAYER_BONUS_REVEALED_WINNER;
         } else {
-            p->state = PLAYER_BONUS_REVEALED_SAFE;
+             cJSON_AddStringToObject(r, "card", "safe");
+             p->state = PLAYER_BONUS_REVEALED_SAFE;
         }
         
         cJSON_AddItemToArray(results, r);
@@ -708,30 +811,33 @@ static void reveal_results(MessageHeader *req) {
     cJSON_AddItemToObject(obj, "results", results);
     
     // Add eliminated player info
-    cJSON *elim_info = cJSON_CreateObject();
-    cJSON_AddNumberToObject(elim_info, "id", eliminated_id);
-    char elim_name[32];
-    snprintf(elim_name, sizeof(elim_name), "Player%d", eliminated_id);
-    cJSON_AddStringToObject(elim_info, "name", elim_name);
-    cJSON_AddItemToObject(obj, "eliminated_player", elim_info);
-    
-    g_bonus.eliminated_player_id = eliminated_id;
+    if (eliminated_id > 0) {
+        cJSON *elim_info = cJSON_CreateObject();
+        cJSON_AddNumberToObject(elim_info, "id", eliminated_id);
+        char elim_name[32];
+        snprintf(elim_name, sizeof(elim_name), "Player%d", eliminated_id);
+        cJSON_AddStringToObject(elim_info, "name", elim_name);
+        cJSON_AddItemToObject(obj, "eliminated_player", elim_info);
+        g_bonus.eliminated_player_id = eliminated_id;
+    }
     
     // Determine winner for WINNER_SELECTION type
     if (g_bonus.type == BONUS_TYPE_WINNER_SELECTION) {
         for (int i = 0; i < g_bonus.participant_count; i++) {
-            if (g_bonus.participants[i].drawn_card == CARD_TYPE_SAFE) {
+            if (g_bonus.participants[i].drawn_card == CARD_TYPE_WINNER) {
                 g_bonus.winner_player_id = g_bonus.participants[i].account_id;
                 break;
             }
         }
         
-        cJSON *winner_info = cJSON_CreateObject();
-        cJSON_AddNumberToObject(winner_info, "id", g_bonus.winner_player_id);
-        char winner_name[32];
-        snprintf(winner_name, sizeof(winner_name), "Player%d", g_bonus.winner_player_id);
-        cJSON_AddStringToObject(winner_info, "name", winner_name);
-        cJSON_AddItemToObject(obj, "winner", winner_info);
+        if (g_bonus.winner_player_id > 0) {
+            cJSON *winner_info = cJSON_CreateObject();
+            cJSON_AddNumberToObject(winner_info, "id", g_bonus.winner_player_id);
+            char winner_name[32];
+            snprintf(winner_name, sizeof(winner_name), "Player%d", g_bonus.winner_player_id);
+            cJSON_AddStringToObject(winner_info, "name", winner_name);
+            cJSON_AddItemToObject(obj, "winner", winner_info);
+        }
     }
     
     char *json = cJSON_PrintUnformatted(obj);
@@ -747,6 +853,7 @@ static void reveal_results(MessageHeader *req) {
     
     apply_results(req);
 }
+
 
 //==============================================================================
 // APPLY RESULTS

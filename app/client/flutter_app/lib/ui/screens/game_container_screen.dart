@@ -135,6 +135,17 @@ class _GameContainerScreenState extends State<GameContainerScreen> {
           _showingResult = true; // Flag that we are showing result
           
           final result = event.data as Map<String, dynamic>?;
+          
+          // Update Ranking (Realtime for ME)
+          if (result != null) {
+              // Construct update object with my ID (backend sends 'score' or 'current_score')
+              // Make mutable copy
+              Map<String, dynamic> update = Map.of(result);
+              update['id'] = _myPlayerId;
+              update['is_me'] = true;
+              _updatePlayerScores([update]);
+          }
+
           final bool isCorrect = result?['is_correct'] == true;
           final int scoreDelta = result?['score_delta'] ?? 0;
           
@@ -351,49 +362,7 @@ class _GameContainerScreenState extends State<GameContainerScreen> {
            _showingResult = true;
            break;
 
-  // Helper to update player scores and sort leaderboard
-  void _updatePlayerScores(List<dynamic> updates) {
-    if (_players.isEmpty) return;
-    
-    bool changed = false;
-    for (var update in updates) {
-       // Support both id formats
-       int id = update['id'] ?? update['account_id'] ?? 0;
-       if (id == 0 && update['is_me'] == true && _myPlayerId != null) {
-          id = _myPlayerId!;
-       }
-       if (id == 0) continue;
 
-       // Find player
-       int index = _players.indexWhere((p) => p['id'] == id || p['account_id'] == id);
-       if (index != -1) {
-          // Determine new score
-          int? newScore = update['total_score'] ?? update['current_score'];
-          
-          // Calculate from delta if total not provided
-          if (newScore == null && update['score_delta'] != null && update['score_delta'] is int) {
-             int current = _players[index]['score'] ?? 0;
-             newScore = current + (update['score_delta'] as int);
-          }
-          
-          if (newScore != null) {
-              _players[index]['score'] = newScore;
-              changed = true;
-          }
-       }
-    }
-    
-    if (changed) {
-       setState(() {
-          // Sort by score descending
-          _players.sort((a, b) {
-             int scoreA = a['score'] ?? 0;
-             int scoreB = b['score'] ?? 0;
-             return scoreB.compareTo(scoreA); 
-          });
-       });
-    }
-  }
 
         case GameEventType.round2AllFinished:
           print("[GameContainer] Round 2 finished event received: ${event.data}");
@@ -516,6 +485,12 @@ class _GameContainerScreenState extends State<GameContainerScreen> {
                 }
                 _round3Score = data['bonus'] ?? _round3Score;
                 _showDecision = false;
+                
+                // Update Ranking (Realtime for ME)
+                Map<String, dynamic> update = Map.from(data);
+                update['id'] = _myPlayerId;
+                update['is_me'] = true;
+                _updatePlayerScores([update]);
               });
               
               ScaffoldMessenger.of(context).showSnackBar(
@@ -961,6 +936,50 @@ class _GameContainerScreenState extends State<GameContainerScreen> {
         }
       });
     });
+  }
+
+  // Helper to update player scores and sort leaderboard
+  void _updatePlayerScores(List<dynamic> updates) {
+    if (_players.isEmpty) return;
+    
+    bool changed = false;
+    for (var update in updates) {
+       // Support both id formats
+       int id = update['id'] ?? update['account_id'] ?? 0;
+       if (id == 0 && update['is_me'] == true && _myPlayerId != null) {
+          id = _myPlayerId!;
+       }
+       if (id == 0) continue;
+
+       // Find player
+       int index = _players.indexWhere((p) => p['id'] == id || p['account_id'] == id);
+       if (index != -1) {
+          // Determine new score
+          int? newScore = update['total_score'] ?? update['current_score'] ?? update['score'];
+          
+          // Calculate from delta if total not provided
+          if (newScore == null && update['score_delta'] != null && update['score_delta'] is int) {
+             int current = _players[index]['score'] ?? 0;
+             newScore = current + (update['score_delta'] as int);
+          }
+          
+          if (newScore != null) {
+              _players[index]['score'] = newScore;
+              changed = true;
+          }
+       }
+    }
+    
+    if (changed) {
+       setState(() {
+          // Sort by score descending
+          _players.sort((a, b) {
+             int scoreA = a['score'] ?? 0;
+             int scoreB = b['score'] ?? 0;
+             return scoreB.compareTo(scoreA); 
+          });
+       });
+    }
   }
 
   void _updateLeaderboard(List<dynamic>? playersData) {

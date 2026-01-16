@@ -21,7 +21,7 @@ class RoundBonusWidget extends StatefulWidget {
 }
 
 enum BonusState { drawing, revealing, completed }
-enum PlayerBonusState { waitingToDraw, cardDrawn }
+enum PlayerBonusState { waitingToDraw, cardDrawn, revealedSafe, revealedEliminated, revealedWinner }
 
 class _RoundBonusWidgetState extends State<RoundBonusWidget> {
   String _role = 'spectator';
@@ -168,6 +168,9 @@ class _RoundBonusWidgetState extends State<RoundBonusWidget> {
   PlayerBonusState _mapPlayerState(dynamic state) {
     if (state is int) {
       if (state == 1) return PlayerBonusState.cardDrawn;
+      if (state == 2) return PlayerBonusState.revealedSafe;
+      if (state == 3) return PlayerBonusState.revealedEliminated;
+      if (state == 4) return PlayerBonusState.revealedWinner;
       return PlayerBonusState.waitingToDraw;
     }
     if (state == 'CARD_DRAWN') return PlayerBonusState.cardDrawn;
@@ -263,6 +266,7 @@ class _RoundBonusWidgetState extends State<RoundBonusWidget> {
     final bool isDealing = _dealingToPlayer == accountId;
     final dynamic revealedCard = _revealedCards.firstWhere((r) => r['player_id'] == accountId, orElse: () => null);
     final bool isEliminated = revealedCard != null && revealedCard['card'] == 'eliminated';
+    final bool isWinner = revealedCard != null && revealedCard['card'] == 'winner';
 
     return Container(
       margin: const EdgeInsets.all(12),
@@ -297,7 +301,7 @@ class _RoundBonusWidgetState extends State<RoundBonusWidget> {
           const SizedBox(height: 16),
           Expanded(
             child: Center(
-              child: _buildCard(hasDrawn, isDealing, revealedCard, isEliminated),
+              child: _buildCard(hasDrawn, isDealing, revealedCard, isEliminated, isWinner),
             ),
           ),
           const SizedBox(height: 12),
@@ -307,7 +311,7 @@ class _RoundBonusWidgetState extends State<RoundBonusWidget> {
     );
   }
 
-  Widget _buildCard(bool hasDrawn, bool isDealing, dynamic revealedCard, bool isEliminated) {
+  Widget _buildCard(bool hasDrawn, bool isDealing, dynamic revealedCard, bool isEliminated, bool isWinner) {
     // Dealing animation - card flying in
     if (isDealing) {
       return TweenAnimationBuilder<double>(
@@ -361,13 +365,15 @@ class _RoundBonusWidgetState extends State<RoundBonusWidget> {
                         end: Alignment.bottomRight,
                         colors: isEliminated 
                           ? [const Color(0xFFC0392B), const Color(0xFF8E44AD)]
-                          : [const Color(0xFF27AE60), const Color(0xFF16A085)],
+                          : (isWinner 
+                              ? [const Color(0xFFF1C40F), const Color(0xFFF39C12)] 
+                              : [const Color(0xFF27AE60), const Color(0xFF16A085)]),
                       ),
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(color: Colors.white, width: 4),
                       boxShadow: [
                         BoxShadow(
-                          color: (isEliminated ? Colors.red : Colors.green).withOpacity(0.5),
+                          color: (isEliminated ? Colors.red : (isWinner ? Colors.orange : Colors.green)).withOpacity(0.5),
                           blurRadius: 20,
                           spreadRadius: 2,
                         ),
@@ -378,13 +384,13 @@ class _RoundBonusWidgetState extends State<RoundBonusWidget> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(
-                            isEliminated ? Icons.close : Icons.check,
+                            isEliminated ? Icons.close : (isWinner ? Icons.emoji_events : Icons.check),
                             size: 48,
                             color: Colors.white,
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            isEliminated ? 'ELIMINATED' : 'SAFE',
+                            isEliminated ? 'ELIMINATED' : (isWinner ? 'WINNER!' : 'SAFE'),
                             style: GoogleFonts.luckiestGuy(
                               fontSize: 28,
                               color: Colors.white,

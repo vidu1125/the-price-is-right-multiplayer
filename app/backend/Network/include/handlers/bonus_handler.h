@@ -48,12 +48,14 @@ typedef enum {
     PLAYER_BONUS_CARD_DRAWN,
     PLAYER_BONUS_REVEALED_SAFE,
     PLAYER_BONUS_REVEALED_ELIMINATED,
+    PLAYER_BONUS_REVEALED_WINNER,
     PLAYER_BONUS_SPECTATING
 } PlayerBonusState;
 
 typedef enum {
     CARD_TYPE_SAFE = 0,
-    CARD_TYPE_ELIMINATED = 1
+    CARD_TYPE_ELIMINATED = 1,
+    CARD_TYPE_WINNER = 2
 } CardType;
 
 //==============================================================================
