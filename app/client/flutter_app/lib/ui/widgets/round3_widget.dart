@@ -33,18 +33,26 @@ class _Round3WidgetState extends State<Round3Widget> with SingleTickerProviderSt
   bool _isSpinning = false;
   bool _dialogShown = false;
 
-  // Hardcoded segments to match image exactly
-  final List<String> _hardcodedSegments = ["100", "200", "500", "0", "1000", "LOSE"];
+  // Segments matching backend logic (10-100 in steps of 10)
+  // Scrambled order for better gameplay feel (10 items)
+  final List<String> _hardcodedSegments = [
+    "100", "50", "90", "20", "80", "60", "30", "70", "40", "10"
+  ];
   
-  // Specific colors for segments
-  final Map<String, Color> _segmentColors = {
-    "100": const Color(0xFFFFCC33),   // Yellow
-    "200": const Color(0xFFE67E22),   // Orange
-    "500": const Color(0xFFE74C3C),   // Red
-    "0": const Color(0xFF9B59B6),     // Purple
-    "1000": const Color(0xFF3498DB),  // Blue
-    "LOSE": const Color(0xFF2ECC71),  // Green
-  };
+  // Base colors - we'll cycle through these if exact key missing
+  final List<Color> _palette = [
+    const Color(0xFFFFCC33),   // Yellow
+    const Color(0xFFE67E22),   // Orange
+    const Color(0xFFE74C3C),   // Red
+    const Color(0xFF9B59B6),   // Purple
+    const Color(0xFF3498DB),   // Blue
+    const Color(0xFF2ECC71),   // Green
+  ];
+  
+  Color _getSegmentColor(String label, int index) {
+     if (label == "100") return const Color(0xFFFFD700); // Gold for 100
+     return _palette[index % _palette.length];
+  }
 
   @override
   void initState() {
@@ -136,16 +144,28 @@ class _Round3WidgetState extends State<Round3Widget> with SingleTickerProviderSt
     // Ignore pending/invalid scores entirely
     if (widget.score == -999) return;
     
-    // Check if we have a new spin number to process
-    if (widget.spinNumber != _lastProcessedSpin) {
-      // Mark this spin number as processed so we don't handle it again
-      _lastProcessedSpin = widget.spinNumber;
-      
-      // ONLY animate if the user explicitly requested it via button click
-      if (_spinRequested) {
-        _startRotationAnimation(widget.score);
-        _spinRequested = false; // Reset request flag
-      }
+    // Check if we have a new spin result to process
+    // Logic: score changed from previous state, OR spinNumber incresed but score is fresh
+    if (widget.score != -1 && widget.score != -999 && widget.score != 0) {
+        // If we were waiting for result (spin requested), animate now
+        if (_spinRequested) {
+             print("[Round3] Starting animation to target: ${widget.score}");
+            _startRotationAnimation(widget.score);
+            _spinRequested = false; // Reset request flag
+        } else if (!_isSpinning && _rotationTurns == 0) {
+            // Re-joining or initial load with existing score - just snap or animate
+             _startRotationAnimation(widget.score);
+        }
+    }
+    
+    // Reset for 2nd spin if needed
+    if (widget.spinNumber > _lastProcessedSpin) {
+        if (widget.spinNumber == 2) {
+             print("[Round3] Resetting for Spin 2");
+            // Reset UI for second spin if needed, though usually score update handles it
+            // _dialogShown = false; // Handled in action
+        }
+        _lastProcessedSpin = widget.spinNumber;
     }
 
     if (widget.showDecision && !oldWidget.showDecision && !_isSpinning && !_dialogShown) {
@@ -290,7 +310,7 @@ class _Round3WidgetState extends State<Round3Widget> with SingleTickerProviderSt
                           size: Size(wheelSize, wheelSize),
                           painter: WheelPainter(
                             labels: _hardcodedSegments,
-                            colors: _segmentColors,
+                            colorProvider: _getSegmentColor,
                           ),
                         ),
                       ),
@@ -414,9 +434,9 @@ class PointerPainter extends CustomPainter {
 
 class WheelPainter extends CustomPainter {
   final List<String> labels;
-  final Map<String, Color> colors;
+  final Color Function(String, int) colorProvider;
 
-  WheelPainter({required this.labels, required this.colors});
+  WheelPainter({required this.labels, required this.colorProvider});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -427,7 +447,7 @@ class WheelPainter extends CustomPainter {
     for (int i = 0; i < labels.length; i++) {
       final label = labels[i];
       final paint = Paint()
-        ..color = colors[label] ?? Colors.grey
+        ..color = colorProvider(label, i)
         ..style = PaintingStyle.fill;
 
       // Draw segment

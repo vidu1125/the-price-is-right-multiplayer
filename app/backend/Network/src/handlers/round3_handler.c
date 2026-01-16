@@ -203,10 +203,10 @@ static void broadcast_json(MessageHeader *req, uint16_t cmd, const char *json) {
 // HELPER: Generate spin result (5-100)
 //==============================================================================
 static int generate_spin_result(void) {
-    // Generate random number between 5 and 100
-    // Using multiples of 5 for wheel segments
-    int base = (rand() % 20) + 1;  // 1-20
-    return base * 5;  // 5, 10, 15, ..., 100
+    // Generate random number between 10 and 100
+    // Using multiples of 10 for wheel segments (10 segments total)
+    int base = (rand() % 10) + 1;  // 1-10
+    return base * 10;  // 10, 20, 30, ..., 100
 }
 
 //==============================================================================
