@@ -9,6 +9,7 @@ class Round3Widget extends StatefulWidget {
   final int score;
   final int spinNumber;
   final bool showDecision;
+  final bool isFinished; // Added to disable interactions when round ends
   final VoidCallback onSpin;
   final Function(bool) onDecision;
 
@@ -18,27 +19,25 @@ class Round3Widget extends StatefulWidget {
     required this.score,
     required this.spinNumber,
     required this.showDecision,
+    this.isFinished = false,
     required this.onSpin,
     required this.onDecision,
   });
 
   @override
-  _Round3WidgetState createState() => _Round3WidgetState();
+  State<Round3Widget> createState() => _Round3WidgetState();
 }
 
 class _Round3WidgetState extends State<Round3Widget> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _animation;
-  double _rotationTurns = 0;
-  bool _isSpinning = false;
-  bool _dialogShown = false;
-
+  
   // Segments matching backend logic (10-100 in steps of 10)
   // Scrambled order for better gameplay feel (10 items)
   final List<String> _hardcodedSegments = [
     "100", "50", "90", "20", "80", "60", "30", "70", "40", "10"
   ];
-  
+
   // Base colors - we'll cycle through these if exact key missing
   final List<Color> _palette = [
     const Color(0xFFFFCC33),   // Yellow
@@ -48,11 +47,13 @@ class _Round3WidgetState extends State<Round3Widget> with SingleTickerProviderSt
     const Color(0xFF3498DB),   // Blue
     const Color(0xFF2ECC71),   // Green
   ];
-  
-  Color _getSegmentColor(String label, int index) {
-     if (label == "100") return const Color(0xFFFFD700); // Gold for 100
-     return _palette[index % _palette.length];
-  }
+
+  double _rotationTurns = 0;
+  bool _isSpinning = false;
+  bool _dialogShown = false;
+  int _lastProcessedSpin = 0;
+  bool _spinRequested = false;
+  bool _decisionMade = false; // Lock UI after making a decision
 
   @override
   void initState() {
@@ -64,10 +65,22 @@ class _Round3WidgetState extends State<Round3Widget> with SingleTickerProviderSt
       if (status == AnimationStatus.completed) {
         setState(() => _isSpinning = false);
         if (widget.showDecision && !_dialogShown) {
-          _showDecisionDialog();
+           WidgetsBinding.instance.addPostFrameCallback((_) => _showDecisionDialog());
         }
       }
     });
+
+    // Initial load handling
+    if (widget.score != -1 && widget.score != -999 && widget.score != 0) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+         _startRotationAnimation(widget.score);
+      });
+    }
+  }
+
+  Color _getSegmentColor(String label, int index) {
+     if (label == "100") return const Color(0xFFFFD700); // Gold for 100
+     return _palette[index % _palette.length];
   }
 
   void _showDecisionDialog() {
@@ -106,11 +119,14 @@ class _Round3WidgetState extends State<Round3Widget> with SingleTickerProviderSt
             children: [
               Expanded(
                 child: GameButton(
-                  text: "TAKE", 
+                  text: "TAKE SCORE", 
                   onPressed: () {
                     Navigator.pop(context);
-                    widget.onDecision(false);
-                    setState(() => _dialogShown = false);
+                    setState(() {
+                         _dialogShown = false;
+                         _decisionMade = true;
+                    });
+                    widget.onDecision(false); // Stop (Take Score)
                   }, 
                   color: Colors.orange
                 ),
@@ -118,11 +134,14 @@ class _Round3WidgetState extends State<Round3Widget> with SingleTickerProviderSt
               const SizedBox(width: 10),
               Expanded(
                 child: GameButton(
-                  text: "AGAIN", 
+                  text: "SPIN AGAIN", 
                   onPressed: () {
                     Navigator.pop(context);
-                    widget.onDecision(true);
-                    setState(() => _dialogShown = false);
+                    setState(() {
+                        _dialogShown = false;
+                        _decisionMade = true;
+                    });
+                    widget.onDecision(true); // Continue (Spin Again)
                   }, 
                   color: const Color(0xFF2ECC71)
                 ),
@@ -134,9 +153,6 @@ class _Round3WidgetState extends State<Round3Widget> with SingleTickerProviderSt
     );
   }
 
-  int _lastProcessedSpin = 0;
-  bool _spinRequested = false;
-
   @override
   void didUpdateWidget(Round3Widget oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -145,15 +161,14 @@ class _Round3WidgetState extends State<Round3Widget> with SingleTickerProviderSt
     if (widget.score == -999) return;
     
     // Check if we have a new spin result to process
-    // Logic: score changed from previous state, OR spinNumber incresed but score is fresh
     if (widget.score != -1 && widget.score != -999 && widget.score != 0) {
         // If we were waiting for result (spin requested), animate now
         if (_spinRequested) {
              print("[Round3] Starting animation to target: ${widget.score}");
             _startRotationAnimation(widget.score);
-            _spinRequested = false; // Reset request flag
+            _spinRequested = false; 
         } else if (!_isSpinning && _rotationTurns == 0) {
-            // Re-joining or initial load with existing score - just snap or animate
+            // Re-joining or initial load with existing score
              _startRotationAnimation(widget.score);
         }
     }
@@ -162,8 +177,7 @@ class _Round3WidgetState extends State<Round3Widget> with SingleTickerProviderSt
     if (widget.spinNumber > _lastProcessedSpin) {
         if (widget.spinNumber == 2) {
              print("[Round3] Resetting for Spin 2");
-            // Reset UI for second spin if needed, though usually score update handles it
-            // _dialogShown = false; // Handled in action
+             setState(() => _decisionMade = false); // Unlock for 2nd spin
         }
         _lastProcessedSpin = widget.spinNumber;
     }
@@ -182,10 +196,6 @@ class _Round3WidgetState extends State<Round3Widget> with SingleTickerProviderSt
     double segmentTurn = (index + 0.5) / n;
     
     // Pointer is at TOP (0.25 turns offset from the painter's -pi/2 start).
-    // Segment i center is at -0.25 + segmentTurn.
-    // To land at TOP (0 turns absolute):
-    // Rotation = 0 - (-0.25 + segmentTurn) = 0.25 - segmentTurn.
-    
     double destinationTurn = 0.25 - segmentTurn;
     double extraRotations = 6.0;
     
@@ -208,7 +218,7 @@ class _Round3WidgetState extends State<Round3Widget> with SingleTickerProviderSt
   }
 
   void _handleSpinClick() {
-    if (_isSpinning || widget.showDecision) return;
+    if (_isSpinning || widget.showDecision || widget.isFinished) return;
     setState(() {
       _spinRequested = true;
     });
@@ -347,11 +357,13 @@ class _Round3WidgetState extends State<Round3Widget> with SingleTickerProviderSt
   }
 
   Widget _buildSpinButton() {
-    bool canSpin = !widget.showDecision && !_isSpinning;
-    String btnText = widget.spinNumber == 1 ? "1ST" : "2ND";
+    bool canSpin = !widget.showDecision && !_isSpinning && !widget.isFinished && !_decisionMade;
+    String btnText = widget.isFinished 
+        ? "DONE" 
+        : (widget.spinNumber == 1 ? "1ST" : "2ND");
 
     return GestureDetector(
-      onTap: _handleSpinClick,
+      onTap: canSpin ? _handleSpinClick : null,
       child: AnimatedScale(
         scale: canSpin ? 1.0 : 0.85,
         duration: const Duration(milliseconds: 300),
@@ -379,10 +391,11 @@ class _Round3WidgetState extends State<Round3Widget> with SingleTickerProviderSt
                 btnText,
                 style: GoogleFonts.luckiestGuy(color: Colors.white, fontSize: 32),
               ),
-              Text(
-                "SPIN",
-                style: GoogleFonts.luckiestGuy(color: Colors.white.withOpacity(0.9), fontSize: 24),
-              ),
+              if (!widget.isFinished)
+                Text(
+                  "SPIN",
+                  style: GoogleFonts.luckiestGuy(color: Colors.white.withOpacity(0.9), fontSize: 24),
+                ),
               if (canSpin)
                  Padding(
                    padding: const EdgeInsets.only(top: 4),
@@ -477,7 +490,7 @@ class WheelPainter extends CustomPainter {
           text: label,
           style: GoogleFonts.luckiestGuy(
             color: Colors.white,
-            fontSize: radius * 0.2, // Slightly larger
+            fontSize: radius * 0.2, 
             shadows: [const Shadow(offset: Offset(2, 2), blurRadius: 4, color: Colors.black45)],
           ),
         ),
@@ -485,7 +498,7 @@ class WheelPainter extends CustomPainter {
       );
       textPainter.layout();
 
-      // Rotation and translation for each label
+      // Rotation and translation
       final textAngle = i * angle + angle / 2 - pi / 2;
       final textRadius = radius * 0.72;
       final x = center.dx + textRadius * cos(textAngle) - textPainter.width / 2;
@@ -499,7 +512,7 @@ class WheelPainter extends CustomPainter {
       canvas.restore();
     }
 
-    // Outer rim markers (dots)
+    // Outer rim markers
     final dotPaint = Paint()..color = Colors.white;
     for (int i = 0; i < 48; i++) {
       double a = i * (2 * pi / 48);
@@ -521,4 +534,3 @@ class WheelPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
-

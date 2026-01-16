@@ -31,6 +31,7 @@ class _GameContainerScreenState extends State<GameContainerScreen> {
   bool _initialized = false; // Track if already initialized
   bool _showingResult = false; // Track if currently showing result/feedback
   bool _showDecision = false; // Track if showing Stop/Continue decision
+  bool _round3Finished = false; // Track if round 3 is done for this player
   int _round3Score = -999; // Current score in Round 3 (Wheel). -999 means "pending" or "no result".
   int _spinNumber = 1; // Current spin number (1 or 2)
   int? _myPlayerId; // Current user ID
@@ -451,12 +452,14 @@ class _GameContainerScreenState extends State<GameContainerScreen> {
                 _showDecision = false;
                 _round3Score = -999; // Reset to "Pending" so it doesn't auto-spin
                 _spinNumber = 1;
+                _round3Finished = false; // Reset finished state
               });
             } else if (message.contains("Spin again!")) {
               setState(() {
                 _spinNumber = 2;
                 _round3Score = -999; // Reset to "Pending"
                 _showDecision = false;
+                _round3Finished = false; // Ensure not finished
               });
             }
            break;
@@ -493,6 +496,7 @@ class _GameContainerScreenState extends State<GameContainerScreen> {
                 }
                 _round3Score = data['bonus'] ?? _round3Score;
                 _showDecision = false;
+                _round3Finished = true; // Mark as finished to disable spin
                 
                 // Update Ranking (Realtime for ME)
                 Map<String, dynamic> update = Map.from(data);
@@ -883,6 +887,7 @@ class _GameContainerScreenState extends State<GameContainerScreen> {
           showDecision: _showDecision,
           onSpin: _handleSpin,
           onDecision: _handleDecision,
+          isFinished: _round3Finished,
         );
       default:
         return const Center(child: Text("Unknown round"));
@@ -909,6 +914,15 @@ class _GameContainerScreenState extends State<GameContainerScreen> {
   
   void _handleDecision(bool continueSpin) {
     print("[GameContainer] Decision: continue=$continueSpin");
+    
+    // Optimistic update: If STOP (Take Score), lock the UI immediately to prevent double clicks and show "Finished" state
+    if (!continueSpin) {
+        setState(() {
+            _showDecision = false;
+            _round3Finished = true; 
+        });
+    }
+
     ServiceLocator.gameStateService.submitRound3Decision(_matchId, continueSpin);
     
     // We don't manually update _currentScore here anymore.
