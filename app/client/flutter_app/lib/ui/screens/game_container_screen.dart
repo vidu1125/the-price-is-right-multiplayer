@@ -1000,8 +1000,13 @@ class _GameContainerScreenState extends State<GameContainerScreen> {
   void _updateLeaderboard(List<dynamic>? playersData) {
     if (playersData == null) return;
     
-    // Normalize and process player list
-    List<Map<String, dynamic>> newPlayers = [];
+    // 1. Index existing players by ID for merging
+    Map<dynamic, Map<String, dynamic>> mergedMap = {};
+    for (var p in _players) {
+        mergedMap[p['id']] = Map<String, dynamic>.from(p);
+    }
+    
+    // 2. Process and merge incoming data
     for (var p in playersData) {
       if (p is Map<String, dynamic>) {
         final newP = Map<String, dynamic>.from(p);
@@ -1019,16 +1024,32 @@ class _GameContainerScreenState extends State<GameContainerScreen> {
         }
         
         // Ensure name fallback if missing
-        if (newP['name'] == null || newP['name'].toString().isEmpty) {
+        if ((newP['name'] == null || newP['name'].toString().isEmpty) && !mergedMap.containsKey(accId)) {
           newP['name'] = 'Player $accId';
         }
 
-        // Map eliminated to isOut for sidebar
+        // Map status flags
+        // Important: Should NOT overwrite existing true flags with false/null if missing in update, 
+        // but usually updates carry authoritative state. For 'eliminated', it's sticky.
+        if (mergedMap.containsKey(accId)) {
+             // Sticky elimination
+             if (mergedMap[accId]!['eliminated'] == true) newP['eliminated'] = true;
+             if (mergedMap[accId]!['forfeited'] == true) newP['forfeited'] = true;
+        }
+
         newP['isOut'] = newP['eliminated'] == true || newP['is_out'] == true || newP['forfeited'] == true;
         
-        newPlayers.add(newP);
+        // Merge into map (overwrite existing or add new)
+        if (mergedMap.containsKey(accId)) {
+            mergedMap[accId]!.addAll(newP);
+        } else {
+            mergedMap[accId] = newP;
+        }
       }
     }
+    
+    // 3. Convert back to list
+    List<Map<String, dynamic>> newPlayers = mergedMap.values.toList();
     
     // Sort by score descending
     newPlayers.sort((a, b) => (b['score'] ?? 0).compareTo(a['score'] ?? 0));
@@ -1194,42 +1215,68 @@ class LeaderboardSidebar extends StatelessWidget {
               final bool isMe = p['isMe'] ?? false;
               final bool isOut = p['isOut'] ?? false;
               
-              return Opacity(
-                opacity: isOut ? 0.6 : 1.0,
-                child: Padding(
+              return Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                     decoration: BoxDecoration(
                       color: isMe ? Colors.white.withOpacity(0.1) : Colors.black12,
                       borderRadius: BorderRadius.circular(12),
-                      border: isMe ? Border.all(color: const Color(0xFFFFDE00), width: 2) : null,
+                      border: isMe ? Border.all(color: const Color(0xFFFFDE00), width: 2) : 
+                              (isOut ? Border.all(color: Colors.red.withOpacity(0.5), width: 1) : null),
                     ),
                     child: Row(
                       children: [
-                        Expanded(
+                        // Rank
+                        Container(
+                          width: 24,
+                          alignment: Alignment.center,
                           child: Text(
-                            (p['name'] ?? 'Unknown').toUpperCase(),
-                            style: GoogleFonts.luckiestGuy(
-                              fontSize: 16,
-                              color: Colors.white,
-                              letterSpacing: 1,
-                            ),
-                            overflow: TextOverflow.ellipsis,
+                            "$rank",
+                            style: GoogleFonts.luckiestGuy(color: Colors.white54, fontSize: 14),
                           ),
                         ),
+                        const SizedBox(width: 8),
+                        // Name & Status
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                (p['name'] ?? 'Unknown').toUpperCase(),
+                                style: GoogleFonts.luckiestGuy(
+                                  fontSize: 16,
+                                  color: isOut ? Colors.white60 : Colors.white,
+                                  decoration: isOut ? TextDecoration.lineThrough : null,
+                                  letterSpacing: 1,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              if (isOut)
+                                Text(
+                                  p['eliminated'] == true ? "ELIMINATED" : "DISCONNECTED",
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 10,
+                                    color: Colors.redAccent,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        // Score
                         Text(
                           '${p['score'] ?? 0}',
                           style: GoogleFonts.luckiestGuy(
                             fontSize: 18,
-                            color: const Color(0xFFFFDE00),
+                            color: isOut ? Colors.white54 : const Color(0xFFFFDE00),
                           ),
                         ),
                       ],
                     ),
                   ),
-                ),
-              );
+                );
             },
           ),
         ),
