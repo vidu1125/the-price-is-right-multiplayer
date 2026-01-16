@@ -1005,6 +1005,11 @@ static void advance_to_next_product(MessageHeader *req) {
         }
         
         // Otherwise broadcast round end results and continue
+        if (is_bonus_active(g_r2.match_id)) {
+            printf("[Round2] Bonus round active - letter bonus handler manage transition\n");
+            return;
+        }
+
         char *end_json = build_round_end_json();
         if (end_json) {
             printf("[Round2] Round end JSON: %s\n", end_json);

@@ -904,6 +904,12 @@ void advance_to_next_question(MessageHeader *req) {
     // Nếu match CHƯA END → broadcast end-round summary
     // =================================================
     if (!match_ended) {
+        // Check if bonus round is active (don't send summary if bonus triggered)
+        if (is_bonus_active(g_r1.match_id)) {
+            printf("[Round1] Bonus round active - letter bonus handler manage transition\n");
+            return;
+        }
+
         char *json = build_round_end_json();
         if (json) {
             broadcast_json(req, OP_S2C_ROUND1_ALL_FINISHED, json);
