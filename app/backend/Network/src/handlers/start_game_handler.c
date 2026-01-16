@@ -263,7 +263,7 @@ void handle_start_game(int client_fd, MessageHeader *req, const char *payload) {
     RoundType round_types[] = {ROUND_MCQ, ROUND_BID, ROUND_WHEEL};
     const char *round_type_names[] = {"mcq", "bid", "wheel"};
     // Questions per round (MCQ=5, BID=5, WHEEL=1)
-    int questions_per_round[] = {5, 5, 1};
+    int questions_per_round[] = {1, 1, 1};
     
     match->round_count = 3;
     int total_questions_loaded = 0;

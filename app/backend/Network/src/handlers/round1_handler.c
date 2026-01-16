@@ -416,10 +416,16 @@ static void end_game_now(MessageHeader *req, const char *reason) {
 
 // returns true nếu match kết thúc tại đây (END GAME), false nếu còn tiếp
 static bool r1_finalize_round(MessageHeader *req, bool *out_bonus_triggered) {
+    printf("[Round1] r1_finalize_round() ENTERED\n");
+    
     MatchState *match = get_match();
-    if (!match) return true;
+    if (!match) {
+        printf("[Round1] r1_finalize_round() - No match, returning true\n");
+        return true;
+    }
 
     uint32_t match_id = match->runtime_match_id;
+    printf("[Round1] r1_finalize_round() - match_id=%u\n", match_id);
     
     // Initialize output parameter
     if (out_bonus_triggered) *out_bonus_triggered = false;
@@ -429,13 +435,17 @@ static bool r1_finalize_round(MessageHeader *req, bool *out_bonus_triggered) {
 
     // ACTIVE PLAYERS < 2 ?
     int active = count_active_players(match_id);
+    printf("[Round1] r1_finalize_round() - active players=%d\n", active);
+    
     if (active < 2) {
+        printf("[Round1] r1_finalize_round() - Active < 2, ending game\n");
         end_game_now(req, "ACTIVE_PLAYERS_LT_2");
         return true;
     }
 
     // MODE_SCORING ?
     if (match->mode == MODE_SCORING) {
+        printf("[Round1] r1_finalize_round() - MODE_SCORING branch\n");
         // NEXT ROUND / END GAME
         if (match->current_round_idx >= match->round_count - 1) {
             end_game_now(req, "ALL_ROUNDS_COMPLETED");
@@ -451,11 +461,15 @@ static bool r1_finalize_round(MessageHeader *req, bool *out_bonus_triggered) {
     }
 
     // NO (ELIMINATION) → CHECK LOWEST SCORE
+    printf("[Round1] r1_finalize_round() - Calling perform_elimination()\n");
     bool bonus_triggered = perform_elimination(); // chỉ làm tie/lowest/eliminate, KHÔNG end game ở đây
+    printf("[Round1] r1_finalize_round() - perform_elimination() returned: %d\n", bonus_triggered);
+    
     if (bonus_triggered) {
         // BONUS ROUND: bonus handler sẽ tự điều hướng
         if (out_bonus_triggered) *out_bonus_triggered = true;
         printf("[Round1] Bonus triggered, setting output flag\n");
+        printf("[Round1] r1_finalize_round() - RETURNING false (bonus triggered)\n");
         return false;
     }
 
@@ -903,6 +917,7 @@ void advance_to_next_question(MessageHeader *req) {
     round->ended_at = time(NULL);
     g_r1.is_active = false;
 
+    printf("[Round1] About to call r1_finalize_round...\n");
     bool bonus_triggered = false;
     bool match_ended = r1_finalize_round(req, &bonus_triggered);
     

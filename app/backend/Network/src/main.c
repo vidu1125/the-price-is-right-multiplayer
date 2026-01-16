@@ -40,6 +40,13 @@ int main(int argc, char *argv[]) {
     printf("=============================================\n");
     printf("        NETWORK SOCKET SERVER START           \n");
     printf("=============================================\n");
+    printf("Build Date: %s %s\n", __DATE__, __TIME__);
+    printf("Version: ROUND1_RACE_CONDITION_FIX_v2\n");
+    printf("Changes:\n");
+    printf("  - Round1: bonus_triggered flag via output param\n");
+    printf("  - Round1: Time-based scoring (170pts @ 4s)\n");
+    printf("  - Questions per round: 1/1/1 (testing mode)\n");
+    printf("=============================================\n");
     printf("Press Ctrl+C to stop\n\n");
 
     // Initialize random seed once

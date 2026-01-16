@@ -389,10 +389,12 @@ static void initialize_bonus(uint32_t match_id, int after_round, BonusType type,
     
     g_bonus.state = BONUS_STATE_DRAWING;
     
-    // Start timer
-    start_bonus_timer();
-    
+    // CRITICAL: Unlock mutex BEFORE starting timer to prevent deadlock
+    // Timer callback may need to acquire this mutex
     pthread_mutex_unlock(&g_bonus_mutex);
+    
+    // Start timer (after unlocking to prevent deadlock)
+    start_bonus_timer();
     
     printf("[Bonus] Initialized: match=%u after_round=%d type=%s participants=%d\n",
            match_id, after_round,
@@ -614,7 +616,9 @@ bool check_and_trigger_bonus(uint32_t match_id, int after_round) {
     printf("[Bonus] TRIGGERING BONUS ROUND for %d tied players\n", tied_count_prod);
     
     // Initialize bonus context
+    printf("[Bonus] About to call initialize_bonus...\n");
     initialize_bonus(match_id, after_round, bonus_type_prod, tied_players_prod, tied_count_prod);
+    printf("[Bonus] initialize_bonus() returned\n");
     
     // Create a dummy header for notifications
     MessageHeader dummy_hdr_prod = {0};
@@ -622,7 +626,9 @@ bool check_and_trigger_bonus(uint32_t match_id, int after_round) {
     dummy_hdr_prod.version = PROTOCOL_VERSION;
     
     // Notify all players
+    printf("[Bonus] About to notify participants...\n");
     notify_participants(&dummy_hdr_prod);
+    printf("[Bonus] About to notify spectators...\n");
     notify_spectators(&dummy_hdr_prod);
     
     // Save to database
@@ -649,6 +655,7 @@ bool check_and_trigger_bonus(uint32_t match_id, int after_round) {
         if (db_result) cJSON_Delete(db_result);
     }
     
+    printf("[Bonus] check_and_trigger_bonus() RETURNING true\n");
     return true;
 }
 
