@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include "handlers/session_manager.h"
 
 // Storage for active matches
 static MatchState g_matches[MAX_ACTIVE_MATCHES];
@@ -120,4 +121,78 @@ void match_set_status(MatchState *match, MatchStatus status) {
     match->status = status;
     printf("[HANDLER] <matchManager> Match ID=%u status updated to %d\n", 
            match->runtime_match_id, status);
+}
+
+void cleanup_disconnected_and_forfeit(uint32_t match_id) {
+    MatchState *match = match_get_by_id(match_id);
+    if (!match) return;
+
+    for (int i = 0; i < match->player_count; i++) {
+        MatchPlayerState *mp = &match->players[i];
+        if (!mp || mp->eliminated) continue;
+
+        // =====================================================
+        // 1. FORFEIT: luôn eliminate, bất kể mode
+        // =====================================================
+        if (mp->forfeited) {
+            mp->eliminated = 1;
+            mp->eliminated_at_round = match->current_round_idx + 1;
+
+            printf("[Cleanup] Player %d forfeited → eliminated (round %d)\n",
+                   mp->account_id, mp->eliminated_at_round);
+
+            // Optional nhưng rất nên có
+            // notify + đưa về lobby
+            UserSession *s = session_get_by_account(mp->account_id);
+            if (s) {
+                session_mark_lobby(s);
+            }
+
+            continue; // ⚠️ rất quan trọng
+        }
+
+        // =====================================================
+        // 2. DISCONNECT
+        // =====================================================
+        UserSession *s = session_get_by_account(mp->account_id);
+        bool connected = (s && s->state != SESSION_PLAYING_DISCONNECTED);
+
+        if (!connected) {
+            if (match->mode == MODE_ELIMINATION) {
+                // elimination: disconnect -> eliminate
+                mp->eliminated = 1;
+                mp->eliminated_at_round = match->current_round_idx + 1;
+
+                printf("[Cleanup] Player %d disconnected → eliminated (round %d)\n",
+                       mp->account_id, mp->eliminated_at_round);
+
+                if (s) {
+                    session_mark_lobby(s);
+                }
+            } else {
+                // scoring: KHÔNG eliminate
+                printf("[Cleanup] Player %d disconnected (scoring mode) → 0 points this round\n",
+                       mp->account_id);
+                // Điểm 0 đã được đảm bảo bởi timeout / unanswered
+            }
+        }
+    }
+}
+
+int count_active_players(uint32_t match_id) {
+    MatchState *match = match_get_by_id(match_id);
+    if (!match) return 0;
+
+    int active = 0;
+    for (int i = 0; i < match->player_count; i++) {
+        MatchPlayerState *mp = &match->players[i];
+        if (!mp) continue;
+        if (mp->eliminated) continue;
+
+        UserSession *s = session_get_by_account(mp->account_id);
+        bool connected = (s && s->state != SESSION_PLAYING_DISCONNECTED);
+
+        if (connected) active++;
+    }
+    return active;
 }

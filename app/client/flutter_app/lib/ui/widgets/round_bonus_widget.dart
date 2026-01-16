@@ -153,13 +153,23 @@ class _RoundBonusWidgetState extends State<RoundBonusWidget> {
     });
   }
 
-  BonusState _mapState(String? state) {
+  BonusState _mapState(dynamic state) {
+    if (state is int) {
+      if (state == 3) return BonusState.revealing;
+      if (state == 5) return BonusState.completed;
+      return BonusState.drawing;
+    }
+    // Fallback for String (if changed later)
     if (state == 'REVEALING') return BonusState.revealing;
     if (state == 'COMPLETED') return BonusState.completed;
     return BonusState.drawing;
   }
 
-  PlayerBonusState _mapPlayerState(String? state) {
+  PlayerBonusState _mapPlayerState(dynamic state) {
+    if (state is int) {
+      if (state == 1) return PlayerBonusState.cardDrawn;
+      return PlayerBonusState.waitingToDraw;
+    }
     if (state == 'CARD_DRAWN') return PlayerBonusState.cardDrawn;
     return PlayerBonusState.waitingToDraw;
   }

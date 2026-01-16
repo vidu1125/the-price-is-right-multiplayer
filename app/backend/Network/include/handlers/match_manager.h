@@ -61,5 +61,9 @@ int match_get_count(void);
  * @param status - New status
  */
 void match_set_status(MatchState *match, MatchStatus status);
+// active = còn được phép tiếp tục match (sau cleanup)
+int count_active_players(uint32_t match_id);
 
+// cleanup: xử lý disconnected/forfeit theo rules của match->mode
+void cleanup_disconnected_and_forfeit(uint32_t match_id);
 #endif // MATCH_MANAGER_H

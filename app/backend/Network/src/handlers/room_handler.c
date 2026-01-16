@@ -305,6 +305,49 @@ void handle_join_room(int client_fd, MessageHeader *req, const char *payload) {
         send_error(client_fd, req, ERR_BAD_REQUEST, "Already in another room");
         return;
     }
+
+    // SPECIAL HANDLING: User re-joining the same room (e.g. after elimination or disconnect)
+    if (current_room_id == room->id) {
+        printf("[SERVER] [JOIN_ROOM] User %u already in room %u - returning current state\n", 
+               session->account_id, room->id);
+        
+        // Build JSON response with current room state
+        cJSON *resp = cJSON_CreateObject();
+        cJSON_AddNumberToObject(resp, "roomId", room->id);
+        cJSON_AddStringToObject(resp, "roomCode", room->code);
+        cJSON_AddStringToObject(resp, "roomName", room->name);
+        cJSON_AddNumberToObject(resp, "hostId", room->host_id);
+        cJSON_AddBoolToObject(resp, "isHost", room->host_id == session->account_id);
+        
+        // Add game rules
+        cJSON *rules = cJSON_CreateObject();
+        cJSON_AddStringToObject(rules, "mode", room->mode == MODE_ELIMINATION ? "elimination" : "scoring");
+        cJSON_AddNumberToObject(rules, "maxPlayers", room->max_players);
+        cJSON_AddBoolToObject(rules, "wagerMode", room->wager_mode);
+        cJSON_AddStringToObject(rules, "visibility", room->visibility == ROOM_PUBLIC ? "public" : "private");
+        cJSON_AddItemToObject(resp, "gameRules", rules);
+
+        // Add current players
+        cJSON *players_array = cJSON_CreateArray();
+        for (int i = 0; i < room->player_count; i++) {
+            RoomPlayerState *p = &room->players[i];
+            cJSON *p_obj = cJSON_CreateObject();
+            cJSON_AddNumberToObject(p_obj, "account_id", p->account_id);
+            cJSON_AddStringToObject(p_obj, "name", p->name);
+            cJSON_AddStringToObject(p_obj, "avatar", p->avatar[0] ? p->avatar : "");
+            cJSON_AddBoolToObject(p_obj, "is_host", p->is_host);
+            cJSON_AddBoolToObject(p_obj, "is_ready", p->is_ready);
+            cJSON_AddItemToArray(players_array, p_obj);
+        }
+        cJSON_AddItemToObject(resp, "players", players_array);
+        
+        char *json_str = cJSON_PrintUnformatted(resp);
+        forward_response(client_fd, req, RES_ROOM_JOINED, json_str, strlen(json_str));
+        
+        free(json_str);
+        cJSON_Delete(resp);
+        return;
+    }
     
     printf("[SERVER] [JOIN_ROOM] by_code=%d, room_id=%u\n", data.by_code, room->id);
     

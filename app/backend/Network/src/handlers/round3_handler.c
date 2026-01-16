@@ -492,6 +492,38 @@ static void process_player_finished(int32_t account_id, MessageHeader *req) {
 }
 
 //==============================================================================
+// HELPER: End Game Now
+//==============================================================================
+static void end_game_now(MessageHeader *req, const char *reason) {
+    (void)req; // Unused parameter
+    MatchState *match = get_match();
+    if (!match) return;
+    printf("[Round3] END GAME: %s\n", reason);
+    trigger_end_game(match->runtime_match_id, -1); // -1 = no bonus winner
+}
+
+//==============================================================================
+// HELPER: Finalize Round 3
+//==============================================================================
+static bool r3_finalize_round(MessageHeader *req) {
+    // MatchState *match = get_match(); // Unused here
+    uint32_t match_id = g_r3.match_id;
+
+    // 1. Cleanup disconnected players
+    cleanup_disconnected_and_forfeit(match_id); // Fixed: Removed req arg
+
+    // 2. Check active players
+    int active = count_active_players(match_id);
+    if (active < 2) {
+        // Less than 2 players - End Game
+        end_game_now(req, "ACTIVE_PLAYERS_LT_2");
+        return true; // Match ended
+    }
+    
+    return false;
+}
+
+//==============================================================================
 // CHECK: All players finished
 //==============================================================================
 static void check_all_finished(MessageHeader *req) {
@@ -512,130 +544,84 @@ static void check_all_finished(MessageHeader *req) {
             return;
         }
         
-        // =====================================================================
-        // ELIMINATION MODE: Check if only 1 player remains → End game directly
-        // =====================================================================
-        if (match->mode == MODE_ELIMINATION) {
-            // Count active (non-eliminated) players
-            int active_count = 0;
-            int32_t last_active_id = -1;
-            
-            for (int i = 0; i < match->player_count; i++) {
-                if (!match->players[i].eliminated && !match->players[i].forfeited) {
-                    active_count++;
-                    last_active_id = match->players[i].account_id;
-                }
-            }
-            
-            printf("[Round3] Elimination mode: %d active players remaining\n", active_count);
-            
-            if (active_count == 1) {
-                // Only 1 player left - they are the winner!
-                printf("[Round3] GAME OVER - Player %d is the winner!\n", last_active_id);
-                
-                // Mark round as ended
-                RoundState *round = get_round();
-                if (round) {
-                    round->status = ROUND_ENDED;
-                    round->ended_at = time(NULL);
-                }
-                
-                g_r3.is_active = false;
-                
-                // Trigger end game (no bonus winner in elimination mode)
-                trigger_end_game(g_r3.match_id, -1);
-                return;
-            }
-            
-            // More than 1 player - need to eliminate lowest scorer
-            // This will trigger bonus if there's a tie
-            bool bonus_triggered = perform_elimination();
-            
-            if (bonus_triggered) {
-                printf("[Round3] Bonus round active - waiting for bonus to complete\n");
-                g_r3.is_active = false;
-                return;
-            }
-            
-            // After elimination, check if only 1 remains
-            active_count = 0;
-            last_active_id = -1;
-            for (int i = 0; i < match->player_count; i++) {
-                if (!match->players[i].eliminated && !match->players[i].forfeited) {
-                    active_count++;
-                    last_active_id = match->players[i].account_id;
-                }
-            }
-            
-            if (active_count == 1) {
-                printf("[Round3] GAME OVER after elimination - Player %d wins!\n", last_active_id);
-                
-                RoundState *round = get_round();
-                if (round) {
-                    round->status = ROUND_ENDED;
-                    round->ended_at = time(NULL);
-                }
-                
-                g_r3.is_active = false;
-                trigger_end_game(g_r3.match_id, -1);
-                return;
-            }
-        }
-        
-        // =====================================================================
-        // SCORING MODE: Check for tie at highest score → Trigger bonus or end
-        // =====================================================================
-        if (match->mode == MODE_SCORING) {
-            // Check if bonus round should be triggered (tie at highest score)
-            bool bonus_triggered = check_and_trigger_bonus(g_r3.match_id, 3);
-            
-            if (bonus_triggered) {
-                printf("[Round3] Bonus round triggered for scoring mode tie\n");
-                g_r3.is_active = false;
-                return;
-            }
-            
-            // No tie - end game directly
-            printf("[Round3] GAME OVER - No tie, ending game\n");
-            
-            // Broadcast final results first
-            char *end_json = build_round_end_json();
-            if (end_json) {
-                printf("[Round3] Round end JSON: %s\n", end_json);
-                broadcast_json(req, OP_S2C_ROUND3_ALL_FINISHED, end_json);
-                free(end_json);
-            }
-            
-            // Mark round as ended
-            RoundState *round = get_round();
-            if (round) {
-                round->status = ROUND_ENDED;
-                round->ended_at = time(NULL);
-            }
-            
-            g_r3.is_active = false;
-            
-            // Trigger end game (no bonus winner)
-            trigger_end_game(g_r3.match_id, -1);
-            return;
-        }
-        
-        // Fallback: broadcast results and end round
-        char *end_json = build_round_end_json();
-        if (end_json) {
-            printf("[Round3] Round end JSON: %s\n", end_json);
-            broadcast_json(req, OP_S2C_ROUND3_ALL_FINISHED, end_json);
-            free(end_json);
-        }
-        
         // Mark round as ended
         RoundState *round = get_round();
         if (round) {
             round->status = ROUND_ENDED;
             round->ended_at = time(NULL);
         }
-        
         g_r3.is_active = false;
+        
+        // Use finalize logic - this will cleanup disconnected and check active < 2
+        bool match_ended = r3_finalize_round(req);
+        if (match_ended) {
+            // Match ended prematurely (e.g. not enough players)
+            return;
+        }
+        
+        // Match continues to final phase (Elimination or Scoring check)
+        
+        // =====================================================================
+        // ELIMINATION MODE: Perform elimination before game ends
+        // =====================================================================
+        if (match->mode == MODE_ELIMINATION) {
+            int active = count_active_players(match->runtime_match_id);
+            
+            if (active == 1) {
+                // Only 1 player left - they are the winner!
+                printf("[Round3] GAME OVER - 1 player remaining\n");
+                trigger_end_game(g_r3.match_id, -1);
+                return;
+            }
+            
+            // More than 1 player - eliminate lowest scorer (or trigger bonus if tie)
+            bool bonus_triggered = perform_elimination();
+            
+            if (bonus_triggered) {
+                printf("[Round3] Bonus round active - waiting for completion\n");
+                return;
+            }
+            
+            // After elimination, check again
+            active = count_active_players(match->runtime_match_id);
+            if (active < 2) {
+                printf("[Round3] GAME OVER after elimination\n");
+            }
+            
+            // Trigger end game - this handles final rankings
+            trigger_end_game(g_r3.match_id, -1);
+            return;
+        }
+        
+        // =====================================================================
+        // SCORING MODE: Check for tie at highest score
+        // =====================================================================
+        if (match->mode == MODE_SCORING) {
+            // Check if bonus round needed (tie at highest)
+            bool bonus_triggered = check_and_trigger_bonus(g_r3.match_id, 3);
+            
+            if (bonus_triggered) {
+                printf("[Round3] Bonus round triggered for scoring mode tie\n");
+                return;
+            }
+            
+            // No tie - end game normally
+            printf("[Round3] GAME OVER - Scoring mode, no tie\n");
+            
+            // Broadcast final results before ending
+            char *end_json = build_round_end_json();
+            if (end_json) {
+                broadcast_json(req, OP_S2C_ROUND3_ALL_FINISHED, end_json);
+                free(end_json);
+            }
+            
+            trigger_end_game(g_r3.match_id, -1);
+            return;
+        }
+        
+        // Fallback - shouldn't reach here
+        printf("[Round3] WARNING: Unknown mode, ending game\n");
+        trigger_end_game(g_r3.match_id, -1);
     }
 }
 

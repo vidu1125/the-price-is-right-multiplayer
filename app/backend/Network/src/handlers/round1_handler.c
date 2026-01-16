@@ -34,6 +34,7 @@
 #include "handlers/match_manager.h"     // MatchState management
 #include "handlers/start_game_handler.h" // State definitions
 #include "handlers/bonus_handler.h"     // Bonus round for ties
+#include "handlers/end_game_handler.h"  // End game handling
 #include "transport/room_manager.h"
 #include "db/core/db_client.h"          // Direct DB access
 #include "db/repo/match_repo.h"         // For db_match_event_insert, db_match_answer_insert
@@ -45,8 +46,7 @@
 //==============================================================================
 // CONSTANTS
 //==============================================================================
-// ⭐ HARDCODE FOR TESTING: Reduced time (10 seconds)
-#define TIME_PER_QUESTION   10000 // 10 seconds in milliseconds
+#define TIME_PER_QUESTION   15000 // 10 seconds in milliseconds
 #define MAX_SCORE_PER_Q     200   // Max score per question
 #define MIN_SCORE_PER_Q     100   // Min score for correct answer
 
@@ -92,7 +92,8 @@ static pthread_mutex_t g_r1_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 // Forward declaration for timer thread
 void advance_to_next_question(MessageHeader *req);
-
+static void broadcast_json(MessageHeader *req, uint16_t cmd, const char *json);
+static bool perform_elimination(void);
 //==============================================================================
 // HELPER: Reset context
 //==============================================================================
@@ -403,6 +404,77 @@ static int get_correct_index(int q_idx) {
     return correct;
 }
 
+static void end_game_now(MessageHeader *req, const char *reason) {
+    MatchState *match = get_match();
+    if (!match) return;
+    
+    printf("[Round1] END GAME: %s\n", reason);
+    
+    // Use official trigger_end_game which handles all cleanup and notifications
+    trigger_end_game(match->runtime_match_id, -1); // -1 = no bonus winner
+}
+
+// returns true nếu match kết thúc tại đây (END GAME), false nếu còn tiếp
+static bool r1_finalize_round(MessageHeader *req) {
+    MatchState *match = get_match();
+    if (!match) return true;
+
+    uint32_t match_id = match->runtime_match_id;
+
+    // END ROUND → CHECK DISCONNECTED
+    cleanup_disconnected_and_forfeit(match_id);
+
+    // ACTIVE PLAYERS < 2 ?
+    int active = count_active_players(match_id);
+    if (active < 2) {
+        end_game_now(req, "ACTIVE_PLAYERS_LT_2");
+        return true;
+    }
+
+    // MODE_SCORING ?
+    if (match->mode == MODE_SCORING) {
+        // NEXT ROUND / END GAME
+        if (match->current_round_idx >= match->round_count - 1) {
+            end_game_now(req, "ALL_ROUNDS_COMPLETED");
+            return true;
+        }
+
+        // next round
+        match->current_round_idx++;
+        RoundState *next_round = &match->rounds[match->current_round_idx];
+        next_round->status = ROUND_PENDING;
+        next_round->current_question_idx = 0;
+        return false;
+    }
+
+    // NO (ELIMINATION) → CHECK LOWEST SCORE
+    bool bonus_triggered = perform_elimination(); // chỉ làm tie/lowest/eliminate, KHÔNG end game ở đây
+    if (bonus_triggered) {
+        // BONUS ROUND: bonus handler sẽ tự điều hướng (đúng như bạn đang làm)
+        return false;
+    }
+
+    // ELIMINATE xong → ACTIVE PLAYERS < 2 ?
+    active = count_active_players(match_id);
+    if (active < 2) {
+        end_game_now(req, "ACTIVE_PLAYERS_LT_2_AFTER_ELIM");
+        return true;
+    }
+
+    // NO → NEXT ROUND
+    if (match->current_round_idx >= match->round_count - 1) {
+        end_game_now(req, "ALL_ROUNDS_COMPLETED");
+        return true;
+    }
+
+    match->current_round_idx++;
+    RoundState *next_round = &match->rounds[match->current_round_idx];
+    next_round->status = ROUND_PENDING;
+    next_round->current_question_idx = 0;
+
+    return false;
+}
+
 //==============================================================================
 // HELPER: Response/Broadcast
 //==============================================================================
@@ -494,91 +566,57 @@ typedef struct {
  */
 static void eliminate_player(MatchPlayerState *mp, const char *reason) {
     if (!mp) return;
-    
+
+    // 1. Mark eliminated
     mp->eliminated = 1;
     mp->eliminated_at_round = g_r1.round_index + 1;
 
-    printf("[Round1] Player %d ELIMINATED at round %d (reason: %s, score=%d)\n", 
-           mp->account_id, g_r1.round_index + 1, reason, mp->score);
-    
-    // =========================================================================
-    // SEND NTF_ELIMINATION to the eliminated player
-    // =========================================================================
-    UserSession *elim_session = session_get_by_account(mp->account_id);
-    int elim_fd = elim_session ? elim_session->socket_fd : -1;
-    
-    if (elim_fd > 0) {
-        uint32_t room_id = room_find_by_player_fd(elim_fd);
+    printf("[Round1] Player %d ELIMINATED (reason=%s)\n",
+           mp->account_id, reason);
+
+    // 2. Get session
+    UserSession *s = session_get_by_account(mp->account_id);
+    if (!s) return;
+
+    int fd = s->socket_fd;
+
+    // 3. Send NTF_ELIMINATION
+    if (fd > 0) {
+        uint32_t room_id = room_find_by_player_fd(fd);
         cJSON *ntf = cJSON_CreateObject();
         cJSON_AddNumberToObject(ntf, "player_id", mp->account_id);
         cJSON_AddNumberToObject(ntf, "room_id", room_id);
+        cJSON_AddStringToObject(ntf, "event", "ELIMINATED");
         cJSON_AddStringToObject(ntf, "reason", reason);
         cJSON_AddNumberToObject(ntf, "round", g_r1.round_index + 1);
         cJSON_AddNumberToObject(ntf, "final_score", mp->score);
-        cJSON_AddStringToObject(ntf, "message", "You have been eliminated!");
-        
-        char *ntf_json = cJSON_PrintUnformatted(ntf);
+
+        char *json = cJSON_PrintUnformatted(ntf);
         cJSON_Delete(ntf);
-        
-        if (ntf_json) {
-            MessageHeader hdr = {0};
-            hdr.magic = htons(MAGIC_NUMBER);
-            hdr.version = PROTOCOL_VERSION;
-            hdr.command = htons(NTF_ELIMINATION);
-            hdr.length = htonl((uint32_t)strlen(ntf_json));
-            
-            send(elim_fd, &hdr, sizeof(hdr), 0);
-            send(elim_fd, ntf_json, strlen(ntf_json), 0);
-            printf("[Round1] Sent NTF_ELIMINATION to player %d\n", mp->account_id);
-            free(ntf_json);
-    }
-        
-        // Change session state back to LOBBY so player can join new games
-        session_mark_lobby(elim_session);
-        printf("[Round1] Changed player %d session state to LOBBY (Staying in room)\n", mp->account_id);
 
-        // RESET ROOM STATE: Mark as not ready but stay in room
-        room_id = room_find_by_player_fd(elim_fd);
-        if (room_id > 0) {
-            room_set_ready(room_id, elim_fd, false);
-            broadcast_player_list(room_id);
-            printf("[Round1] Reset player %d readiness in room %u\n", mp->account_id, room_id);
-        }
-  }
+        MessageHeader hdr = {0};
+        hdr.magic   = htons(MAGIC_NUMBER);
+        hdr.version = PROTOCOL_VERSION;
+        hdr.command = htons(NTF_ELIMINATION);
+        hdr.length  = htonl((uint32_t)strlen(json));
 
-    // =========================================================================
-    // Save elimination event to database
-    // =========================================================================
-    MatchState *match = get_match();
-    if (mp->account_id > 0 && match && match->db_match_id > 0) {
-        // Use db_match_event_insert from match_repo
-        // Note: player_id in match_events refers to accounts.id, not match_players.id
-        db_error_t event_err = db_match_event_insert(
-            match->db_match_id,
-            mp->account_id,  // Use account_id, not match_player_id
-            "ELIMINATED",
-            g_r1.round_index + 1,
-            0
-        );
-        if (event_err == DB_SUCCESS) {
-            printf("[Round1] Saved elimination event to DB\n");
-        } else {
-            printf("[Round1] Failed to save elimination event: err=%d\n", event_err);
-        }
-        
-        // Update player record
-        cJSON *player_payload = cJSON_CreateObject();
-        cJSON_AddNumberToObject(player_payload, "score", mp->score);
-        cJSON_AddBoolToObject(player_payload, "eliminated", true);
-        
-        char filter[64];
-        snprintf(filter, sizeof(filter), "id=eq.%d", mp->match_player_id);
-        
-        cJSON *player_result = NULL;
-        db_patch("match_players", filter, player_payload, &player_result);
-        cJSON_Delete(player_payload);
-        if (player_result) cJSON_Delete(player_result);
+        send(fd, &hdr, sizeof(hdr), 0);
+        send(fd, json, strlen(json), 0);
+        free(json);
     }
+
+    // 4. ĐƯA SESSION VỀ LOBBY (GIỐNG FORFEIT)
+    session_mark_lobby(s);
+
+    // 5. RESET READY + BROADCAST ROOM
+    uint32_t room_id = room_find_by_player_fd(fd);
+    if (room_id > 0) {
+        room_set_ready(room_id, fd, false);
+        broadcast_player_list(room_id);
+    }
+
+    printf("[Round1] Player %d moved back to room %u\n",
+           mp->account_id, room_id);
 }
 
 // NOTE: forfeited field is reserved for player-initiated forfeit (FORFEIT button)
@@ -616,19 +654,6 @@ static bool perform_elimination(void) {
     //==========================================================================
     // MODE_ELIMINATION: Disconnected players → bị loại NGAY LẬP TỨC
     //==========================================================================
-    printf("[Round1] Elimination mode - processing disconnected players...\n");
-    
-    // STEP 1: Loại tất cả disconnected players trước
-    for (int i = 0; i < g_r1.player_count; i++) {
-        int32_t acc_id = g_r1.players[i].account_id;
-        MatchPlayerState *mp = get_match_player(acc_id);
-        
-        // Check UserSession để xác định connected hay không
-        if (mp && !mp->eliminated && !is_connected(acc_id)) {
-            // Disconnect trong elimination mode → bị loại luôn
-            eliminate_player(mp, "DISCONNECT");
-        }
-    }
     
     // STEP 2: Đếm connected players còn lại chưa bị eliminated
     ScoreEntry scores[MAX_MATCH_PLAYERS];
@@ -717,24 +742,18 @@ static char* build_round_end_json(void) {
     cJSON_AddNumberToObject(obj, "round", 1);
     
     int connected = count_connected();
-    int disconnected = count_disconnected();
-    
+int active = count_active_players(g_r1.match_id);
+bool can_continue = (active >= 2);    
     // Frontend expects these names
     cJSON_AddNumberToObject(obj, "connected_count", connected);
-    cJSON_AddNumberToObject(obj, "disconnected_count", disconnected);
     cJSON_AddNumberToObject(obj, "finished_count", g_r1.player_count);
     cJSON_AddNumberToObject(obj, "player_count", g_r1.player_count);
     
-    bool can_continue = (disconnected < 2);
-    cJSON_AddBoolToObject(obj, "can_continue", can_continue);
-    
-    if (disconnected >= 2) {
-        cJSON_AddStringToObject(obj, "status_message", "Game ended - too many disconnections");
-    } else if (disconnected == 1) {
-        cJSON_AddStringToObject(obj, "status_message", "1 disconnected - no elimination");
-      } else {
-        cJSON_AddStringToObject(obj, "status_message", "Round completed");
-    }
+ if (!can_continue) {
+    cJSON_AddStringToObject(obj, "status_message", "Game ended");
+} else {
+    cJSON_AddStringToObject(obj, "status_message", "Round completed");
+}
     
     // Check for bonus round
     ScoreEntry scores[MAX_MATCH_PLAYERS];
@@ -759,15 +778,15 @@ static char* build_round_end_json(void) {
         }
     }
     
-    bool need_bonus = false;
-    if (can_continue && count >= 2 && disconnected == 0) {
-        int lowest = scores[0].score;
-        int tie = 0;
-        for (int i = 0; i < count; i++) {
-            if (scores[i].score == lowest) tie++;
-        }
-        if (tie >= 2) need_bonus = true;
+   bool need_bonus = false;
+if (can_continue && match->mode == MODE_ELIMINATION && count >= 2) {
+    int lowest = scores[0].score;
+    int tie = 0;
+    for (int i = 0; i < count; i++) {
+        if (scores[i].score == lowest) tie++;
     }
+    if (tie >= 2) need_bonus = true;
+}
     cJSON_AddBoolToObject(obj, "need_bonus_round", need_bonus);
     
     // Add next round info (match was already retrieved at start of function)
@@ -850,69 +869,49 @@ static void broadcast_current_question(MessageHeader *req) {
         printf("[Round1] ERROR: Failed to build question JSON for idx=%d\n", q_idx);
     }
 }
-
-// Note: non-static so timer thread can call it via extern
 void advance_to_next_question(MessageHeader *req) {
-    // ⭐ Stop current timer first
     stop_question_timer();
-    
+
     RoundState *round = get_round();
     if (!round) return;
-    
-    // Mark current question as ended
+
     int curr = round->current_question_idx;
     if (curr < round->question_count) {
         round->questions[curr].status = QUESTION_ENDED;
     }
-    
-    // Move to next - UPDATE RoundState.current_question_idx
-    round->current_question_idx++;
-    
-    if (round->current_question_idx >= round->question_count) {
-        // Round finished
-        printf("[Round1] All questions completed\n");
-        round->status = ROUND_ENDED;
-        round->ended_at = time(NULL);
-        g_r1.is_active = false;
-        
-        // Perform elimination - UPDATE MatchPlayerState.eliminated
-        // Returns true if bonus round was triggered
-        bool bonus_triggered = perform_elimination();
-        
-        if (bonus_triggered) {
-            printf("[Round1] Bonus round active - waiting for bonus to complete\n");
-            // Don't advance to next round or broadcast ALL_FINISHED
-            // Bonus handler will handle the transition
-            return;
-        }
 
-        // Advance to next round in MatchState
-        MatchState *match = get_match();
-        if (match && match->current_round_idx < match->round_count - 1) {
-            match->current_round_idx++;
-            printf("[Round1] Advanced to round %d\n", match->current_round_idx + 1);
-            
-            // Initialize next round state
-            RoundState *next_round = &match->rounds[match->current_round_idx];
-            next_round->status = ROUND_PENDING;
-            next_round->current_question_idx = 0;
-        }
-        
-        // Broadcast results with next_round info
-        char *end_json = build_round_end_json();
-        if (end_json) {
-            printf("[Round1] ALL_FINISHED JSON: %s\n", end_json);
-            broadcast_json(req, OP_S2C_ROUND1_ALL_FINISHED, end_json);
-            printf("[Round1] ALL_FINISHED broadcast complete\n");
-            free(end_json);
-        } else {
-            printf("[Round1] ERROR: build_round_end_json returned NULL!\n");
-        }
-    } else {
-        // Send next question
+    round->current_question_idx++;
+
+    // =================================================
+    // CHƯA HẾT ROUND → NEXT QUESTION
+    // =================================================
+    if (round->current_question_idx < round->question_count) {
         broadcast_current_question(req);
+        return;
+    }
+
+    // =================================================
+    // END ROUND
+    // =================================================
+    printf("[Round1] All questions completed\n");
+    round->status = ROUND_ENDED;
+    round->ended_at = time(NULL);
+    g_r1.is_active = false;
+
+    bool match_ended = r1_finalize_round(req);
+
+    // =================================================
+    // Nếu match CHƯA END → broadcast end-round summary
+    // =================================================
+    if (!match_ended) {
+        char *json = build_round_end_json();
+        if (json) {
+            broadcast_json(req, OP_S2C_ROUND1_ALL_FINISHED, json);
+            free(json);
+        }
     }
 }
+
 
 //==============================================================================
 // HANDLER: Player Ready (OP_C2S_ROUND1_PLAYER_READY)
@@ -1407,41 +1406,36 @@ static void handle_legacy_ready(int fd, MessageHeader *req, const char *payload)
 //==============================================================================
 // DISCONNECT HANDLER
 //==============================================================================
-
 void handle_round1_disconnect(int client_fd) {
     UserSession *session = session_get_by_socket(client_fd);
     if (!session) return;
-    
+
     int32_t account_id = session->account_id;
     R1_PlayerAnswer *pa = find_player(account_id);
     if (!pa) return;
-    
+
     printf("[Round1] Player %d disconnected\n", account_id);
-    
-    // Update MatchPlayerState.connected
+
     MatchPlayerState *mp = get_match_player(account_id);
-    if (mp) {
-        mp->connected = 0;
-    }
-    
+    if (mp) mp->connected = 0;
+
     int connected = count_connected();
-    int disconnected = count_disconnected();
-    
-    // Notify others
+    int active = count_active_players(g_r1.match_id);
+
     cJSON *ntf = cJSON_CreateObject();
     cJSON_AddNumberToObject(ntf, "player_id", account_id);
     cJSON_AddStringToObject(ntf, "event", "disconnect");
     cJSON_AddNumberToObject(ntf, "connected_count", connected);
-    cJSON_AddNumberToObject(ntf, "disconnected_count", disconnected);
-    
-    if (disconnected >= 2) {
+    cJSON_AddNumberToObject(ntf, "active_count", active);
+
+    if (active < 2) {
         cJSON_AddTrueToObject(ntf, "game_ended");
-        cJSON_AddStringToObject(ntf, "reason", "Too many disconnections");
+        cJSON_AddStringToObject(ntf, "reason", "ACTIVE_PLAYERS_LT_2");
     }
-    
+
     char *json = cJSON_PrintUnformatted(ntf);
     cJSON_Delete(ntf);
-    
+
     MessageHeader hdr = {0};
     hdr.magic = htons(MAGIC_NUMBER);
     hdr.version = PROTOCOL_VERSION;
@@ -1458,50 +1452,21 @@ void handle_round1_disconnect(int client_fd) {
         }
     }
     free(json);
-    
-    // Check if should end game
+
     RoundState *round = get_round();
-    if (round && round->status == ROUND_PLAYING && disconnected >= 2) {
-        printf("[Round1] Too many disconnections, ending game\n");
-        
-        round->status = ROUND_ENDED;
-        round->ended_at = time(NULL);
-        g_r1.is_active = false;
-        
-        MatchState *match = get_match();
-        if (match) {
-            match->status = MATCH_ENDED;
-        }
-        
-        cJSON *end = cJSON_CreateObject();
-        cJSON_AddFalseToObject(end, "success");
-        cJSON_AddStringToObject(end, "error", "Too many disconnections");
-        
-        char *ejson = cJSON_PrintUnformatted(end);
-        cJSON_Delete(end);
-        
-        hdr.command = htons(OP_S2C_ROUND1_ALL_FINISHED);
-        hdr.length = htonl((uint32_t)strlen(ejson));
-        
-        for (int i = 0; i < g_r1.player_count; i++) {
-            int fd = get_socket(g_r1.players[i].account_id);
-            if (fd > 0) {
-                send(fd, &hdr, sizeof(hdr), 0);
-                send(fd, ejson, strlen(ejson), 0);
-            }
-        }
-        free(ejson);
-    }
-    
-    // Check if all remaining answered → advance
     if (round && round->status == ROUND_PLAYING) {
+        if (active < 2) {
+            MessageHeader dummy = {0};
+            end_game_now(&dummy, "ACTIVE_PLAYERS_LT_2_DURING_ROUND");
+            return;
+        }
+
         int answered = count_answered();
         if (answered >= connected && connected > 0) {
-            printf("[Round1] All remaining players answered, advancing\n");
             MessageHeader dummy = {0};
             advance_to_next_question(&dummy);
         }
-  }
+    }
 }
 
 //==============================================================================

@@ -230,21 +230,22 @@ class _GameContainerScreenState extends State<GameContainerScreen> {
              _gameEventSub?.cancel();
              _gameEventSub = null;
              _countdownTimer?.cancel();
-             
-             // Navigate back to room after 2 seconds
-             final roomId = data?['room_id'];
-             Future.delayed(const Duration(seconds: 2), () async {
-               if (mounted) {
-                 if (roomId != null) {
-                    final room = await ServiceLocator.roomService.joinRoom(roomId);
-                    if (room != null) {
-                       Navigator.pushNamedAndRemoveUntil(context, '/room', (route) => false, arguments: room);
-                       return;
-                    }
-                 }
-                 Navigator.pushNamedAndRemoveUntil(context, '/lobby', (route) => false);
-               }
-             });
+                          // Navigate back to room after 2 seconds
+              final roomId = data?['room_id'];
+              Future.delayed(const Duration(seconds: 2), () async {
+                if (mounted) {
+                  if (roomId != null) {
+                     // Backend handles re-joining if player is already in room (returns room info)
+                     final room = await ServiceLocator.roomService.joinRoom(roomId);
+                     if (room != null) {
+                        Navigator.pushNamedAndRemoveUntil(context, '/room', (route) => false, arguments: room);
+                        return;
+                     }
+                  }
+                  // Fallback to lobby
+                  Navigator.pushNamedAndRemoveUntil(context, '/lobby', (route) => false);
+                }
+              });
           } else {
             // Someone else got eliminated, update leaderboard
             if (_players.isNotEmpty) {
@@ -313,6 +314,9 @@ class _GameContainerScreenState extends State<GameContainerScreen> {
            final int actualPrice = result?['correct_price'] ?? 0;
            final List bids = result?['bids'] ?? [];
            
+           // Update leaderboard in real-time
+           _updatePlayerScores(bids);
+           
            int maxScore = 0;
            String winnerName = "None";
            int myScoreDelta = 0;
@@ -346,6 +350,50 @@ class _GameContainerScreenState extends State<GameContainerScreen> {
            );
            _showingResult = true;
            break;
+
+  // Helper to update player scores and sort leaderboard
+  void _updatePlayerScores(List<dynamic> updates) {
+    if (_players.isEmpty) return;
+    
+    bool changed = false;
+    for (var update in updates) {
+       // Support both id formats
+       int id = update['id'] ?? update['account_id'] ?? 0;
+       if (id == 0 && update['is_me'] == true && _myPlayerId != null) {
+          id = _myPlayerId!;
+       }
+       if (id == 0) continue;
+
+       // Find player
+       int index = _players.indexWhere((p) => p['id'] == id || p['account_id'] == id);
+       if (index != -1) {
+          // Determine new score
+          int? newScore = update['total_score'] ?? update['current_score'];
+          
+          // Calculate from delta if total not provided
+          if (newScore == null && update['score_delta'] != null && update['score_delta'] is int) {
+             int current = _players[index]['score'] ?? 0;
+             newScore = current + (update['score_delta'] as int);
+          }
+          
+          if (newScore != null) {
+              _players[index]['score'] = newScore;
+              changed = true;
+          }
+       }
+    }
+    
+    if (changed) {
+       setState(() {
+          // Sort by score descending
+          _players.sort((a, b) {
+             int scoreA = a['score'] ?? 0;
+             int scoreB = b['score'] ?? 0;
+             return scoreB.compareTo(scoreA); 
+          });
+       });
+    }
+  }
 
         case GameEventType.round2AllFinished:
           print("[GameContainer] Round 2 finished event received: ${event.data}");

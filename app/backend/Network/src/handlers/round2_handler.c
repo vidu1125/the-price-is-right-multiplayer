@@ -904,6 +904,81 @@ static void process_turn_results(MessageHeader *req) {
 }
 
 //==============================================================================
+// END GAME: Trigger proper game ending
+//==============================================================================
+
+static void end_game_now(MessageHeader *req, const char *reason) {
+    MatchState *match = get_match();
+    if (!match) return;
+    
+    printf("[Round2] END GAME: %s\n", reason);
+    
+    // Use official trigger_end_game which handles all cleanup and notifications
+    trigger_end_game(match->runtime_match_id, -1); // -1 = no bonus winner
+}
+
+// Returns true if match ended, false if continuing
+static bool r2_finalize_round(MessageHeader *req) {
+    MatchState *match = get_match();
+    if (!match) return true;
+
+    uint32_t match_id = match->runtime_match_id;
+
+    // END ROUND → CHECK DISCONNECTED
+    cleanup_disconnected_and_forfeit(match_id);
+
+    // ACTIVE PLAYERS < 2 ?
+    int active = count_active_players(match_id);
+    if (active < 2) {
+        end_game_now(req, "ACTIVE_PLAYERS_LT_2");
+        return true;
+    }
+
+    // MODE_SCORING ?
+    if (match->mode == MODE_SCORING) {
+        // NEXT ROUND / END GAME
+        if (match->current_round_idx >= match->round_count - 1) {
+            end_game_now(req, "ALL_ROUNDS_COMPLETED");
+            return true;
+        }
+
+        // Next round
+        match->current_round_idx++;
+        RoundState *next_round = &match->rounds[match->current_round_idx];
+        next_round->status = ROUND_PENDING;
+        next_round->current_question_idx = 0;
+        return false;
+    }
+
+    // NO (ELIMINATION) → CHECK LOWEST SCORE
+    bool bonus_triggered = perform_elimination();
+    if (bonus_triggered) {
+        // BONUS ROUND: bonus handler will handle navigation
+        return false;
+    }
+
+    // ELIMINATE done → ACTIVE PLAYERS < 2 ?
+    active = count_active_players(match_id);
+    if (active < 2) {
+        end_game_now(req, "ACTIVE_PLAYERS_LT_2_AFTER_ELIM");
+        return true;
+    }
+
+    // NO → NEXT ROUND
+    if (match->current_round_idx >= match->round_count - 1) {
+        end_game_now(req, "ALL_ROUNDS_COMPLETED");
+        return true;
+    }
+
+    match->current_round_idx++;
+    RoundState *next_round = &match->rounds[match->current_round_idx];
+    next_round->status = ROUND_PENDING;
+    next_round->current_question_idx = 0;
+
+    return false;
+}
+
+//==============================================================================
 // ADVANCE: Move to next product or end round
 //==============================================================================
 
@@ -920,27 +995,16 @@ static void advance_to_next_product(MessageHeader *req) {
         round->ended_at = time(NULL);
         g_r2.is_active = false;
         
-        // Perform elimination - returns true if bonus triggered
-        bool bonus_triggered = perform_elimination();
+        // Use new finalize logic
+        bool match_ended = r2_finalize_round(req);
         
-        if (bonus_triggered) {
-            printf("[Round2] Bonus round active - waiting for bonus to complete\n");
+        // If match ended, r2_finalize_round already triggered end_game
+        if (match_ended) {
+            printf("[Round2] Match ended\n");
             return;
         }
         
-        // Advance match to next round
-        MatchState *match = get_match();
-        if (match && match->current_round_idx < match->round_count - 1) {
-            match->current_round_idx++;
-            printf("[Round2] Advanced to round %d\n", match->current_round_idx + 1);
-            
-            // Initialize next round state
-            RoundState *next_round = &match->rounds[match->current_round_idx];
-            next_round->status = ROUND_PENDING;
-            next_round->current_question_idx = 0;
-        }
-        
-        // Broadcast final results
+        // Otherwise broadcast round end results and continue
         char *end_json = build_round_end_json();
         if (end_json) {
             printf("[Round2] Round end JSON: %s\n", end_json);
